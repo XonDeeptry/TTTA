@@ -1,0 +1,22 @@
+# Node
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+.venv/
+*.pyc
+
+# Env & secrets
+.env
+.env.local
+
+# Runtime data
+/data/
+*.log
+
+# OS
+Thumbs.db
+.DS_Store

@@ -1,0 +1,20 @@
+# DOMAIN lấy từ biến môi trường (docker-compose). Dùng "localhost" khi dev local.
+{$DOMAIN:localhost} {
+	handle /webhook* {
+		reverse_proxy zalo-gateway:3000
+	}
+
+	handle /healthz {
+		reverse_proxy zalo-gateway:3000
+	}
+
+	# M2: mở khi core-api vào compose
+	# handle /api* {
+	# 	reverse_proxy core-api:3001
+	# }
+
+	# M4: dashboard SPA sẽ được serve ở đây
+	handle {
+		respond "ilm-bot" 200
+	}
+}
