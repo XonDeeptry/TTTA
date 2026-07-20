@@ -10,6 +10,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # Bind loopback-only (như RabbitMQ management UI) để chạy `prisma migrate dev` từ máy dev;
+    # core-api trong container vẫn nối qua hostname nội bộ `postgres:5432`.
+    ports:
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
@@ -55,6 +59,40 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  core-api:
+    build: ../services/core-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # DATABASE_URL ghép từ POSTGRES_* — docker-compose nội suy ${...} ở file này,
+      # KHÔNG nội suy được nếu đặt trực tiếp trong .env (xem ghi chú trong .env.example)
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    volumes:
+      - media:/data/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  grading-worker:
+    build: ../services/grading-worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      CORE_API_BASE_URL: http://core-api:3001
+    volumes:
+      - media:/data/media
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      core-api:
+        condition: service_started
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -69,6 +107,7 @@ services:
       - caddyconfig:/config
     depends_on:
       - zalo-gateway
+      - core-api
 
 volumes:
   pgdata:
@@ -76,4 +115,4 @@ volumes:
   rabbitdata:
   caddydata:
   caddyconfig:
-  # /data/media (mục 3.8) sẽ được thêm khi grading-worker và core-api vào compose (M2/M3)
+  media: # /data/media (mục 3.8) — core-api đọc/xóa, grading-worker ghi (M3)

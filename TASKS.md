@@ -2,7 +2,7 @@
 
 Bảng theo dõi tiến độ theo lộ trình 5 milestone của [Idea/20260719-KienTrucMicroservices.md](Idea/20260719-KienTrucMicroservices.md) (Phần 4). Cập nhật file này mỗi khi hoàn thành một hạng mục/phase.
 
-**Trạng thái tổng:** M1 hoàn thành ✅ · Đang chờ bắt đầu M2
+**Trạng thái tổng:** M1 + M2 + M3 hoàn thành ✅ (chờ chủ dự án cung cấp API key Gemini/OpenAI để nghiệm thu chấm thật) · Đang chờ bắt đầu M4
 **Cập nhật lần cuối:** 2026-07-20
 
 ---
@@ -18,27 +18,36 @@ Bảng theo dõi tiến độ theo lộ trình 5 milestone của [Idea/20260719-
 - [x] M1.7 Cập nhật CLAUDE.md: dev commands + layout monorepo
 - [ ] M1.8 **(cần chủ dự án)** Tạo app Zalo Developers + liên kết OA, trỏ subdomain về server, lấy cặp token ban đầu → test với OA thật (tiêu chí nghiệm thu M1: nhắn OA → bot phản hồi; token tự làm mới qua đêm)
 
-## Milestone 2 — core-api + dữ liệu ⬜
+## Milestone 2 — core-api + dữ liệu ✅ (xong 2026-07-20)
 
-- [ ] M2.1 Schema Postgres đầy đủ (mục 3.4): `courses`, `criteria`, `students`, `zalo_bindings`, `assignment_calendar`, `submissions`, `gradings`, `flags`, `classes_config`, `settings`, `message_templates`, `outbound_log`, `cost_log`, `sheet_sync_log` + migration
-- [ ] M2.2 Bảng `settings` + màn cấu hình: API CRUD, mirror sang Redis `config:*`, publish `config:changed` (hot reload cho gateway/worker)
-- [ ] M2.3 Onboarding ChoGan: binding pending khi user lạ, API tư vấn điền SĐT → đối chiếu `students.phone` → kích hoạt + gửi tin template; hỗ trợ 1 Zalo nhiều học viên
-- [ ] M2.4 Cron sync Google Sheets → Postgres (15 phút/lần), ghi `sheet_sync_log`, không nuốt lỗi im lặng
-- [ ] M2.5 Cron báo chưa nộp cuối ngày (đọc `assignment_calendar`, gửi tư vấn theo lớp — không nhắn học sinh/phụ huynh)
-- [ ] M2.6 API nội bộ cho worker (tra binding, lấy rubric, ghi grading/cost) + endpoint retry DLQ + serve media có auth
-- [ ] M2.7 Tests + cập nhật docker-compose (thêm core-api, volume `/data/media`) + nghiệm thu: HS mới nhắn → pending → điền SĐT → kích hoạt
+- [x] M2.1 Schema Postgres đầy đủ (mục 3.4) qua **Prisma** (schema + migration `20260720080014_init`): `courses`, `criteria`, `students`, `zalo_bindings`, `assignment_calendar`, `submissions`, `gradings`, `flags`, `classes_config`, `settings`, `message_templates`, `outbound_log`, `cost_log`, `sheet_sync_log` — **+ `dashboard_users`** (bảng mới, không có trong tài liệu gốc — cần cho quyết định M2.2 dưới)
+- [x] M2.2 Bảng `settings` (allow-list cố định các khóa, không phải KV editor tự do) + API CRUD (admin) + mirror sang Redis `config:*` (chuỗi thô, giữ đúng hợp đồng gateway đã đọc) + publish `config:changed`; **màn Cấu hình** trên dashboard tối giản kéo sớm từ M4
+- [x] M2.3 Onboarding ChoGan: `POST /internal/bindings/ensure` (gọi bởi worker ở M3, dùng InternalTokenGuard) tạo binding `pending`; `GET /onboarding/pending` + `PATCH /onboarding/:id/activate` (đối chiếu `students.phone`, gửi tin kích hoạt qua outbound); hỗ trợ 1 Zalo nhiều học viên. Nghiệm thu bằng gọi API trực tiếp (xem ghi chú M2.7) vì grading-worker (M3) chưa tồn tại để tự tạo binding từ tin nhắn thật.
+- [x] M2.4 Cron sync Google Sheets → Postgres (15 phút/lần) qua interface `SheetsClient` (implementation thật bằng `googleapis`, factory injectable để test bằng fixture rows); ghi `sheet_sync_log`, không nuốt lỗi im lặng. **Cần chủ dự án cung cấp service account JSON + spreadsheet ID** (giống M1.8) trước khi chạy thật.
+- [x] M2.5 Cron 20:30 báo chưa nộp (đọc `assignment_calendar`, gửi tư vấn theo `classes_config.advisor_zalo_id` — không nhắn học sinh/phụ huynh)
+- [x] M2.6 API nội bộ cho worker (`/internal/bindings/:zaloUserId`, `/internal/criteria/:courseId`, `/internal/submissions`, `/internal/gradings`, `/internal/cost-log`) + `GET/POST /dlq` retry (dùng thẳng channel AMQP `channel.get`/`checkQueue`, không cần thêm client HTTP quản trị RabbitMQ) + `GET /media/:submissionId` serve có auth session
+- [x] M2.7 **37/37 unit tests pass** (mock Prisma/Redis/Rabbit/SheetsClient, cùng convention với gateway); build tsc sạch; docker-compose cập nhật (`core-api` service, `postgres` bind loopback :5432 cho `prisma migrate dev`, volume `media`); Caddyfile mở `/api*` (strip prefix) → core-api:3001. Nghiệm thu qua smoke test thật: login → `POST /internal/bindings/ensure` → `GET /onboarding/pending` → `PATCH .../activate` → outbound message tới đúng hàng đợi, bị **chặn đúng bởi guard 48h có sẵn của gateway** (không có inbound trước đó) — xác nhận tích hợp 2 service hoạt động đúng.
 
-## Milestone 3 — grading-worker (Python) ⬜
+**Quyết định triển khai bổ sung so với tài liệu gốc (đã xác nhận với chủ dự án, xem thêm changelog v1.3 trong kiến trúc doc):**
+- DB layer: **Prisma** thay vì raw SQL (gateway không dùng ORM, nhưng core-api là service DUY NHẤT chạm 12 bảng có FK/JSONB nên xứng đáng một lớp riêng).
+- Auth: **session auth thật ngay từ M2** (không đợi M4) — `express-session` + `connect-redis`, bcrypt, 2 role admin/staff, bootstrap admin qua env khi bảng trống lần đầu.
+- Kéo sớm một lát cắt dashboard từ M4: `services/dashboard` (React+Vite+react-i18next vi/en, chạy qua `npm run dev`, CHƯA vào docker-compose/Caddy) — chỉ 3 màn Login/Cấu hình/Onboarding cần cho M2; 4 phân hệ còn lại (theo dõi bài nộp, kiểm duyệt, báo cáo, tiêu chí) vẫn ở M4.
 
-*Chuẩn bị: cài Python trên máy dev (chưa có).*
+## Milestone 3 — grading-worker (Python) ✅ (xong 2026-07-20)
 
-- [ ] M3.1 Skeleton worker: consume `submissions`, mirror contracts/topology từ `services/zalo-gateway/src/contracts.ts`
-- [ ] M3.2 Tải file Zalo → `/data/media` (quy ước đường dẫn mục 3.8), FFmpeg tách audio từ video, từ chối clip quá dài (van chi phí)
-- [ ] M3.3 Lớp provider LLM: adapter Gemini Flash (mặc định) + OpenAI GPT-4o-audio (dự phòng), cấu hình theo khóa từ `courses.llm_config`
-- [ ] M3.4 Prompt builder: rubric JSON + schema đầu ra bắt buộc (điểm từng dimension **gồm pronunciation** + từ sai + nhận xét); validate output, retry → DLQ
-- [ ] M3.5 Ghi `gradings`/`cost_log` qua core-api; rẽ nhánh `auto_send` vs `awaiting_review`; tin text ngoài luồng nộp → `flags`, KHÔNG trả lời
-- [ ] M3.6 Vòng đời media: cron xóa video gốc sau tách audio +7 ngày, audio 90 ngày
-- [ ] M3.7 Nghiệm thu: 1 clip thật 5 phút chấm end-to-end theo rubric chuẩn; lỗi LLM vào DLQ và retry được
+- [x] M3.1 Skeleton worker (`aio-pika`, không phải `pika` — chấm mất 30-90s/bài, event loop async giữ được heartbeat AMQP trong lúc chờ, khác với `BlockingConnection` của pika): consume `submissions`, mirror contracts/topology từ `contracts.ts` sang `contracts.py` (bản sao thứ 3, sau gateway/core-api)
+- [x] M3.2 Tải file Zalo → `/data/media/{yyyy}/{mm}/{submission_id}/original.{ext}` (`media/downloader.py`, quy ước đường dẫn mục 3.8), FFmpeg tách/chuẩn hóa audio → `audio.mp3` cho CẢ audio lẫn video (`media/ffmpeg.py`, subprocess trực tiếp — đơn giản hóa mime type gửi LLM về một loại duy nhất), từ chối clip quá dài theo `limits.max_clip_duration_sec` đọc thẳng từ Redis `config:*` (van chi phí, mục 3.5)
+- [x] M3.3 Lớp provider LLM (`grading/providers/`): `GeminiProvider` (SDK `google-genai`, `client.interactions.create` — **đã xác minh qua tài liệu trực tuyến 2026-07-20 vì SDK đổi khác kiến thức huấn luyện cũ**) + `OpenAiProvider` (Chat Completions, `input_audio`) dự phòng; `factory.py` chọn theo `courses.llm_config` + tự chuyển provider khi lỗi
+- [x] M3.4 Prompt builder (`grading/prompt.py`) + JSON Schema đầu ra ĐỘNG theo rubric (`grading/schema.py`, dùng chung cho cả request lẫn validate response) — `pronunciation` là dimension bắt buộc, thiếu thì từ chối chấm ngay; sai schema → exception lan lên `rabbit_consumer` → retry → DLQ
+- [x] M3.5 Ghi `gradings`/`cost_log` qua core-api (2 endpoint mới bổ sung, xem dưới); rẽ nhánh `auto_send` (đọc `classes_config.autoSend` qua `GET /internal/students/:id` mới) vs `awaiting_review`; tin text/kind không phải audio-video ngoài luồng nộp → `flags` qua `POST /internal/flags` mới, KHÔNG trả lời
+- [ ] M3.6 Vòng đời media (cron xóa video gốc +7 ngày, audio 90 ngày) — **để lại cho lúc có dữ liệu thật**, chưa có gì để xóa khi chưa nghiệm thu được lượt chấm thật (M3.7 chưa xong)
+- [ ] M3.7 **(cần chủ dự án)** Nghiệm thu 1 clip thật 5 phút chấm end-to-end — cần `llm.gemini_api_key`/`llm.openai_api_key` thật (nhập qua dashboard `/settings`) và 1 submission thật từ Zalo (cần M1.8 xong trước). Đã nghiệm thu được MỌI nhánh không cần LLM key qua smoke test thật (xem M3.8) — chỉ còn thiếu đường gọi LLM thật.
+- [x] M3.8 **33/33 unit tests pass** (mock Prisma/httpx/Redis/Rabbit/ffmpeg/cả 2 SDK LLM); smoke test thật qua RabbitMQ management API (publish trực tiếp vào exchange `ilm.direct`, không cần Zalo thật): tin text → `flags`, không trả lời; user mới gửi audio → binding `pending` → outbound "đang kích hoạt" → bị chặn đúng bởi guard 48h có sẵn của gateway; user có 2 binding active cùng lúc → outbound hỏi "bài của bạn nào?". `docker-compose` cập nhật (`grading-worker` service, mount chung volume `media`).
+
+**2 bổ sung cho API nội bộ core-api (cần cho M3, không có trong tài liệu M2 gốc):**
+- `PATCH /internal/submissions/:id` (M2 chỉ có `POST` — worker cần cập nhật `status`/`mediaPath`/`durationSec` khi tiến trình qua từng bước)
+- `GET /internal/students/:id` (student + `course.llmConfig` + `classes_config.autoSend` theo `className`) và `POST /internal/flags`
+- `POST /internal/submissions` đổi từ `create` thuần sang **upsert theo `messageId`** — cần thiết để RabbitMQ redeliver/retry không vỡ vì unique constraint (phát hiện khi xây pipeline worker, xem changelog v1.4 trong kiến trúc doc)
 
 ## Milestone 4 — dashboard (React) ⬜
 
@@ -62,6 +71,9 @@ Bảng theo dõi tiến độ theo lộ trình 5 milestone của [Idea/20260719-
 
 ## Ghi chú vận hành dev
 
-- Chưa commit code milestone nào — chờ chủ dự án yêu cầu.
-- Docker Desktop cần chạy trước khi `docker compose up`. Python chưa cài trên máy dev (cần cho M3).
-- `infra/.env` local đang là bản copy `.env.example` (dev default, đã gitignore).
+- Docker Desktop cần chạy trước khi `docker compose up`. Python 3.11 đã có sẵn trên máy dev (không cần cài thêm cho M3).
+- `infra/.env` local đang là bản copy `.env.example` (dev default, đã gitignore) — nhớ set `DOMAIN=localhost` (không phải `bot.example.com`) khi chạy dev, nếu không Caddy sẽ cố xin cert Let's Encrypt thật và fail.
+- `services/core-api`: `npm run prisma:migrate` cần Postgres reachable ở `localhost:5432` (bind loopback trong docker-compose) để chạy `prisma migrate dev` từ máy host khi đổi schema.
+- `services/dashboard`: chạy qua `npm run dev` (Vite dev-server, proxy `/api` → `localhost:3001`) — chưa vào docker-compose, xem ghi chú M2 ở trên.
+- `services/grading-worker`: venv tại `.venv/` (gitignored) — `python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"` rồi `pytest`. FFmpeg không cần cài trên máy dev (chỉ chạy trong container); ffprobe/ffmpeg chưa có trên máy dev nên các hàm `media/ffmpeg.py` chỉ test được qua mock, chưa test với binary thật ngoài container.
+- Publish thử một message vào `submissions` mà không cần Zalo thật: `curl -u ilm:change-me -X POST http://localhost:15672/api/exchanges/%2f/ilm.direct/publish -d '{"routing_key":"submissions","payload":"...","payload_encoding":"string","properties":{}}'` (RabbitMQ management API, loopback-only).

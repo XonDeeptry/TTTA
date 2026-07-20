@@ -8,10 +8,10 @@
 		reverse_proxy zalo-gateway:3000
 	}
 
-	# M2: mở khi core-api vào compose
-	# handle /api* {
-	# 	reverse_proxy core-api:3001
-	# }
+	handle /api* {
+		uri strip_prefix /api
+		reverse_proxy core-api:3001
+	}
 
 	# M4: dashboard SPA sẽ được serve ở đây
 	handle {

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(docker info *)",
+      "Bash(docker compose *)",
+      "Bash(npm view *)",
+      "Bash(DATABASE_URL=\"postgresql://ilm:change-me@localhost:5432/ilm\" npx prisma migrate dev --name init --skip-generate)",
+      "Bash(npx prisma *)",
+      "Bash(npm test *)",
+      "Bash(git add *)",
+      "Bash(pip --version)",
+      "Bash(ffmpeg -version)",
+      "Bash(where python *)",
+      "WebSearch",
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(python -m venv .venv)",
+      "Bash(./.venv/Scripts/python.exe -m pip install --upgrade pip -q)",
+      "Bash(./.venv/Scripts/python.exe -m pip install -e \".[dev]\" -q)",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/test_schema.py tests/test_prompt.py -v)",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/test_pricing.py tests/test_rabbit_consumer.py -v)",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/test_pipeline.py -v)",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/test_ffmpeg.py tests/test_downloader.py -v)",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/ -v)"
+    ]
+  }
+}

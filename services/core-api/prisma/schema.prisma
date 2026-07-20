@@ -1,0 +1,229 @@
+// Schema nguồn sự thật (mục 3.4 kiến trúc). core-api là service DUY NHẤT chạm Postgres —
+// gateway/worker luôn đi qua REST API của core-api, không bao giờ connect thẳng DB này.
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BindingStatus {
+  pending
+  active
+}
+
+enum SubmissionStatus {
+  received
+  processing
+  graded
+  awaiting_review
+  sent
+  failed
+}
+
+enum SubmissionKind {
+  audio
+  video
+  text
+  image
+  file
+  follow
+}
+
+enum DashboardRole {
+  admin
+  staff
+}
+
+model Course {
+  id         Int        @id @default(autoincrement())
+  key        String     @unique
+  bandDesc   String?    @map("band_desc")
+  llmConfig  Json       @map("llm_config")
+  isActive   Boolean    @default(true) @map("is_active")
+  criteria   Criteria[]
+  students   Student[]
+
+  @@map("courses")
+}
+
+model Criteria {
+  id             Int        @id @default(autoincrement())
+  courseId       Int        @map("course_id")
+  course         Course     @relation(fields: [courseId], references: [id])
+  title          String
+  rubric         Json
+  sourceFilename String?    @map("source_filename")
+  version        Int        @default(1)
+  createdAt      DateTime   @default(now()) @map("created_at")
+  gradings       Grading[]
+
+  @@map("criteria")
+}
+
+// status là chuỗi mở (Foundation chỉ nêu 'active'/'paused'…, không chốt tập đóng)
+model Student {
+  id               Int            @id @default(autoincrement())
+  code             String         @unique
+  fullName         String         @map("full_name")
+  phone            String
+  courseId         Int?           @map("course_id")
+  course           Course?        @relation(fields: [courseId], references: [id])
+  className        String?        @map("class_name")
+  campus           String?
+  status           String         @default("active")
+  syncedFromSheetAt DateTime?     @map("synced_from_sheet_at")
+  bindings         ZaloBinding[]
+  submissions      Submission[]
+
+  @@index([phone])
+  @@map("students")
+}
+
+// status='pending' ⇔ tab ChoGan cũ; nhiều dòng cùng zaloUserId = một Zalo nhiều học viên (mục 3.6)
+model ZaloBinding {
+  id           Int           @id @default(autoincrement())
+  zaloUserId   String        @map("zalo_user_id")
+  studentId    Int?          @map("student_id")
+  student      Student?      @relation(fields: [studentId], references: [id])
+  displayName  String?       @map("display_name")
+  status       BindingStatus @default(pending)
+  phoneEntered String?       @map("phone_entered")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  @@index([zaloUserId])
+  @@map("zalo_bindings")
+}
+
+model AssignmentCalendar {
+  date DateTime @id @db.Date
+  note String?
+
+  @@map("assignment_calendar")
+}
+
+model Submission {
+  id             Int        @id @default(autoincrement())
+  messageId      String     @unique @map("message_id")
+  zaloUserId     String     @map("zalo_user_id")
+  studentId      Int?       @map("student_id")
+  student        Student?   @relation(fields: [studentId], references: [id])
+  kind           SubmissionKind
+  mediaUrlZalo   String?    @map("media_url_zalo")
+  mediaPath      String?    @map("media_path")
+  mediaDeletedAt DateTime?  @map("media_deleted_at")
+  durationSec    Int?       @map("duration_sec")
+  status         SubmissionStatus @default(received)
+  receivedAt     DateTime   @default(now()) @map("received_at")
+  grading        Grading?
+  flags          Flag[]
+  costLogs       CostLog[]
+
+  @@map("submissions")
+}
+
+model Grading {
+  id               Int        @id @default(autoincrement())
+  submissionId     Int        @unique @map("submission_id")
+  submission       Submission @relation(fields: [submissionId], references: [id])
+  criteriaId       Int        @map("criteria_id")
+  criteria         Criteria   @relation(fields: [criteriaId], references: [id])
+  criteriaVersion  Int        @map("criteria_version")
+  scores           Json
+  llmFeedback      String     @map("llm_feedback")
+  reviewedFeedback String?    @map("reviewed_feedback")
+  reviewedBy       String?    @map("reviewed_by")
+  autoSent         Boolean    @default(false) @map("auto_sent")
+  sentAt           DateTime?  @map("sent_at")
+
+  @@map("gradings")
+}
+
+model Flag {
+  id              Int        @id @default(autoincrement())
+  submissionId    Int        @map("submission_id")
+  submission      Submission @relation(fields: [submissionId], references: [id])
+  reason          String
+  assignedAdvisor String?    @map("assigned_advisor")
+  resolvedAt      DateTime?  @map("resolved_at")
+
+  @@map("flags")
+}
+
+model ClassConfig {
+  className      String  @id @map("class_name")
+  advisorZaloId  String  @map("advisor_zalo_id")
+  autoSend       Boolean @default(false) @map("auto_send")
+
+  @@map("classes_config")
+}
+
+// Cấu hình ứng dụng quản trị qua UI (v1.2): zalo.*, llm.*, limits.*, sheets.*, internal.* —
+// mirror sang Redis config:{key} + publish config:changed khi ghi (xem SettingsService).
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by")
+
+  @@map("settings")
+}
+
+model MessageTemplate {
+  key  String
+  lang String
+  body String
+
+  @@id([key, lang])
+  @@map("message_templates")
+}
+
+model OutboundLog {
+  id         Int      @id @default(autoincrement())
+  zaloUserId String   @map("zalo_user_id")
+  payload    Json
+  status     String
+  error      String?
+  sentAt     DateTime @default(now()) @map("sent_at")
+
+  @@map("outbound_log")
+}
+
+model CostLog {
+  id           Int         @id @default(autoincrement())
+  submissionId Int?        @map("submission_id")
+  submission   Submission? @relation(fields: [submissionId], references: [id])
+  provider     String
+  model        String
+  inputTokens  Int      @map("input_tokens")
+  outputTokens Int      @map("output_tokens")
+  estUsd       Decimal  @map("est_usd") @db.Decimal(10, 4)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("cost_log")
+}
+
+model SheetSyncLog {
+  id          Int      @id @default(autoincrement())
+  runAt       DateTime @default(now()) @map("run_at")
+  rowsOk      Int      @map("rows_ok")
+  rowsError   Int      @map("rows_error")
+  errorDetail Json?    @map("error_detail")
+
+  @@map("sheet_sync_log")
+}
+
+// Không có trong tài liệu kiến trúc gốc — bổ sung cho quyết định "session auth thật ngay từ M2"
+// (thay vì API key tạm chờ M4). 2 vai trò tối giản theo mục 3.7: admin (IT) / staff (tư vấn/GV).
+model DashboardUser {
+  id           Int           @id @default(autoincrement())
+  email        String        @unique
+  passwordHash String        @map("password_hash")
+  role         DashboardRole
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  @@map("dashboard_users")
+}
