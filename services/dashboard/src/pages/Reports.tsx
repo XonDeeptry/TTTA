@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
+import { buttonVariants } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { cn } from '../lib/utils';
 
 interface SubmissionRateRow {
   className: string;
@@ -52,94 +56,138 @@ export function Reports() {
     return `/api/reports/${kind}/export?format=${format}&from=${from}&to=${to}`;
   }
 
+  const exportLinkClass = cn(buttonVariants({ variant: 'link', size: 'sm' }), 'px-0');
+
   return (
-    <main style={{ maxWidth: 900, margin: '2rem auto', fontFamily: 'sans-serif' }}>
-      <h1>{t('reports.title')}</h1>
-      <label>
-        {t('reports.from')}: <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-      </label>{' '}
-      <label>
-        {t('reports.to')}: <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-      </label>
+    <main id="main-content" className="space-y-6 p-6">
+      <h1 className="text-h1">{t('reports.title')}</h1>
 
-      <h2>{t('reports.submissionRate')}</h2>
-      <a href={exportUrl('submission-rate', 'csv')}>{t('reports.exportCsv')}</a>{' | '}
-      <a href={exportUrl('submission-rate', 'xlsx')}>{t('reports.exportXlsx')}</a>
-      <table style={{ width: '100%', marginTop: '0.5rem' }}>
-        <thead>
-          <tr>
-            <th>{t('reports.class')}</th>
-            <th>{t('reports.total')}</th>
-            <th>{t('reports.submitted')}</th>
-            <th>{t('reports.rate')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rateRows.map((r) => (
-            <tr key={r.className}>
-              <td>{r.className}</td>
-              <td>{r.totalStudents}</td>
-              <td>{r.submittedStudents}</td>
-              <td>{r.ratePercent}%</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div role="group" aria-label={t('reports.dateRange')} className="flex flex-wrap items-center gap-4">
+        <label className="flex items-center gap-2 text-body">
+          {t('reports.from')}: <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-md border border-input bg-card px-3 text-body shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background" />
+        </label>
+        <label className="flex items-center gap-2 text-body">
+          {t('reports.to')}: <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-md border border-input bg-card px-3 text-body shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background" />
+        </label>
+      </div>
 
-      <h2>{t('reports.cost')}</h2>
-      <a href={exportUrl('cost', 'csv')}>{t('reports.exportCsv')}</a>{' | '}
-      <a href={exportUrl('cost', 'xlsx')}>{t('reports.exportXlsx')}</a>
-      <table style={{ width: '100%', marginTop: '0.5rem' }}>
-        <thead>
-          <tr>
-            <th>{t('reports.date')}</th>
-            <th>{t('reports.provider')}</th>
-            <th>{t('reports.totalUsd')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {costRows.map((r) => (
-            <tr key={`${r.date}-${r.provider}`}>
-              <td>{r.date}</td>
-              <td>{r.provider}</td>
-              <td>${r.totalUsd.toFixed(4)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle>{t('reports.submissionRate')}</CardTitle>
+          <div className="flex items-center gap-2">
+            <a href={exportUrl('submission-rate', 'csv')} className={exportLinkClass}>
+              {t('reports.exportCsv')}
+            </a>
+            <span className="text-muted-foreground">|</span>
+            <a href={exportUrl('submission-rate', 'xlsx')} className={exportLinkClass}>
+              {t('reports.exportXlsx')}
+            </a>
+          </div>
+        </CardHeader>
+        <CardContent className="overflow-x-auto p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">{t('reports.class')}</TableHead>
+                <TableHead scope="col">{t('reports.total')}</TableHead>
+                <TableHead scope="col">{t('reports.submitted')}</TableHead>
+                <TableHead scope="col">{t('reports.rate')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rateRows.map((r) => (
+                <TableRow key={r.className}>
+                  <TableCell>{r.className}</TableCell>
+                  <TableCell className="tabular-nums">{r.totalStudents}</TableCell>
+                  <TableCell className="tabular-nums">{r.submittedStudents}</TableCell>
+                  <TableCell className="tabular-nums">{r.ratePercent}%</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-      <h2>{t('reports.pilotComparison')}</h2>
-      <a href={exportUrl('pilot-comparison', 'csv')}>{t('reports.exportCsv')}</a>{' | '}
-      <a href={exportUrl('pilot-comparison', 'xlsx')}>{t('reports.exportXlsx')}</a>
-      <table style={{ width: '100%', marginTop: '0.5rem' }}>
-        <thead>
-          <tr>
-            <th>{t('reports.class')}</th>
-            <th>{t('reports.student')}</th>
-            <th>{t('reports.dimension')}</th>
-            <th>{t('reports.scoreAudio')}</th>
-            <th>{t('reports.scoreText')}</th>
-            <th>{t('reports.scoreDelta')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pilotRows.flatMap((r) => {
-            const dimensions = Object.keys(r)
-              .filter((k) => k.startsWith('audio_'))
-              .map((k) => k.slice('audio_'.length));
-            return dimensions.map((dim) => (
-              <tr key={`${r.submissionId}-${dim}`}>
-                <td>{r.className}</td>
-                <td>{r.studentName}</td>
-                <td>{dim}</td>
-                <td>{r[`audio_${dim}`]}</td>
-                <td>{r[`text_${dim}`]}</td>
-                <td>{r[`delta_${dim}`]}</td>
-              </tr>
-            ));
-          })}
-        </tbody>
-      </table>
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle>{t('reports.cost')}</CardTitle>
+          <div className="flex items-center gap-2">
+            <a href={exportUrl('cost', 'csv')} className={exportLinkClass}>
+              {t('reports.exportCsv')}
+            </a>
+            <span className="text-muted-foreground">|</span>
+            <a href={exportUrl('cost', 'xlsx')} className={exportLinkClass}>
+              {t('reports.exportXlsx')}
+            </a>
+          </div>
+        </CardHeader>
+        <CardContent className="overflow-x-auto p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">{t('reports.date')}</TableHead>
+                <TableHead scope="col">{t('reports.provider')}</TableHead>
+                <TableHead scope="col">{t('reports.totalUsd')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {costRows.map((r) => (
+                <TableRow key={`${r.date}-${r.provider}`}>
+                  <TableCell>{r.date}</TableCell>
+                  <TableCell>{r.provider}</TableCell>
+                  <TableCell className="tabular-nums">${r.totalUsd.toFixed(4)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle>{t('reports.pilotComparison')}</CardTitle>
+          <div className="flex items-center gap-2">
+            <a href={exportUrl('pilot-comparison', 'csv')} className={exportLinkClass}>
+              {t('reports.exportCsv')}
+            </a>
+            <span className="text-muted-foreground">|</span>
+            <a href={exportUrl('pilot-comparison', 'xlsx')} className={exportLinkClass}>
+              {t('reports.exportXlsx')}
+            </a>
+          </div>
+        </CardHeader>
+        <CardContent className="overflow-x-auto p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">{t('reports.class')}</TableHead>
+                <TableHead scope="col">{t('reports.student')}</TableHead>
+                <TableHead scope="col">{t('reports.dimension')}</TableHead>
+                <TableHead scope="col">{t('reports.scoreAudio')}</TableHead>
+                <TableHead scope="col">{t('reports.scoreText')}</TableHead>
+                <TableHead scope="col">{t('reports.scoreDelta')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pilotRows.flatMap((r) => {
+                const dimensions = Object.keys(r)
+                  .filter((k) => k.startsWith('audio_'))
+                  .map((k) => k.slice('audio_'.length));
+                return dimensions.map((dim) => (
+                  <TableRow key={`${r.submissionId}-${dim}`}>
+                    <TableCell>{r.className}</TableCell>
+                    <TableCell>{r.studentName}</TableCell>
+                    <TableCell>{dim}</TableCell>
+                    <TableCell className="tabular-nums">{r[`audio_${dim}`]}</TableCell>
+                    <TableCell className="tabular-nums">{r[`text_${dim}`]}</TableCell>
+                    <TableCell className="tabular-nums">{r[`delta_${dim}`]}</TableCell>
+                  </TableRow>
+                ));
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </main>
   );
 }

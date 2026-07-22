@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
+import { Button } from '../components/ui/button';
+import { Card, CardContent } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 interface Student {
   id: number;
@@ -45,9 +50,13 @@ export function Students() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
   return (
-    <main style={{ maxWidth: 900, margin: '2rem auto', fontFamily: 'sans-serif' }}>
-      <h1>{t('students.title')}</h1>
-      <input
+    <main id="main-content" className="space-y-6 p-6">
+      <h1 className="text-h1">{t('students.title')}</h1>
+      <Label htmlFor="students-search" className="sr-only">
+        {t('students.search')}
+      </Label>
+      <Input
+        id="students-search"
         type="search"
         placeholder={t('students.search')}
         value={search}
@@ -55,77 +64,100 @@ export function Students() {
           setPage(1);
           setSearch(e.target.value);
         }}
-        style={{ marginBottom: '1rem', width: '100%', maxWidth: 320 }}
+        className="max-w-sm"
       />
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th>{t('students.code')}</th>
-            <th>{t('students.fullName')}</th>
-            <th>{t('students.phone')}</th>
-            <th>{t('students.className')}</th>
-            <th>{t('students.status')}</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {data?.items.map((s) => (
-            <tr key={s.id}>
-              {editingId === s.id ? (
-                <>
-                  <td>{s.code}</td>
-                  <td>
-                    <input defaultValue={s.fullName} onChange={(e) => setDraft((d) => ({ ...d, fullName: e.target.value }))} />
-                  </td>
-                  <td>
-                    <input defaultValue={s.phone} onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))} />
-                  </td>
-                  <td>
-                    <input
-                      defaultValue={s.className ?? ''}
-                      onChange={(e) => setDraft((d) => ({ ...d, className: e.target.value }))}
-                    />
-                  </td>
-                  <td>
-                    <input defaultValue={s.status} onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value }))} />
-                  </td>
-                  <td>
-                    <button onClick={() => save(s.id)}>{t('students.save')}</button>
-                  </td>
-                </>
-              ) : (
-                <>
-                  <td>{s.code}</td>
-                  <td>{s.fullName}</td>
-                  <td>{s.phone}</td>
-                  <td>{s.className}</td>
-                  <td>{s.status}</td>
-                  <td>
-                    <button
-                      onClick={() => {
-                        setEditingId(s.id);
-                        setDraft({});
-                      }}
-                    >
-                      {t('students.edit')}
-                    </button>
-                  </td>
-                </>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-        <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+      <Card>
+        <CardContent className="overflow-x-auto p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">{t('students.code')}</TableHead>
+                <TableHead scope="col">{t('students.fullName')}</TableHead>
+                <TableHead scope="col">{t('students.phone')}</TableHead>
+                <TableHead scope="col">{t('students.className')}</TableHead>
+                <TableHead scope="col">{t('students.status')}</TableHead>
+                <TableHead scope="col" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data?.items.map((s) => (
+                <TableRow key={s.id}>
+                  {editingId === s.id ? (
+                    <>
+                      <TableCell>{s.code}</TableCell>
+                      <TableCell>
+                        <Input
+                          defaultValue={s.fullName}
+                          onChange={(e) => setDraft((d) => ({ ...d, fullName: e.target.value }))}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input defaultValue={s.phone} onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))} />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          defaultValue={s.className ?? ''}
+                          onChange={(e) => setDraft((d) => ({ ...d, className: e.target.value }))}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input defaultValue={s.status} onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value }))} />
+                      </TableCell>
+                      <TableCell>
+                        <Button size="sm" onClick={() => save(s.id)}>
+                          {t('students.save')}
+                        </Button>
+                      </TableCell>
+                    </>
+                  ) : (
+                    <>
+                      <TableCell>{s.code}</TableCell>
+                      <TableCell>{s.fullName}</TableCell>
+                      <TableCell>{s.phone}</TableCell>
+                      <TableCell>{s.className}</TableCell>
+                      <TableCell>{s.status}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingId(s.id);
+                            setDraft({});
+                          }}
+                        >
+                          {t('students.edit')}
+                        </Button>
+                      </TableCell>
+                    </>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="icon"
+          disabled={page <= 1}
+          onClick={() => setPage((p) => p - 1)}
+          aria-label={t('pagination.previous')}
+        >
           ←
-        </button>
-        <span>
+        </Button>
+        <span className="text-body">
           {page} / {totalPages}
         </span>
-        <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+        <Button
+          variant="outline"
+          size="icon"
+          disabled={page >= totalPages}
+          onClick={() => setPage((p) => p + 1)}
+          aria-label={t('pagination.next')}
+        >
           →
-        </button>
+        </Button>
       </div>
     </main>
   );

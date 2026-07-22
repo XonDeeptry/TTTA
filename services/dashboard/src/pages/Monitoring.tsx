@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
+import { Alert } from '../components/ui/alert';
+import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 interface QueueDepth {
   queue: string;
@@ -49,71 +54,106 @@ export function Monitoring() {
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: '2rem auto', fontFamily: 'sans-serif' }}>
-      <h1>{t('monitoring.title')}</h1>
+    <main id="main-content" className="space-y-6 p-6">
+      <h1 className="text-h1">{t('monitoring.title')}</h1>
 
-      <h2>{t('monitoring.queues')}</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>{t('monitoring.queue')}</th>
-            <th>{t('monitoring.mainDepth')}</th>
-            <th>{t('monitoring.dlqDepth')}</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {queues.map((q) => (
-            <tr key={q.queue}>
-              <td>{q.queue}</td>
-              <td>{q.mainDepth}</td>
-              <td>{q.dlqDepth}</td>
-              <td>
-                <button onClick={() => retry(q.queue)} disabled={q.dlqDepth === 0}>
-                  {t('monitoring.retry')}
-                </button>
-                {retried === q.queue && <span> {t('monitoring.retried')}</span>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('monitoring.queues')}</CardTitle>
+        </CardHeader>
+        <CardContent className="overflow-x-auto p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">{t('monitoring.queue')}</TableHead>
+                <TableHead scope="col">{t('monitoring.mainDepth')}</TableHead>
+                <TableHead scope="col">{t('monitoring.dlqDepth')}</TableHead>
+                <TableHead scope="col" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {queues.map((q) => (
+                <TableRow key={q.queue}>
+                  <TableCell>{q.queue}</TableCell>
+                  <TableCell className="tabular-nums">{q.mainDepth}</TableCell>
+                  <TableCell>
+                    <Badge variant={q.dlqDepth > 0 ? 'destructive' : 'secondary'} className="tabular-nums">
+                      {q.dlqDepth}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => retry(q.queue)} disabled={q.dlqDepth === 0}>
+                        {t('monitoring.retry')}
+                      </Button>
+                      {retried === q.queue && <Badge variant="success">{t('monitoring.retried')}</Badge>}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-      <h2>{t('monitoring.token')}</h2>
-      {token && (
-        <p>
-          {token.hasAccessToken ? t('monitoring.tokenOk') : t('monitoring.tokenMissing')}
-          {token.alert && (
-            <>
-              {' — '}
-              <strong>
-                {t('monitoring.alert')}: {token.alert}
-              </strong>
-            </>
-          )}
-        </p>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('monitoring.token')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {token &&
+            (token.alert ? (
+              <Alert variant="destructive">
+                {token.hasAccessToken ? t('monitoring.tokenOk') : t('monitoring.tokenMissing')}
+                {' — '}
+                <strong>
+                  {t('monitoring.alert')}: {token.alert}
+                </strong>
+              </Alert>
+            ) : (
+              <p className="text-body">{token.hasAccessToken ? t('monitoring.tokenOk') : t('monitoring.tokenMissing')}</p>
+            ))}
+        </CardContent>
+      </Card>
 
-      <h2>{t('monitoring.sheetsSync')}</h2>
-      <ul>
-        {sheetsLog.map((log) => (
-          <li key={log.id}>
-            {new Date(log.runAt).toLocaleString()} — {log.rowsOk} {t('monitoring.sheetsSyncOk')}, {log.rowsError}{' '}
-            {t('monitoring.sheetsSyncError')}
-          </li>
-        ))}
-      </ul>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('monitoring.sheetsSync')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-1">
+            {sheetsLog.map((log) => (
+              <li key={log.id} className="text-body">
+                {new Date(log.runAt).toLocaleString()} —{' '}
+                <Badge variant="secondary" className="tabular-nums">
+                  {log.rowsOk}
+                </Badge>{' '}
+                {t('monitoring.sheetsSyncOk')},{' '}
+                <Badge variant={log.rowsError > 0 ? 'warning' : 'secondary'} className="tabular-nums">
+                  {log.rowsError}
+                </Badge>{' '}
+                {t('monitoring.sheetsSyncError')}
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
 
-      <h2>{t('monitoring.disk')}</h2>
-      {disk && (
-        <p>
-          {disk.alert === null ? (
-            t('monitoring.diskOk')
-          ) : (
-            <strong>{formatDiskAlert(disk.alert, t)}</strong>
-          )}
-        </p>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('monitoring.disk')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {disk &&
+            (disk.alert === null ? (
+              <p className="text-body">{t('monitoring.diskOk')}</p>
+            ) : (
+              <Alert variant="warning">
+                <strong>{formatDiskAlert(disk.alert, t)}</strong>
+              </Alert>
+            ))}
+        </CardContent>
+      </Card>
     </main>
   );
 }

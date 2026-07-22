@@ -7,7 +7,11 @@
 
 **Status:** COMPLETE
 **Last updated:** 2026-07-22
-**Last checkpoint:** Both features DONE + QA PASS; full regression green (core-api 99, worker 60, dashboard build)
+**Last checkpoint:** F3 QA round 2 = PASS; all 3 features DONE; regression green (core-api 99, gateway 26, worker 60, dashboard build)
+
+> Tracking model note: F1/F2 predate the per-role task-file protocol and are recorded inline
+> below. F3 onward uses `docs/dev-team-roles/tasks/<FEATURE_ID>-<role>.md` per TASK-PROTOCOL.md;
+> this file is the index only.
 
 ## Run scope
 
@@ -22,15 +26,17 @@ buildable now without owner-supplied credentials/hardware, so it is this run's s
 
 | # | Feature | Priority | Notes |
 |---|---------|----------|-------|
-| 1 | M3.6 — Media lifecycle cron (core-api) | P0 | Nightly cron: delete source video 7d after audio extraction; delete audio 90d (configurable) after receipt, set `media_deleted_at`; disk-usage >80% alert surfaced in Monitoring (§3.8) |
-| 2 | Dual-modal pilot scoring (transcript + audio) | P1 | User-added mid-run. **Decided:** A/B dual grading — grade each submission twice (audio-only [current] + text-only from transcript), store BOTH for pilot comparison. Transcript produced by the **same LLM provider** (Gemini/ChatGPT transcribes audio, then grades the text). No new STT dependency. |
+| F3 | Dashboard UI redesign (English Center Management look) | P1 | Added 2026-07-22 by user. **UI-only — no backend changes.** All 9 pages + `App.tsx` shell. **Stack decided: Tailwind + shadcn/ui** (user choice); visual direction chosen by UX via the `ui-ux-pro-max` skill. QA must verify existing functionality still passes. |
+| F1 | M3.6 — Media lifecycle cron (core-api) | P0 | Nightly cron: delete source video 7d after audio extraction; delete audio 90d (configurable) after receipt, set `media_deleted_at`; disk-usage >80% alert surfaced in Monitoring (§3.8) |
+| F2 | Dual-modal pilot scoring (transcript + audio) | P1 | User-added mid-run. **Decided:** A/B dual grading — grade each submission twice (audio-only [current] + text-only from transcript), store BOTH for pilot comparison. Transcript produced by the **same LLM provider** (Gemini/ChatGPT transcribes audio, then grades the text). No new STT dependency. |
 
 ## State Board
 
 | Feature | PM | BA | UX | Impl | DBA | DevOps | QA  | Status  |
 |---------|----|----|----|------|-----|--------|-----|---------|
-| M3.6 Media lifecycle cron | ✅ | ✅ | – | ✅ | ✅ | – | ✅ | ✅ DONE |
-| Dual-modal pilot scoring | ✅ | ✅ | ✅ | ✅ | ✅ | – | ✅ | ✅ DONE |
+| F1 M3.6 Media lifecycle cron | ✅ | ✅ | – | ✅ | ✅ | – | ✅ | ✅ DONE |
+| F2 Dual-modal pilot scoring | ✅ | ✅ | ✅ | ✅ | ✅ | – | ✅ | ✅ DONE |
+| F3 Dashboard UI redesign | [✅](tasks/F3-pm.md) | [✅](tasks/F3-ba.md) | [✅](tasks/F3-ux.md) | [✅](tasks/F3-frontend.md) | – | [✅](tasks/F3-devops.md) | [✅](tasks/F3-qa.md) | ✅ DONE |
 
 Legend: ✅ done · 🔄 in progress · ⬜ waiting · ❌ fail (fixing, round N/3) · – n/a
 
@@ -40,6 +46,15 @@ Legend: ✅ done · 🔄 in progress · ⬜ waiting · ❌ fail (fixing, round N
 - Video-reap needs a real anchor for "7 days after audio extracted": add `Submission.audioExtractedAt` (set by grading-worker after ffmpeg produces audio.mp3). Reusing `receivedAt` would risk deleting a video whose audio extraction failed → data loss. (PM)
 - Separate `Submission.videoDeletedAt` from existing `mediaDeletedAt`: the former marks day-7 video-only reap, the latter the day-90 full deletion (also set by the existing manual-delete feature). One column can't represent both states. (PM)
 - New configurable setting `limits.media_retention_days` (number, default 90) in `setting-defs.ts`; 7-day video grace and 80% threshold are fixed constants (§3.8 only calls the 90-day audio retention configurable). (PM)
+
+## Architecture decisions (F3 — dashboard UI redesign)
+
+- **Styling stack: Tailwind CSS + shadcn/ui** (owner decision over plain-CSS-tokens and Tailwind-only options). Adds tailwind/postcss/autoprefixer + Radix-based shadcn primitives to the dashboard.
+- **shadcn components hand-authored** into `src/components/ui/`, NOT via `npx shadcn add` — the CLI needs network + interactive Node, which conflicts with the "no Node on the dev machine" constraint and the one-shot container build.
+- **Visual direction from the `ui-ux-pro-max` skill** (owner decision), education/school-management admin patterns.
+- **Role-agent tooling deviation:** the `pm`, `ba`, and `ux` role agents are read-only (Read/Grep/Glob) and cannot Write their task files or invoke Skills. So: the orchestrator writes `F3-pm.md`/`F3-ba.md` from those agents' output, and the **UX role is run via a full-tool agent** so it can actually invoke `ui-ux-pro-max` and own `F3-ux.md`.
+- **F3 design system (UX, via `ui-ux-pro-max`):** palette = **LMS** (teal `#0D9488` primary, `#2DD4BF` secondary, amber `#D97706` accent, red `#DC2626` destructive) neutralized toward slate surfaces for an all-day dense CRUD tool, plus a success/warning semantic layer for status badges; font = **Minimal Swiss / Inter** (self-hosted, no CDN); density = **Data-Dense Dashboard** (240px sidebar, 12–14px type); icons = **Phosphor** outline. Shell changes from top nav to a **collapsible left sidebar** (240px → 64px rail → off-canvas on mobile). 11 hand-authored shadcn primitives; Radix Select/Checkbox, Skeleton, RHF and TanStack Table deliberately excluded to keep the dependency footprint small on the RAM-limited container build.
+- **DBA/backend/DevOps = n/a** for F3 (UI-only; no schema, no API, no infra change — the dashboard Dockerfile already runs `npm ci && npm run build`, so only `package.json`/lockfile change).
 
 ## Architecture decisions (Feature 2 — dual-modal scoring)
 
@@ -86,6 +101,8 @@ Legend: ✅ done · 🔄 in progress · ⬜ waiting · ❌ fail (fixing, round N
 - Video-reap 7-day window and 80% disk threshold are fixed constants; only 90-day audio retention is configurable (§3.8 wording). (BA)
 - UTC everywhere; disk `usedPct` uses `bfree` (root-inclusive, slightly conservative — fine for an ops alert). (BA)
 - Empty submission dirs left on disk after retention delete (avoids write races; files are what reclaim space). (BA)
+- **F3:** PM assumed post-login redirects to `/students`; BA's source read found it actually navigates to `/settings`. Frontend preserved the real behavior (frozen-behavior rule wins over PM's assumption). Recorded so it isn't "fixed" later by mistake.
+- **F3:** UX spec named Phosphor icons; frontend implemented a hand-rolled `src/components/icons.tsx` instead, adding no icon dependency — consistent with the minimal-footprint constraint on the RAM-limited container build.
 - Pre-existing submissions with `audioExtractedAt = NULL` never enter the video-reap path (no real graded video exists yet) — acceptable, flagged to owner if a backfill is ever needed. (PM)
 
 ## Emergent backlog
@@ -98,4 +115,9 @@ Legend: ✅ done · 🔄 in progress · ⬜ waiting · ❌ fail (fixing, round N
 
 ## Fix-round log
 
-<!-- Feature | Defect | Round | Role assigned | Outcome -->
+| Feature | Defect | Round | Role | Outcome |
+|---|---|---|---|---|
+| F3 | D1 — 3 dead i18n keys (`nav.languageSwitcher`/`switchToVietnamese`/`switchToEnglish`) defined in both locales, referenced nowhere (language switcher not implemented). AC-49. Low. | 1 | frontend | fixed — keys deleted from both locales; parity 116/116 |
+| F3 | D2 — Icon-only sidebar nav links + logout expose an empty accessible name at the md (768–1023px) rail breakpoint: `IconBase` is `aria-hidden`, Tooltip label is a sibling with no aria wiring, logout has no `aria-label`. Regression vs the always-labelled old top nav. AC-46. **Medium.** | 1 | frontend | fixed — `aria-label={item.label}` on rail links + `aria-label={t('nav.logout')}` on logout, both from existing i18n values |
+| F3 | D3 — `F3-frontend.md` misreports deps (`tailwindcss-animate`, `phosphor-react` claimed but never added). Documentation only. Low. | 1 | frontend | fixed — Outputs corrected to the real dep set |
+| F3 | D4 — `docker compose build dashboard` fails when host `services/dashboard/node_modules/` exists (no `.dockerignore` in any service). Pre-existing, but F3's containerized build loop makes it likely to be hit. Low. | 1 | devops | fixed — `.dockerignore` added to all 4 services; no Dockerfile/compose/Caddy change. Devops could not reproduce the exact symlink failure in its sandbox (filesystem difference) but verified builds still succeed and no COPY path is excluded |

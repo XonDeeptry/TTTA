@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
+import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
+import { Card, CardContent } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { SelectNative } from '../components/ui/select-native';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 interface SettingView {
   key: string;
@@ -30,39 +36,56 @@ export function Settings() {
   }
 
   return (
-    <main style={{ maxWidth: 640, margin: '2rem auto', fontFamily: 'sans-serif' }}>
-      <h1>{t('settings.title')}</h1>
-      <table>
-        <tbody>
-          {settings.map((s) => (
-            <tr key={s.key}>
-              <td>{s.key}</td>
-              <td>
-                {s.kind === 'boolean' ? (
-                  <select
-                    defaultValue={String(s.value ?? '')}
-                    onChange={(e) => setDrafts((d) => ({ ...d, [s.key]: e.target.value }))}
-                  >
-                    <option value="true">true</option>
-                    <option value="false">false</option>
-                  </select>
-                ) : (
-                  <input
-                    type={s.masked ? 'password' : s.kind === 'number' ? 'number' : 'text'}
-                    placeholder={s.masked && s.value ? String(s.value) : ''}
-                    defaultValue={s.masked ? '' : String(s.value ?? '')}
-                    onChange={(e) => setDrafts((d) => ({ ...d, [s.key]: e.target.value }))}
-                  />
-                )}
-              </td>
-              <td>
-                <button onClick={() => save(s)}>{t('settings.save')}</button>
-                {savedKey === s.key && <span> {t('settings.saved')}</span>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <main id="main-content" className="space-y-6 p-6">
+      <h1 className="text-h1">{t('settings.title')}</h1>
+      <Card>
+        <CardContent className="overflow-x-auto p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">{t('settings.key')}</TableHead>
+                <TableHead scope="col">{t('settings.value')}</TableHead>
+                <TableHead scope="col" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {settings.map((s) => (
+                <TableRow key={s.key}>
+                  <TableCell className="font-medium">{s.key}</TableCell>
+                  <TableCell>
+                    {s.kind === 'boolean' ? (
+                      <SelectNative
+                        defaultValue={String(s.value ?? '')}
+                        onChange={(e) => setDrafts((d) => ({ ...d, [s.key]: e.target.value }))}
+                        className="max-w-[8rem]"
+                      >
+                        <option value="true">true</option>
+                        <option value="false">false</option>
+                      </SelectNative>
+                    ) : (
+                      <Input
+                        type={s.masked ? 'password' : s.kind === 'number' ? 'number' : 'text'}
+                        placeholder={s.masked && s.value ? String(s.value) : ''}
+                        defaultValue={s.masked ? '' : String(s.value ?? '')}
+                        onChange={(e) => setDrafts((d) => ({ ...d, [s.key]: e.target.value }))}
+                        className="max-w-sm"
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => save(s)}>
+                        {t('settings.save')}
+                      </Button>
+                      {savedKey === s.key && <Badge variant="success">{t('settings.saved')}</Badge>}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </main>
   );
 }
