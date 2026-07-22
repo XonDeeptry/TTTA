@@ -242,11 +242,12 @@ model SheetSyncLog {
 // Không có trong tài liệu kiến trúc gốc — bổ sung cho quyết định "session auth thật ngay từ M2"
 // (thay vì API key tạm chờ M4). 2 vai trò tối giản theo mục 3.7: admin (IT) / staff (tư vấn/GV).
 model DashboardUser {
-  id           Int           @id @default(autoincrement())
-  email        String        @unique
-  passwordHash String        @map("password_hash")
-  role         DashboardRole
-  createdAt    DateTime      @default(now()) @map("created_at")
+  id                 Int           @id @default(autoincrement())
+  email              String        @unique
+  passwordHash       String        @map("password_hash")
+  role               DashboardRole
+  mustChangePassword Boolean       @default(false) @map("must_change_password")
+  createdAt          DateTime      @default(now()) @map("created_at")
 
   @@map("dashboard_users")
 }

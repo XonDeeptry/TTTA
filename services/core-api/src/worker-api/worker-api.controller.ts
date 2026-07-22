@@ -1,6 +1,7 @@
 import { Body, Controller, Get, NotFoundException, Param, ParseIntPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { CostLog, Criteria, Flag, Grading, PilotTextGrading, Submission, ZaloBinding } from '@prisma/client';
 import { InternalTokenGuard } from '../auth/internal-token.guard';
+import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma.service';
 import { CreateCostLogDto } from './dto/create-cost-log.dto';
 import { CreateFlagDto } from './dto/create-flag.dto';
@@ -22,7 +23,10 @@ export interface StudentForGrading {
 @Controller('internal')
 @UseGuards(InternalTokenGuard)
 export class WorkerApiController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: EventsService,
+  ) {}
 
   @Get('bindings/:zaloUserId')
   bindings(@Param('zaloUserId') zaloUserId: string): Promise<ZaloBinding[]> {
@@ -45,7 +49,7 @@ export class WorkerApiController {
    * constraint (mục 3.5 "Idempotency": message_id UNIQUE là lưới đỡ thứ hai sau Redis SETNX).
    */
   @Post('submissions')
-  createSubmission(@Body() body: CreateSubmissionDto): Promise<Submission> {
+  async createSubmission(@Body() body: CreateSubmissionDto): Promise<Submission> {
     const data = {
       zaloUserId: body.zaloUserId,
       studentId: body.studentId,
@@ -55,11 +59,14 @@ export class WorkerApiController {
       durationSec: body.durationSec,
       status: (body.status as Submission['status']) ?? undefined,
     };
-    return this.prisma.submission.upsert({
+    // await + publish SAU khi ghi resolve — status có thể default 'received' khi body bỏ trống (CR-5).
+    const result = await this.prisma.submission.upsert({
       where: { messageId: body.messageId },
       create: { messageId: body.messageId, ...data },
       update: data,
     });
+    this.events.publishStatus(result.id, result.status); // F6: fire-and-forget, không vỡ handler
+    return result;
   }
 
   @Patch('submissions/:id')
@@ -67,7 +74,7 @@ export class WorkerApiController {
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateSubmissionDto,
   ): Promise<Submission> {
-    return this.prisma.submission.update({
+    const result = await this.prisma.submission.update({
       where: { id },
       data: {
         status: body.status as Submission['status'],
@@ -77,6 +84,8 @@ export class WorkerApiController {
         audioExtractedAt: body.audioExtractedAt ? new Date(body.audioExtractedAt) : undefined,
       },
     });
+    this.events.publishStatus(result.id, result.status); // F6
+    return result;
   }
 
   @Post('flags')

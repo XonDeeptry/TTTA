@@ -6,8 +6,10 @@ import { Button } from './components/ui/button';
 import { Separator } from './components/ui/separator';
 import { Tooltip } from './components/ui/tooltip';
 import {
+  IconAnalytics,
   IconCriteria,
   IconGauge,
+  IconKey,
   IconLogout,
   IconMenu,
   IconOnboarding,
@@ -15,8 +17,11 @@ import {
   IconSettings,
   IconStudents,
   IconSubmissions,
+  IconUsers,
 } from './components/icons';
 import { cn } from './lib/utils';
+import { Analytics } from './pages/Analytics';
+import { ChangePassword } from './pages/ChangePassword';
 import { Criteria } from './pages/Criteria';
 import { Login } from './pages/Login';
 import { Monitoring } from './pages/Monitoring';
@@ -26,6 +31,7 @@ import { Settings } from './pages/Settings';
 import { Students } from './pages/Students';
 import { SubmissionDetail } from './pages/SubmissionDetail';
 import { Submissions } from './pages/Submissions';
+import { Users } from './pages/Users';
 
 interface NavItem {
   to: string;
@@ -42,11 +48,13 @@ function SidebarNav({ user, mobileOpen, setMobileOpen }: { user: CurrentUser; mo
   const items: NavItem[] = [
     ...(user.role === 'admin' ? [{ to: '/monitoring', label: t('nav.monitoring'), icon: IconGauge }] : []),
     ...(user.role === 'admin' ? [{ to: '/settings', label: t('nav.settings'), icon: IconSettings }] : []),
+    ...(user.role === 'admin' ? [{ to: '/users', label: t('nav.users'), icon: IconUsers }] : []),
     { to: '/onboarding', label: t('nav.onboarding'), icon: IconOnboarding },
     { to: '/students', label: t('nav.students'), icon: IconStudents },
     { to: '/submissions', label: t('nav.submissions'), icon: IconSubmissions },
     { to: '/reports', label: t('nav.reports'), icon: IconReports },
     { to: '/criteria', label: t('nav.criteria'), icon: IconCriteria },
+    { to: '/analytics', label: t('nav.analytics'), icon: IconAnalytics },
   ];
 
   return (
@@ -107,6 +115,18 @@ function SidebarNav({ user, mobileOpen, setMobileOpen }: { user: CurrentUser; mo
       <Button
         variant="ghost"
         className="justify-start gap-3 px-3"
+        aria-label={t('nav.changePassword')}
+        onClick={() => {
+          setMobileOpen(false);
+          navigate('/change-password', { state: { from: location.pathname } });
+        }}
+      >
+        <IconKey className="h-5 w-5 shrink-0" />
+        <span className="md:hidden lg:inline">{t('nav.changePassword')}</span>
+      </Button>
+      <Button
+        variant="ghost"
+        className="justify-start gap-3 px-3"
         aria-label={t('nav.logout')}
         onClick={() => {
           void logout().then(() => navigate('/login'));
@@ -122,10 +142,15 @@ function SidebarNav({ user, mobileOpen, setMobileOpen }: { user: CurrentUser; mo
 function ProtectedShell({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
   const { user, loading } = useAuth();
   const { t } = useTranslation();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
+  // F4: đổi mật khẩu bắt buộc đứng trước adminOnly — chặn mọi route ProtectedShell cho tới khi đổi xong
+  if (user.mustChangePassword && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
+  }
   // Phân hệ 1 (giám sát/cấu hình) là admin-only; các phân hệ khác dùng chung admin+staff (mục 3.7)
   if (adminOnly && user.role !== 'admin') return <Navigate to="/students" replace />;
 
@@ -169,6 +194,7 @@ export function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/change-password" element={<ChangePassword />} />
         <Route
           path="/monitoring"
           element={
@@ -230,6 +256,22 @@ export function App() {
           element={
             <ProtectedShell>
               <Criteria />
+            </ProtectedShell>
+          }
+        />
+        <Route
+          path="/users"
+          element={
+            <ProtectedShell adminOnly>
+              <Users />
+            </ProtectedShell>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <ProtectedShell>
+              <Analytics />
             </ProtectedShell>
           }
         />

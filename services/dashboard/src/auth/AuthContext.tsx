@@ -4,6 +4,7 @@ import { api, ApiError } from '../api/client';
 export interface CurrentUser {
   email: string;
   role: 'admin' | 'staff';
+  mustChangePassword: boolean;
 }
 
 interface AuthState {
@@ -11,6 +12,7 @@ interface AuthState {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -37,7 +39,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;
+  async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const updated = await api.post<CurrentUser>('/auth/change-password', { currentPassword, newPassword });
+    setUser(updated);
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, loading, login, logout, changePassword }}>{children}</AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthState {

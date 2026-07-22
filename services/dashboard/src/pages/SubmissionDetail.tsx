@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
+import { useSubmissionEvents } from '../hooks/useSubmissionEvents';
 import { Alert } from '../components/ui/alert';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -66,6 +67,11 @@ export function SubmissionDetail() {
   }
 
   useEffect(load, [id]);
+
+  useSubmissionEvents((evt) => {
+    if (evt.submissionId !== Number(id)) return;
+    load();
+  });
 
   async function saveReview(): Promise<void> {
     if (!data?.grading) return;

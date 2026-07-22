@@ -8,6 +8,7 @@ describe('GradingsService', () => {
     submission: { update: jest.Mock };
   };
   let rabbit: { publish: jest.Mock };
+  let events: { publishStatus: jest.Mock };
   let service: GradingsService;
 
   beforeEach(() => {
@@ -16,7 +17,8 @@ describe('GradingsService', () => {
       submission: { update: jest.fn() },
     };
     rabbit = { publish: jest.fn() };
-    service = new GradingsService(prisma as never, rabbit as never);
+    events = { publishStatus: jest.fn() };
+    service = new GradingsService(prisma as never, rabbit as never, events as never);
   });
 
   it('reviewFeedback updates reviewedFeedback and reviewedBy', async () => {
@@ -41,6 +43,7 @@ describe('GradingsService', () => {
         reviewedFeedback: 'Bản đã sửa',
         submission: { zaloUserId: 'zalo-1' },
       });
+      prisma.submission.update.mockResolvedValue({ id: 10, status: 'sent' });
       prisma.grading.update.mockResolvedValue({ id: 1, sentAt: new Date() });
 
       await service.send(1);
@@ -55,6 +58,29 @@ describe('GradingsService', () => {
       expect(prisma.grading.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { sentAt: expect.any(Date) } });
     });
 
+    it('publishes a submission:events status change after marking sent (F6)', async () => {
+      prisma.grading.findUnique.mockResolvedValue({
+        id: 1,
+        submissionId: 10,
+        llmFeedback: 'Bản gốc AI',
+        reviewedFeedback: 'Bản đã sửa',
+        submission: { zaloUserId: 'zalo-1' },
+      });
+      prisma.submission.update.mockResolvedValue({ id: 10, status: 'sent' });
+      prisma.grading.update.mockResolvedValue({ id: 1, sentAt: new Date() });
+
+      await service.send(1);
+
+      expect(events.publishStatus).toHaveBeenCalledTimes(1);
+      expect(events.publishStatus).toHaveBeenCalledWith(10, 'sent');
+    });
+
+    it('does NOT publish an event when the grading is missing (no status write)', async () => {
+      prisma.grading.findUnique.mockResolvedValue(null);
+      await expect(service.send(1)).rejects.toThrow();
+      expect(events.publishStatus).not.toHaveBeenCalled();
+    });
+
     it('falls back to llmFeedback when the teacher never edited it', async () => {
       prisma.grading.findUnique.mockResolvedValue({
         id: 2,
@@ -63,6 +89,7 @@ describe('GradingsService', () => {
         reviewedFeedback: null,
         submission: { zaloUserId: 'zalo-2' },
       });
+      prisma.submission.update.mockResolvedValue({ id: 20, status: 'sent' });
       prisma.grading.update.mockResolvedValue({ id: 2 });
 
       await service.send(2);

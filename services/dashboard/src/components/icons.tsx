@@ -125,3 +125,33 @@ export function IconArrowLeft(props: SVGProps<SVGSVGElement>) {
     </IconBase>
   );
 }
+
+export function IconUsers(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <circle cx="7" cy="7" r="2.5" />
+      <path d="M2.5 16v-1a4.5 4.5 0 0 1 4.5-4.5" />
+      <circle cx="13.5" cy="8" r="2" />
+      <path d="M10.5 16v-1a4 4 0 0 1 3-3.87" />
+    </IconBase>
+  );
+}
+
+export function IconAnalytics(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M3 3v14h14" />
+      <path d="M6 14v-4M10 14V7M14 14v-6" />
+    </IconBase>
+  );
+}
+
+export function IconKey(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <circle cx="7" cy="13" r="3" />
+      <path d="M9.1 10.9 16 4" />
+      <path d="M13 7l2 2" />
+    </IconBase>
+  );
+}

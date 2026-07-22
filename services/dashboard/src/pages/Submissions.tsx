@@ -9,6 +9,7 @@ import { Label } from '../components/ui/label';
 import { SelectNative } from '../components/ui/select-native';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { cn } from '../lib/utils';
+import { useSubmissionEvents } from '../hooks/useSubmissionEvents';
 
 interface SubmissionListItem {
   id: number;
@@ -50,6 +51,21 @@ export function Submissions() {
   }
 
   useEffect(load, [page, status]);
+
+  useSubmissionEvents((evt) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      const idx = prev.items.findIndex((item) => item.id === evt.submissionId);
+      if (idx === -1) {
+        // Not currently loaded (new arrival, different page/filter) — reconcile via a normal refresh.
+        load();
+        return prev;
+      }
+      const items = prev.items.slice();
+      items[idx] = { ...items[idx], status: evt.status };
+      return { ...prev, items };
+    });
+  });
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 

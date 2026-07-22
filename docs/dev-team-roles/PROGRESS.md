@@ -7,7 +7,7 @@
 
 **Status:** COMPLETE
 **Last updated:** 2026-07-22
-**Last checkpoint:** F3 QA round 2 = PASS; all 3 features DONE; regression green (core-api 99, gateway 26, worker 60, dashboard build)
+**Last checkpoint:** Run 2 COMPLETE — F4–F7 all DONE + QA PASS (F4 round 2, F5/F6/F7 round 1). Final orchestrator regression on the final tree: **core-api 29 suites / 196 tests**, **dashboard tsc+vite clean** (86 modules); zalo-gateway (26) + grading-worker (60) untouched by F4–F7 and confirmed green by F7 QA. Run 1 (F1–F3) COMPLETE below.
 
 > Tracking model note: F1/F2 predate the per-role task-file protocol and are recorded inline
 > below. F3 onward uses `docs/dev-team-roles/tasks/<FEATURE_ID>-<role>.md` per TASK-PROTOCOL.md;
@@ -15,7 +15,14 @@
 
 ## Run scope
 
-Input: "continue building all features required in 20260719-KienTrucMicroservices.md > current complete task in TASKS.md".
+**Run 2 (2026-07-22, current):** owner's new 5-item request → PM split into F4–F7.
+1. SSE for job/submission status (real-time) → **F6**.
+2. KPI score cards + trends (analytics) → **F7**.
+3. User settings: create teacher/staff users, change password → **F5**.
+4. Implement approved design doc `docs/superpowers/specs/2026-07-22-forced-password-change-design.md` → **F4**.
+5. New education-fit dashboard widget visualizations → **F7** (merged with item 2).
+
+**Run 1 (complete):** Input: "continue building all features required in 20260719-KienTrucMicroservices.md > current complete task in TASKS.md".
 
 M1–M4 are complete. Every remaining unchecked TASKS.md item is blocked on the project
 owner (M1.8 real Zalo app, M3.7 real LLM keys, M4.9 real Zalo acceptance, M5.x pilot) —
@@ -29,6 +36,10 @@ buildable now without owner-supplied credentials/hardware, so it is this run's s
 | F3 | Dashboard UI redesign (English Center Management look) | P1 | Added 2026-07-22 by user. **UI-only — no backend changes.** All 9 pages + `App.tsx` shell. **Stack decided: Tailwind + shadcn/ui** (user choice); visual direction chosen by UX via the `ui-ux-pro-max` skill. QA must verify existing functionality still passes. |
 | F1 | M3.6 — Media lifecycle cron (core-api) | P0 | Nightly cron: delete source video 7d after audio extraction; delete audio 90d (configurable) after receipt, set `media_deleted_at`; disk-usage >80% alert surfaced in Monitoring (§3.8) |
 | F2 | Dual-modal pilot scoring (transcript + audio) | P1 | User-added mid-run. **Decided:** A/B dual grading — grade each submission twice (audio-only [current] + text-only from transcript), store BOTH for pilot comparison. Transcript produced by the **same LLM provider** (Gemini/ChatGPT transcribes audio, then grades the text). No new STT dependency. |
+| F4 | Forced password change on first login | P0 | Run 2. Implement approved design doc exactly: `mustChangePassword` field on `DashboardUser`, bootstrap opt-in, `POST /auth/change-password`, `/change-password` route + `ProtectedShell` gate, vi/en i18n. Foundation for F5. |
+| F5 | Dashboard user management (create user + change password) | P1 | Run 2. Admin-only create user (email/role/initial password → `mustChangePassword:true`), user list, admin password reset, self-service change-password entry point. "Teacher" → maps to existing `staff` role (assumption). Depends on F4. |
+| F6 | Real-time submission status via SSE | P1 | Run 2. Redis pub/sub of status transitions (published from core-api's existing write paths — no grading-worker/contracts change) + core-api SSE endpoint (`GET /events/*`, session-auth, Caddy unbuffered) + `EventSource` in Submissions list/detail. |
+| F7 | Analytics dashboard (KPI cards + trends + education widgets) | P1 | Run 2. Merges owner items 2+5. New core-api aggregate endpoints + dashboard visualizations (submission rate, avg scores per dimension over time, per-class/course, pronunciation trend, cost trend, review backlog). Hand-authored SVG charts (no new npm chart lib). |
 
 ## State Board
 
@@ -37,6 +48,10 @@ buildable now without owner-supplied credentials/hardware, so it is this run's s
 | F1 M3.6 Media lifecycle cron | ✅ | ✅ | – | ✅ | ✅ | – | ✅ | ✅ DONE |
 | F2 Dual-modal pilot scoring | ✅ | ✅ | ✅ | ✅ | ✅ | – | ✅ | ✅ DONE |
 | F3 Dashboard UI redesign | [✅](tasks/F3-pm.md) | [✅](tasks/F3-ba.md) | [✅](tasks/F3-ux.md) | [✅](tasks/F3-frontend.md) | – | [✅](tasks/F3-devops.md) | [✅](tasks/F3-qa.md) | ✅ DONE |
+| F4 Forced password change | [✅](tasks/F4-pm.md) | [✅](tasks/F4-ba.md) | [✅](tasks/F4-ux.md) | [✅](tasks/F4-backend.md) · [✅](tasks/F4-frontend.md) | [✅](tasks/F4-dba.md) | [✅](tasks/F4-devops.md) | [✅](tasks/F4-qa.md) | ✅ DONE |
+| F5 User management | [✅](tasks/F5-pm.md) | [✅](tasks/F5-ba.md) | [✅](tasks/F5-ux.md) | [✅](tasks/F5-backend.md) · [✅](tasks/F5-frontend.md) | – | – | [✅](tasks/F5-qa.md) | ✅ DONE |
+| F6 SSE job status | [✅](tasks/F6-pm.md) | [✅](tasks/F6-ba.md) | [✅](tasks/F6-ux.md) | [✅](tasks/F6-backend.md) · [✅](tasks/F6-frontend.md) | – | [✅](tasks/F6-devops.md) | [✅](tasks/F6-qa.md) | ✅ DONE |
+| F7 Analytics dashboard | [✅](tasks/F7-pm.md) | [✅](tasks/F7-ba.md) | [✅](tasks/F7-ux.md) | [✅](tasks/F7-backend.md) · [✅](tasks/F7-frontend.md) | – | – | [✅](tasks/F7-qa.md) | ✅ DONE |
 
 Legend: ✅ done · 🔄 in progress · ⬜ waiting · ❌ fail (fixing, round N/3) · – n/a
 
@@ -108,6 +123,11 @@ Legend: ✅ done · 🔄 in progress · ⬜ waiting · ❌ fail (fixing, round N
 ## Emergent backlog
 
 - (Q-1, from BA) Media controller should fall back to `audio.mp3` when `original.{ext}` is reaped (days 7–90) but `mediaDeletedAt IS NULL`, so the dashboard audio player keeps working after video reap. Out of M3.6 scope; candidate follow-up story.
+- **(F5-a) Login email is case-sensitive** (`AuthService.validate`) while F5 stores emails verbatim. Not a bug for F5 (backend enforces case-insensitive *uniqueness* at create, so the exact-case address the admin typed always works), but a case-insensitive login lookup would be friendlier. `AuthService.validate` was frozen for F5. Candidate follow-up.
+- **(F5-b) No delete/deactivate user** — F5 create+reset only. There is currently no in-app way to revoke a departed user's access (DB edit required). Candidate follow-up; owner decision on whether hard-delete or a `disabled` flag.
+- **(F5-c) Case-insensitive-uniqueness race** — F5's create-time duplicate check is check-then-act; the real guard would be a `lower(email)` functional unique index, deliberately NOT added because Prisma can't express expression indexes in `schema.prisma` (a raw-SQL index would create permanent `migrate diff` drift — the exact thing F2's DBA validated against). Postgres P2002 on the plain `email` unique constraint remains the DB-authoritative backstop for exact-case dupes; the residual window is two admins creating case-variant duplicates simultaneously. Accepted.
+- **(F6-a) SSE hook does not auto-refetch on reconnect** — `useSubmissionEvents` relies on native `EventSource` reconnect but does NOT trigger a REST refetch after a reconnect, so a status change that occurred *during* a disconnection window is not reconciled until the next event or a manual refresh (BA §3 / AC-15). UX (design authority) deemed this acceptable for an internal ops dashboard — data is never wrong (REST is authoritative), only momentarily stale. Candidate follow-up if real usage shows gaps matter.
+- **(F6-b) Live SSE E2E is owner-acceptance** — the incremental-frame delivery through Caddy (AC-19/20), multi-tab independence, and real reconnect behavior can only be verified on a rebuilt running stack with a browser/`curl -N` + session cookie. DevOps left the recipe in `F6-devops.md`. The currently-running core-api container predates the `events/` module and `infra/.env` has `DOMAIN=bot.example.com` (ACME fails locally — set `DOMAIN=localhost` per CLAUDE.md) — both must be resolved before the live check.
 
 ## Open questions / blockers
 
@@ -121,3 +141,6 @@ Legend: ✅ done · 🔄 in progress · ⬜ waiting · ❌ fail (fixing, round N
 | F3 | D2 — Icon-only sidebar nav links + logout expose an empty accessible name at the md (768–1023px) rail breakpoint: `IconBase` is `aria-hidden`, Tooltip label is a sibling with no aria wiring, logout has no `aria-label`. Regression vs the always-labelled old top nav. AC-46. **Medium.** | 1 | frontend | fixed — `aria-label={item.label}` on rail links + `aria-label={t('nav.logout')}` on logout, both from existing i18n values |
 | F3 | D3 — `F3-frontend.md` misreports deps (`tailwindcss-animate`, `phosphor-react` claimed but never added). Documentation only. Low. | 1 | frontend | fixed — Outputs corrected to the real dep set |
 | F3 | D4 — `docker compose build dashboard` fails when host `services/dashboard/node_modules/` exists (no `.dockerignore` in any service). Pre-existing, but F3's containerized build loop makes it likely to be hit. Low. | 1 | devops | fixed — `.dockerignore` added to all 4 services; no Dockerfile/compose/Caddy change. Devops could not reproduce the exact symlink failure in its sandbox (filesystem difference) but verified builds still succeed and no COPY path is excluded |
+| F4 | D1 — `/change-password` is an unescapable dead-end for logged-out visitors: page reads neither `user` nor `loading`, route sits outside `ProtectedShell`, so the guard's 401 renders as the misleading "current password incorrect". Violates F4-ba §2.9 ("ends at `/login`"). **Medium.** | 1 | frontend | fixed — page now reads `useAuth()`, renders `null` while `loading` (no hard-refresh bounce) and `<Navigate to="/login" replace />` when `!user`; nav-chrome-free rendering and route registration untouched |
+| F4 | D2 — dead i18n key `changePassword.success` defined in both vi and en, referenced nowhere. Low. | 1 | frontend | fixed — removed from both locales; parity now 124/124, zero dead keys |
+| F4 | D3 — `F4-backend.md` claimed npm 11.16 blocks lifecycle scripts so `npm ci --dangerously-allow-all-scripts` is required and CLAUDE.md needs updating. **Refuted by QA** via a 3-arm controlled experiment. Documentation only. Low. | 1 | backend | fixed — claim retracted in the task file; backend independently re-ran all 3 arms and confirmed QA. **CLAUDE.md correctly left unchanged** — plain `npm ci` works; the `allow-scripts` line is warn-only |

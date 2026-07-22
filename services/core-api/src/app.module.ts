@@ -4,6 +4,7 @@ import { AuthModule } from './auth/auth.module';
 import { ClassesConfigModule } from './classes-config/classes-config.module';
 import { CriteriaModule } from './criteria/criteria.module';
 import { DlqModule } from './dlq/dlq.module';
+import { EventsModule } from './events/events.module';
 import { GradingsModule } from './gradings/gradings.module';
 import { HealthController } from './health.controller';
 import { MediaLifecycleModule } from './media-lifecycle/media-lifecycle.module';
@@ -20,6 +21,7 @@ import { SettingsModule } from './settings/settings.module';
 import { SheetsSyncModule } from './sheets-sync/sheets-sync.module';
 import { StudentsModule } from './students/students.module';
 import { SubmissionsModule } from './submissions/submissions.module';
+import { UsersModule } from './users/users.module';
 import { WorkerApiModule } from './worker-api/worker-api.module';
 
 @Module({
@@ -27,6 +29,7 @@ import { WorkerApiModule } from './worker-api/worker-api.module';
     PrismaModule,
     RedisModule,
     RabbitModule,
+    EventsModule,
     ScheduleModule.forRoot(),
     SettingsModule,
     AuthModule,
@@ -45,6 +48,7 @@ import { WorkerApiModule } from './worker-api/worker-api.module';
     CriteriaModule,
     ReportsModule,
     MonitoringModule,
+    UsersModule,
   ],
   controllers: [HealthController],
 })

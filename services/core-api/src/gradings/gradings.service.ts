@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Grading } from '@prisma/client';
 import { OutboundMessage, Q_OUTBOUND } from '../contracts';
+import { EventsService } from '../events/events.service';
 import { PrismaService } from '../prisma.service';
 import { RabbitService } from '../rabbit.service';
 
@@ -10,6 +11,7 @@ export class GradingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly rabbit: RabbitService,
+    private readonly events: EventsService,
   ) {}
 
   reviewFeedback(id: number, reviewedFeedback: string, reviewedBy: string): Promise<Grading> {
@@ -32,7 +34,11 @@ export class GradingsService {
     };
     this.rabbit.publish(Q_OUTBOUND, message);
 
-    await this.prisma.submission.update({ where: { id: grading.submissionId }, data: { status: 'sent' } });
+    const updated = await this.prisma.submission.update({
+      where: { id: grading.submissionId },
+      data: { status: 'sent' },
+    });
+    this.events.publishStatus(updated.id, updated.status); // F6: SSE realtime, sau khi ghi resolve
     return this.prisma.grading.update({ where: { id }, data: { sentAt: new Date() } });
   }
 }

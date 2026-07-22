@@ -24,7 +24,9 @@ export class BootstrapAdminService implements OnApplicationBootstrap {
     if (count > 0) return;
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    await this.prisma.dashboardUser.create({ data: { email, passwordHash, role: 'admin' } });
+    await this.prisma.dashboardUser.create({
+      data: { email, passwordHash, role: 'admin', mustChangePassword: true },
+    });
     this.logger.log(`Bootstrap admin created: ${email}`);
   }
 }

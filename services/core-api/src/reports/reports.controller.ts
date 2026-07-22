@@ -1,16 +1,9 @@
 import { BadRequestException, Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
+import { parseRange } from './date-range';
 import { toCsv, toXlsxBuffer } from './report-export';
 import { CostRow, PilotComparisonRow, ReportsService, SubmissionRateRow } from './reports.service';
-
-const DEFAULT_RANGE_DAYS = 30;
-
-function parseRange(from?: string, to?: string): { from: Date; to: Date } {
-  const toDate = to ? new Date(to) : new Date();
-  const fromDate = from ? new Date(from) : new Date(toDate.getTime() - DEFAULT_RANGE_DAYS * 24 * 3600 * 1000);
-  return { from: fromDate, to: toDate };
-}
 
 async function respondExport(res: Response, format: string | undefined, rows: Record<string, unknown>[], filename: string): Promise<void> {
   if (format === 'xlsx') {
