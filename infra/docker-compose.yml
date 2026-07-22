@@ -93,6 +93,14 @@ services:
       core-api:
         condition: service_started
 
+  # Chạy MỘT lần để build dashboard rồi copy dist/ vào volume dùng chung với caddy, sau đó
+  # tự thoát (mục 3.2: dashboard là SPA tĩnh, Caddy serve — không cần Node chạy nền).
+  dashboard:
+    build: ../services/dashboard
+    restart: "no"
+    volumes:
+      - dashboarddist:/srv/dashboard
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -105,9 +113,11 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddydata:/data
       - caddyconfig:/config
+      - dashboarddist:/srv/dashboard:ro
     depends_on:
       - zalo-gateway
       - core-api
+      - dashboard
 
 volumes:
   pgdata:
@@ -115,4 +125,5 @@ volumes:
   rabbitdata:
   caddydata:
   caddyconfig:
+  dashboarddist:
   media: # /data/media (mục 3.8) — core-api đọc/xóa, grading-worker ghi (M3)

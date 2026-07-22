@@ -21,7 +21,18 @@
       "Bash(./.venv/Scripts/python.exe -m pytest tests/test_pricing.py tests/test_rabbit_consumer.py -v)",
       "Bash(./.venv/Scripts/python.exe -m pytest tests/test_pipeline.py -v)",
       "Bash(./.venv/Scripts/python.exe -m pytest tests/test_ffmpeg.py tests/test_downloader.py -v)",
-      "Bash(./.venv/Scripts/python.exe -m pytest tests/ -v)"
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/ -v)",
+      "Bash(npx ts-node *)",
+      "Bash(timeout 280 npx jest --silent=false)",
+      "Bash(docker run *)",
+      "Bash(MSYS_NO_PATHCONV=1 docker run --rm -v \"d:/Docs/Project/TTTA/services/core-api:/app\" -w /app node:24-alpine sh -c \"apk add --no-cache openssl >/dev/null 2>&1 && npm ci --silent && npx prisma generate --silent && npm test 2>&1\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker run --rm -v \"d:/Docs/Project/TTTA/services/core-api:/app\" -w /app node:24-alpine sh -c \"apk add --no-cache openssl >/dev/null 2>&1 && npm ci --silent && npx prisma generate && npm test 2>&1\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker run --rm -v \"d:/Docs/Project/TTTA/services/dashboard:/app\" -w /app node:24-alpine sh -c \"npm ci --silent && npm run build 2>&1\")",
+      "PowerShell(Get-Process | Where-Object { $_.ProcessName -match 'Docker|com.docker' } | Select-Object ProcessName, Id, CPU, WorkingSet | Format-Table -AutoSize)",
+      "Bash(MSYS_NO_PATHCONV=1 docker run --rm -v \"d:/Docs/Project/TTTA/services/core-api:/app\" -w /app node:24-alpine sh -c \"apk add --no-cache openssl >/dev/null 2>&1 && npm ci --silent && npx prisma generate && npm test -- --maxWorkers=2 2>&1\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker run --rm -v \"d:/Docs/Project/TTTA/services/core-api:/app\" -w /app node:24-alpine sh -c \"apk add --no-cache openssl >/dev/null 2>&1 && npm ci --silent && npx prisma generate >/dev/null && npm test -- --maxWorkers=2\")",
+      "Skill(dev-team-roles:build-feature)",
+      "Skill(dev-team-roles:build-feature:*)"
     ]
   }
 }

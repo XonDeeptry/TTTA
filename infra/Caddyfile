@@ -13,8 +13,11 @@
 		reverse_proxy core-api:3001
 	}
 
-	# M4: dashboard SPA sẽ được serve ở đây
+	# Dashboard SPA (M4) — build container sao chép dist/ vào volume dashboarddist,
+	# Caddy chỉ serve tĩnh, không cần Node/nginx chạy runtime.
 	handle {
-		respond "ilm-bot" 200
+		root * /srv/dashboard
+		file_server
+		try_files {path} /index.html
 	}
 }

@@ -1,19 +1,8 @@
 import { existsSync, createReadStream } from 'fs';
-import { resolve, sep } from 'path';
-import {
-  Controller,
-  ForbiddenException,
-  Get,
-  NotFoundException,
-  Param,
-  ParseIntPipe,
-  StreamableFile,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, ParseIntPipe, StreamableFile, UseGuards } from '@nestjs/common';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
+import { resolveMediaPath } from '../lib/media-path';
 import { PrismaService } from '../prisma.service';
-
-const MEDIA_ROOT = resolve(process.env.MEDIA_ROOT ?? '/data/media');
 
 /**
  * Stream file media có auth (mục 3.8) — cả admin lẫn staff nghe được, chỉ admin mới xóa
@@ -32,10 +21,7 @@ export class MediaController {
       throw new NotFoundException('no media available for this submission');
     }
 
-    const filePath = resolve(MEDIA_ROOT, submission.mediaPath);
-    if (!filePath.startsWith(MEDIA_ROOT + sep) && filePath !== MEDIA_ROOT) {
-      throw new ForbiddenException('invalid media path');
-    }
+    const filePath = resolveMediaPath(submission.mediaPath);
     if (!existsSync(filePath)) throw new NotFoundException('media file missing on disk');
 
     return new StreamableFile(createReadStream(filePath));

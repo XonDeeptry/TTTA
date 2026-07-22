@@ -2,8 +2,8 @@
 
 Bảng theo dõi tiến độ theo lộ trình 5 milestone của [Idea/20260719-KienTrucMicroservices.md](Idea/20260719-KienTrucMicroservices.md) (Phần 4). Cập nhật file này mỗi khi hoàn thành một hạng mục/phase.
 
-**Trạng thái tổng:** M1 + M2 + M3 hoàn thành ✅ (chờ chủ dự án cung cấp API key Gemini/OpenAI để nghiệm thu chấm thật) · Đang chờ bắt đầu M4
-**Cập nhật lần cuối:** 2026-07-20
+**Trạng thái tổng:** M1 + M2 + M3 + M4 hoàn thành ✅ (chờ chủ dự án cung cấp API key Gemini/OpenAI cho M3.7 và app Zalo thật cho M1.8) · Đang chờ bắt đầu M5 (pilot)
+**Cập nhật lần cuối:** 2026-07-22
 
 ---
 
@@ -49,15 +49,17 @@ Bảng theo dõi tiến độ theo lộ trình 5 milestone của [Idea/20260719-
 - `GET /internal/students/:id` (student + `course.llmConfig` + `classes_config.autoSend` theo `className`) và `POST /internal/flags`
 - `POST /internal/submissions` đổi từ `create` thuần sang **upsert theo `messageId`** — cần thiết để RabbitMQ redeliver/retry không vỡ vì unique constraint (phát hiện khi xây pipeline worker, xem changelog v1.4 trong kiến trúc doc)
 
-## Milestone 4 — dashboard (React) ⬜
+## Milestone 4 — dashboard (React) ✅ (xong 2026-07-22)
 
-- [ ] M4.1 Skeleton React + Vite + react-i18next (vi/en), đăng nhập session, 2 vai trò admin/staff
-- [ ] M4.2 Phân hệ 1 — Giám sát & Cấu hình hệ thống: queue depth, DLQ + nút Retry, trạng thái token, **màn Cấu hình** (Zalo app/OA, token khởi tạo, khóa LLM, ngưỡng clip, guard 48h — masked, hiệu lực nóng)
-- [ ] M4.3 Phân hệ 2 — Học viên: danh sách/tìm kiếm/sửa tay, màn Onboarding (pending bindings), lỗi sync Sheets
-- [ ] M4.4 Phân hệ 3 — Bài nộp: bảng trạng thái, player audio (stream có auth), màn Kiểm duyệt (điểm + phát âm, sửa nhận xét, bấm gửi), xóa media
-- [ ] M4.5 Phân hệ 4 — Báo cáo & chi phí: tỷ lệ nộp, chi phí LLM theo ngày/tháng, xuất Excel
-- [ ] M4.6 Phân hệ 5 — Tiêu chí & Prompt: upload .docx template chuẩn, preview rubric JSON, cấu hình provider/model/temperature/ngôn ngữ theo khóa, `auto_send` theo lớp
-- [ ] M4.7 Nghiệm thu: giáo viên duyệt 1 bài trên dashboard → HS nhận nhận xét; 20:30 tư vấn nhận danh sách chưa nộp
+- [x] M4.1 Skeleton React + Vite + react-i18next (vi/en) — đã có từ M2 (login/settings/onboarding); M4 thêm route admin-only (`/monitoring`, `/settings`) vs admin+staff (`/students`, `/submissions`, `/reports`, `/criteria`, `/onboarding`) đúng theo phân quyền mục 3.7 ("admin thấy hết, staff phân hệ 2/3/4/5")
+- [x] M4.2 Phân hệ 1 — `pages/Monitoring.tsx` (admin-only): queue depth (main **và** DLQ — `GET /monitoring/queues`, core-api mới, extend `RabbitService.queueDepth` có sẵn từ M2), nút Retry (tái dùng `GET/POST /dlq` từ M2), trạng thái token Zalo (`GET /monitoring/token` đọc thẳng `RedisService.client` — không cần round-trip gateway), lần sync Sheets gần nhất (tái dùng `GET /sheets-sync/log` từ M2). Màn Cấu hình đã xong ở M2.
+- [x] M4.3 Phân hệ 2 — `pages/Students.tsx`: tìm kiếm (ILIKE code/tên/SĐT) + sửa tay từng dòng (`students/` module mới: `GET/PATCH`). Onboarding đã xong ở M2; lỗi sync Sheets hiện trong Monitoring.
+- [x] M4.4 Phân hệ 3 — `pages/Submissions.tsx` (bảng trạng thái, lọc theo status) + `pages/SubmissionDetail.tsx` (audio player `<audio src="/api/media/:id">`, điểm từng tiêu chí + phát âm từ `gradings.scores`, textarea sửa nhận xét + nút Gửi, nút Xóa media admin-only). Core-api mới: `submissions/` (list/detail/xóa media) + `gradings/` (`PATCH` sửa `reviewedFeedback`, `POST /:id/send` publish outbound + set `status='sent'`).
+- [x] M4.5 Phân hệ 4 — `pages/Reports.tsx`: tỷ lệ nộp theo lớp + chi phí LLM theo ngày, lọc khoảng ngày. Export **CẢ CSV lẫn .xlsx thật** (quyết định của chủ dự án — xem `reports/report-export.ts`: CSV thủ công, `.xlsx` qua `exceljs` mới thêm).
+- [x] M4.6 Phân hệ 5 — `pages/Criteria.tsx`: upload `.docx` (multipart → `mammoth` bóc text → `criteria/docx-parser.ts` tách theo 4 heading bắt buộc thành rubric JSON, từ chối nếu thiếu dimension `pronunciation` — mục 3.10), preview rubric JSON, bảng `classes_config.autoSend`/`advisorZaloId` theo lớp (`classes-config/` module mới, bảng đã có từ M2 nhưng chưa có API). File mẫu `services/core-api/templates/rubric-template.docx` được sinh bằng script (`scripts/generate-rubric-template.ts`, dùng package `docx`) — **đã upload thật qua mammoth+parser và ra đúng rubric JSON có đủ pronunciation** (xem M4.8).
+- [x] M4.7 Container hóa dashboard lần đầu (đúng như Caddyfile đã chừa chỗ từ M1): `services/dashboard/Dockerfile` build rồi copy `dist/` vào volume `dashboarddist` dùng chung với Caddy, không cần Node chạy nền; `Caddyfile` đổi placeholder `respond "ilm-bot"` thành `file_server` + SPA fallback.
+- [x] M4.8 **75/75 unit tests pass** (18 suites, chạy trong Docker theo yêu cầu không chạy Node trực tiếp trên máy — xem ghi chú vận hành); build tsc + vite sạch cho cả core-api và dashboard. Smoke test thật qua curl: upload `rubric-template.docx` thật → rubric JSON đúng cả 4 dimension; `PATCH`+`POST /gradings/:id/send` → outbound tới đúng hàng đợi, bị chặn đúng bởi guard 48h (như M2/M3); export CSV và `.xlsx` đều trả đúng content-type và nội dung hợp lệ; `classes-config`/`students` CRUD hoạt động đúng.
+- [ ] M4.9 **(cần chủ dự án)** Nghiệm thu qua Zalo thật: giáo viên duyệt 1 bài trên dashboard → HS nhận nhận xét qua Zalo — cần M1.8 (app Zalo thật) xong trước; cơ chế gửi (publish outbound → gateway) đã xác nhận đúng qua smoke test M4.8, chỉ còn thiếu kênh Zalo thật. Báo chưa nộp cuối ngày đã nghiệm thu cơ chế từ M2/M3 (chưa qua Zalo thật vì cùng lý do).
 
 ## Milestone 5 — Pilot ⬜ (cần chủ dự án vận hành)
 
@@ -74,6 +76,7 @@ Bảng theo dõi tiến độ theo lộ trình 5 milestone của [Idea/20260719-
 - Docker Desktop cần chạy trước khi `docker compose up`. Python 3.11 đã có sẵn trên máy dev (không cần cài thêm cho M3).
 - `infra/.env` local đang là bản copy `.env.example` (dev default, đã gitignore) — nhớ set `DOMAIN=localhost` (không phải `bot.example.com`) khi chạy dev, nếu không Caddy sẽ cố xin cert Let's Encrypt thật và fail.
 - `services/core-api`: `npm run prisma:migrate` cần Postgres reachable ở `localhost:5432` (bind loopback trong docker-compose) để chạy `prisma migrate dev` từ máy host khi đổi schema.
-- `services/dashboard`: chạy qua `npm run dev` (Vite dev-server, proxy `/api` → `localhost:3001`) — chưa vào docker-compose, xem ghi chú M2 ở trên.
+- `services/dashboard`: dev nhanh qua `npm run dev` (Vite dev-server, proxy `/api` → `localhost:3001`); từ M4 cũng đã vào `docker-compose` (service `dashboard` build rồi copy `dist/` vào volume, Caddy serve tĩnh ở `/`).
 - `services/grading-worker`: venv tại `.venv/` (gitignored) — `python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"` rồi `pytest`. FFmpeg không cần cài trên máy dev (chỉ chạy trong container); ffprobe/ffmpeg chưa có trên máy dev nên các hàm `media/ffmpeg.py` chỉ test được qua mock, chưa test với binary thật ngoài container.
 - Publish thử một message vào `submissions` mà không cần Zalo thật: `curl -u ilm:change-me -X POST http://localhost:15672/api/exchanges/%2f/ilm.direct/publish -d '{"routing_key":"submissions","payload":"...","payload_encoding":"string","properties":{}}'` (RabbitMQ management API, loopback-only).
+- **Không chạy Node/npm trực tiếp trên máy dev** (theo yêu cầu chủ dự án) — build/test TS/JS qua Docker, ví dụ: `docker run --rm -v <path>:/app -w /app node:24-alpine sh -c "npm ci && npm test"` (thêm `MSYS_NO_PATHCONV=1` khi chạy từ Git Bash trên Windows để tránh path bị mangle), hoặc đơn giản hơn là `docker compose build <service>` (đã chạy `npm run build`/tsc sẵn trong Dockerfile) rồi smoke test qua curl trên stack đang chạy. Nếu container chạy `npm test` bị `SIGKILL` (worker jest bị OOM) do máy dev hạn chế RAM cho Docker Desktop, thêm `-- --maxWorkers=2` vào lệnh test.
