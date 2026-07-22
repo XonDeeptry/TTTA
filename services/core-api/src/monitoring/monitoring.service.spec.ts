@@ -41,4 +41,18 @@ describe('MonitoringService', () => {
     expect(status.expiresAt).toBe('1234567890');
     expect(status.alert).toContain('refresh failed');
   });
+
+  it('reports no disk alert when Redis has none', async () => {
+    const status = await service.diskStatus();
+    expect(status).toEqual({ alert: null });
+  });
+
+  it('surfaces the disk-high alert from Redis', async () => {
+    redis.client.get.mockImplementation((key: string) =>
+      key === 'alert:media_disk_high' ? Promise.resolve('{"pct":90,"at":"2026-07-22T03:15:00.000Z"}') : Promise.resolve(null),
+    );
+
+    const status = await service.diskStatus();
+    expect(status.alert).toContain('90');
+  });
 });

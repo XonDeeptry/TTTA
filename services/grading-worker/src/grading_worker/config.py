@@ -22,6 +22,7 @@ _ENV_FALLBACKS: dict[str, str | None] = {
     "llm.gemini_api_key": os.environ.get("GEMINI_API_KEY"),
     "llm.openai_api_key": os.environ.get("OPENAI_API_KEY"),
     "limits.max_clip_duration_sec": os.environ.get("MAX_CLIP_DURATION_SEC"),
+    "limits.pilot_dual_grading": os.environ.get("PILOT_DUAL_GRADING"),
 }
 
 
@@ -40,3 +41,13 @@ class ConfigStore:
         if value is None or value == "":
             return default
         return int(value)
+
+    async def get_bool(self, key: str, default: bool = False) -> bool:
+        # Feature flag đọc từ config:* (mirror từ settings table, dạng chuỗi thô "true"/"false"
+        # — byte-compatible với gateway, xem SettingsService). Rỗng/None → default; chỉ "true"
+        # (không phân biệt hoa thường) mới là True, mọi chuỗi khác → False (fail-safe: cờ hỏng
+        # coi như tắt).
+        value = await self.get(key)
+        if value is None or value == "":
+            return default
+        return value.strip().lower() == "true"

@@ -15,6 +15,10 @@ export interface TokenStatus {
   alert: string | null;
 }
 
+export interface DiskStatus {
+  alert: string | null;
+}
+
 /** Phân hệ 1 (mục 3.7), admin-only: độ sâu hàng đợi + trạng thái token Zalo. */
 @Injectable()
 export class MonitoringService {
@@ -40,5 +44,11 @@ export class MonitoringService {
       this.redis.client.get('alert:zalo_token_failed'),
     ]);
     return { hasAccessToken: accessToken !== null, expiresAt, alert };
+  }
+
+  /** Cảnh báo đĩa media đầy (mục 3.8) — do MediaLifecycleService bật/tắt. */
+  async diskStatus(): Promise<DiskStatus> {
+    const alert = await this.redis.client.get('alert:media_disk_high');
+    return { alert };
   }
 }

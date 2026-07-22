@@ -17,6 +17,14 @@ interface CostRow {
   outputTokens: number;
 }
 
+interface PilotComparisonRow {
+  submissionId: number;
+  className: string;
+  studentCode: string;
+  studentName: string;
+  [key: string]: string | number;
+}
+
 function daysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
@@ -29,16 +37,18 @@ export function Reports() {
   const [to, setTo] = useState(daysAgo(0));
   const [rateRows, setRateRows] = useState<SubmissionRateRow[]>([]);
   const [costRows, setCostRows] = useState<CostRow[]>([]);
+  const [pilotRows, setPilotRows] = useState<PilotComparisonRow[]>([]);
 
   function load(): void {
     const qs = `?from=${from}&to=${to}`;
     void api.get<SubmissionRateRow[]>(`/reports/submission-rate${qs}`).then(setRateRows);
     void api.get<CostRow[]>(`/reports/cost${qs}`).then(setCostRows);
+    void api.get<PilotComparisonRow[]>(`/reports/pilot-comparison${qs}`).then(setPilotRows);
   }
 
   useEffect(load, [from, to]);
 
-  function exportUrl(kind: 'submission-rate' | 'cost', format: 'csv' | 'xlsx'): string {
+  function exportUrl(kind: 'submission-rate' | 'cost' | 'pilot-comparison', format: 'csv' | 'xlsx'): string {
     return `/api/reports/${kind}/export?format=${format}&from=${from}&to=${to}`;
   }
 
@@ -95,6 +105,39 @@ export function Reports() {
               <td>${r.totalUsd.toFixed(4)}</td>
             </tr>
           ))}
+        </tbody>
+      </table>
+
+      <h2>{t('reports.pilotComparison')}</h2>
+      <a href={exportUrl('pilot-comparison', 'csv')}>{t('reports.exportCsv')}</a>{' | '}
+      <a href={exportUrl('pilot-comparison', 'xlsx')}>{t('reports.exportXlsx')}</a>
+      <table style={{ width: '100%', marginTop: '0.5rem' }}>
+        <thead>
+          <tr>
+            <th>{t('reports.class')}</th>
+            <th>{t('reports.student')}</th>
+            <th>{t('reports.dimension')}</th>
+            <th>{t('reports.scoreAudio')}</th>
+            <th>{t('reports.scoreText')}</th>
+            <th>{t('reports.scoreDelta')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pilotRows.flatMap((r) => {
+            const dimensions = Object.keys(r)
+              .filter((k) => k.startsWith('audio_'))
+              .map((k) => k.slice('audio_'.length));
+            return dimensions.map((dim) => (
+              <tr key={`${r.submissionId}-${dim}`}>
+                <td>{r.className}</td>
+                <td>{r.studentName}</td>
+                <td>{dim}</td>
+                <td>{r[`audio_${dim}`]}</td>
+                <td>{r[`text_${dim}`]}</td>
+                <td>{r[`delta_${dim}`]}</td>
+              </tr>
+            ));
+          })}
         </tbody>
       </table>
     </main>

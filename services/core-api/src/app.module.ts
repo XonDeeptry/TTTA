@@ -6,6 +6,7 @@ import { CriteriaModule } from './criteria/criteria.module';
 import { DlqModule } from './dlq/dlq.module';
 import { GradingsModule } from './gradings/gradings.module';
 import { HealthController } from './health.controller';
+import { MediaLifecycleModule } from './media-lifecycle/media-lifecycle.module';
 import { MediaModule } from './media/media.module';
 import { MessageTemplatesModule } from './message-templates/message-templates.module';
 import { MissingSubmissionsModule } from './missing-submissions/missing-submissions.module';
@@ -36,6 +37,7 @@ import { WorkerApiModule } from './worker-api/worker-api.module';
     WorkerApiModule,
     DlqModule,
     MediaModule,
+    MediaLifecycleModule,
     StudentsModule,
     SubmissionsModule,
     GradingsModule,

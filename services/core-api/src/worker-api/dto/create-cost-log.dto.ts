@@ -19,4 +19,8 @@ export class CreateCostLogDto {
 
   @IsNumber()
   estUsd!: number;
+
+  @IsOptional()
+  @IsString()
+  callType?: string;
 }

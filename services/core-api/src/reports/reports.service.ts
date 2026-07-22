@@ -19,6 +19,26 @@ export interface CostRow {
   outputTokens: number;
 }
 
+/** Pilot A/B (US4): mỗi dòng là một submission có CẢ bản chấm audio (Grading) lẫn text
+ * (PilotTextGrading); các cột audio_<dim>/text_<dim>/delta_<dim> là động theo dimension. */
+export interface PilotComparisonRow {
+  submissionId: number;
+  className: string;
+  studentCode: string;
+  studentName: string;
+  [dimensionColumn: string]: number | string;
+}
+
+function dimensionScore(scores: unknown, dim: string): number | null {
+  if (!scores || typeof scores !== 'object') return null;
+  const entry = (scores as Record<string, unknown>)[dim];
+  if (entry && typeof entry === 'object' && typeof (entry as Record<string, unknown>).score === 'number') {
+    return (entry as { score: number }).score;
+  }
+  if (typeof entry === 'number') return entry;
+  return null;
+}
+
 /** Phân hệ 4 (mục 3.7): tỷ lệ nộp theo lớp + chi phí LLM theo ngày. */
 @Injectable()
 export class ReportsService {
@@ -68,5 +88,51 @@ export class ReportsService {
       byKey.set(key, entry);
     }
     return Array.from(byKey.values());
+  }
+
+  /** US4 pilot A/B: đối chiếu điểm nhánh audio vs. text theo từng dimension. Chỉ lấy submission
+   * có ĐỦ cả hai bản chấm trong khoảng thời gian (receivedAt). delta = audio − text. */
+  async pilotComparison(from: Date, to: Date): Promise<PilotComparisonRow[]> {
+    const submissions = await this.prisma.submission.findMany({
+      where: {
+        receivedAt: { gte: from, lte: to },
+        grading: { isNot: null },
+        pilotTextGrading: { isNot: null },
+      },
+      include: {
+        grading: true,
+        pilotTextGrading: true,
+        student: { select: { code: true, fullName: true, className: true } },
+      },
+      orderBy: { receivedAt: 'asc' },
+    });
+
+    const rows: PilotComparisonRow[] = [];
+    for (const s of submissions) {
+      // where lọc isNot:null nhưng TS không thu hẹp kiểu quan hệ nullable → guard lại cho chắc.
+      if (!s.grading || !s.pilotTextGrading) continue;
+      const audioScores = s.grading.scores;
+      const textScores = s.pilotTextGrading.scores;
+      const dims = new Set<string>([
+        ...(audioScores && typeof audioScores === 'object' ? Object.keys(audioScores as object) : []),
+        ...(textScores && typeof textScores === 'object' ? Object.keys(textScores as object) : []),
+      ]);
+
+      const row: PilotComparisonRow = {
+        submissionId: s.id,
+        className: s.student?.className ?? UNASSIGNED_CLASS,
+        studentCode: s.student?.code ?? '',
+        studentName: s.student?.fullName ?? '',
+      };
+      for (const dim of dims) {
+        const audio = dimensionScore(audioScores, dim);
+        const text = dimensionScore(textScores, dim);
+        row[`audio_${dim}`] = audio ?? '';
+        row[`text_${dim}`] = text ?? '';
+        row[`delta_${dim}`] = audio !== null && text !== null ? audio - text : '';
+      }
+      rows.push(row);
+    }
+    return rows;
   }
 }

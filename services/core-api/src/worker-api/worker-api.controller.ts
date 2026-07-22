@@ -1,10 +1,11 @@
 import { Body, Controller, Get, NotFoundException, Param, ParseIntPipe, Patch, Post, UseGuards } from '@nestjs/common';
-import { CostLog, Criteria, Flag, Grading, Submission, ZaloBinding } from '@prisma/client';
+import { CostLog, Criteria, Flag, Grading, PilotTextGrading, Submission, ZaloBinding } from '@prisma/client';
 import { InternalTokenGuard } from '../auth/internal-token.guard';
 import { PrismaService } from '../prisma.service';
 import { CreateCostLogDto } from './dto/create-cost-log.dto';
 import { CreateFlagDto } from './dto/create-flag.dto';
 import { CreateGradingDto } from './dto/create-grading.dto';
+import { CreatePilotTextGradingDto } from './dto/create-pilot-text-grading.dto';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
 import { UpdateSubmissionDto } from './dto/update-submission.dto';
 
@@ -73,6 +74,7 @@ export class WorkerApiController {
         mediaPath: body.mediaPath,
         durationSec: body.durationSec,
         studentId: body.studentId,
+        audioExtractedAt: body.audioExtractedAt ? new Date(body.audioExtractedAt) : undefined,
       },
     });
   }
@@ -124,6 +126,24 @@ export class WorkerApiController {
         inputTokens: body.inputTokens,
         outputTokens: body.outputTokens,
         estUsd: body.estUsd,
+        callType: body.callType,
+      },
+    });
+  }
+
+  /** Pilot A/B (nhánh text) — worker gửi bản chấm transcript-only để đối chiếu; 1-1 với submission. */
+  @Post('pilot-text-gradings')
+  createPilotTextGrading(@Body() body: CreatePilotTextGradingDto): Promise<PilotTextGrading> {
+    return this.prisma.pilotTextGrading.create({
+      data: {
+        submissionId: body.submissionId,
+        criteriaId: body.criteriaId,
+        criteriaVersion: body.criteriaVersion,
+        transcript: body.transcript,
+        scores: body.scores as never,
+        llmFeedback: body.llmFeedback,
+        provider: body.provider,
+        model: body.model,
       },
     });
   }

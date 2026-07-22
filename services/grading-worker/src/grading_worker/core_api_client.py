@@ -65,7 +65,16 @@ class CoreApiClient:
         return res.json()
 
     async def create_cost_log(self, payload: dict[str, Any]) -> dict[str, Any]:
+        # payload đi thẳng qua — hỗ trợ field tùy chọn `callType` (audio_grade/transcription/text_grade)
+        # cho pilot A/B mà không cần đổi chữ ký.
         res = await self._client.post("/internal/cost-log", json=payload)
+        res.raise_for_status()
+        return res.json()
+
+    async def create_pilot_text_grading(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """POST /internal/pilot-text-gradings (pilot A/B, mục pilot) — lưu bản chấm nhánh text
+        song song để đối chiếu; KHÔNG bao giờ gửi cho học viên."""
+        res = await self._client.post("/internal/pilot-text-gradings", json=payload)
         res.raise_for_status()
         return res.json()
 

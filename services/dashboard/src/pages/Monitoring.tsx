@@ -21,17 +21,23 @@ interface SheetSyncLog {
   rowsError: number;
 }
 
+interface DiskStatus {
+  alert: string | null;
+}
+
 export function Monitoring() {
   const { t } = useTranslation();
   const [queues, setQueues] = useState<QueueDepth[]>([]);
   const [token, setToken] = useState<TokenStatus | null>(null);
   const [sheetsLog, setSheetsLog] = useState<SheetSyncLog[]>([]);
+  const [disk, setDisk] = useState<DiskStatus | null>(null);
   const [retried, setRetried] = useState<string | null>(null);
 
   function load(): void {
     void api.get<QueueDepth[]>('/monitoring/queues').then(setQueues);
     void api.get<TokenStatus>('/monitoring/token').then(setToken);
     void api.get<SheetSyncLog[]>('/sheets-sync/log').then(setSheetsLog);
+    void api.get<DiskStatus>('/monitoring/disk').then(setDisk);
   }
 
   useEffect(load, []);
@@ -97,6 +103,26 @@ export function Monitoring() {
           </li>
         ))}
       </ul>
+
+      <h2>{t('monitoring.disk')}</h2>
+      {disk && (
+        <p>
+          {disk.alert === null ? (
+            t('monitoring.diskOk')
+          ) : (
+            <strong>{formatDiskAlert(disk.alert, t)}</strong>
+          )}
+        </p>
+      )}
     </main>
   );
+}
+
+function formatDiskAlert(alert: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
+  try {
+    const parsed = JSON.parse(alert) as { pct: number; at: string };
+    return t('monitoring.diskAlert', { pct: parsed.pct, at: new Date(parsed.at).toLocaleString() });
+  } catch {
+    return alert;
+  }
 }

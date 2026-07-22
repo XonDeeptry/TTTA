@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
 import httpx
@@ -16,8 +17,17 @@ import httpx
 from . import contracts
 from .config import MEDIA_ROOT, ConfigStore
 from .core_api_client import CoreApiClient
-from .grading.prompt import build_system_instruction, build_user_instruction
-from .grading.providers.factory import grade_with_fallback
+from .grading.prompt import (
+    build_system_instruction,
+    build_system_instruction_text,
+    build_user_instruction,
+    build_user_instruction_text,
+)
+from .grading.providers.factory import (
+    grade_text_with_fallback,
+    grade_with_fallback,
+    transcribe_with_fallback,
+)
 from .grading.schema import build_output_schema, validate_output
 from .media.downloader import download_original
 from .media.ffmpeg import extract_audio, probe_duration_sec
@@ -109,7 +119,12 @@ class SubmissionPipeline:
         # Luôn tách/chuẩn hóa về audio.mp3 dù đầu vào là audio hay video — đơn giản hóa mime
         # type gửi LLM về một loại duy nhất, ffmpeg xử lý cả hai trường hợp như nhau.
         audio_path = await extract_audio(_abs_media_path(media_path))
-        await self._core_api.update_submission(submission_id, {"durationSec": int(duration_sec)})
+        # Đánh dấu mốc tách audio để cron vòng đời media (mục 3.8) biết được phép xóa video gốc
+        # sau 7 ngày mà không mất bản audio.
+        await self._core_api.update_submission(
+            submission_id,
+            {"durationSec": int(duration_sec), "audioExtractedAt": datetime.now(timezone.utc).isoformat()},
+        )
 
         criteria = await self._core_api.get_criteria(student["courseId"])
         if criteria is None:
@@ -154,6 +169,7 @@ class SubmissionPipeline:
                 "inputTokens": result.input_tokens,
                 "outputTokens": result.output_tokens,
                 "estUsd": est_usd,
+                "callType": "audio_grade",
             }
         )
 
@@ -164,6 +180,89 @@ class SubmissionPipeline:
             # Kiểm duyệt (Tranh luận 4): giáo viên duyệt trên dashboard (M4) rồi core-api mới publish outbound.
             await self._core_api.update_submission(submission_id, {"status": "awaiting_review"})
             logger.info("submission %s: awaiting_review (grading %s)", submission_id, grading.get("id"))
+
+        # Pilot A/B (bước CUỐI CÙNG, sau khi nhánh audio đã commit hoàn toàn): chấm thêm nhánh
+        # text để đối chiếu. Bọc kín để KHÔNG exception nào lọt ra — pilot lỗi không được ảnh
+        # hưởng kết quả chấm audio đã gửi/chờ duyệt, cũng không được kích retry cả message.
+        # Cờ TẮT → get_bool short-circuit, đường audio không phát sinh call/cost row nào.
+        try:
+            if await self._config.get_bool("limits.pilot_dual_grading", False):
+                await self._run_pilot_text_grading(submission_id, msg, student, criteria, rubric, schema, audio_path)
+        except Exception:
+            logger.exception("submission %s: pilot text grading failed (bỏ qua, không ảnh hưởng chấm audio)", submission_id)
+
+    async def _run_pilot_text_grading(
+        self,
+        submission_id: int,
+        msg: Any,
+        student: dict[str, Any],
+        criteria: dict[str, Any],
+        rubric: dict[str, Any],
+        schema: dict[str, Any],
+        audio_path: str,
+    ) -> None:
+        """Pilot A/B nhánh text (transcript-only) — chạy SONG SONG nhánh audio để đối chiếu
+        chất lượng/chi phí. TUYỆT ĐỐI không publish outbound (không gửi học viên): chỉ transcribe
+        → chấm text → lưu bản ghi pilot + 2 dòng cost_log (transcription, text_grade)."""
+        llm_config = student["llmConfig"] or {}
+
+        # (1) Chép lời từ chính audio.mp3 đã tách ở nhánh audio → cost_log callType='transcription'.
+        transcript = await transcribe_with_fallback(
+            llm_config,
+            self._config,
+            audio_path=audio_path,
+            mime_type="audio/mp3",
+        )
+        await self._core_api.create_cost_log(
+            {
+                "submissionId": submission_id,
+                "provider": transcript.provider,
+                "model": transcript.model,
+                "inputTokens": transcript.input_tokens,
+                "outputTokens": transcript.output_tokens,
+                "estUsd": estimate_cost_usd(transcript.provider, transcript.model, transcript.input_tokens, transcript.output_tokens),
+                "callType": "transcription",
+            }
+        )
+
+        # (2) Chấm dựa trên transcript (prompt text riêng, không audio) → cost_log callType='text_grade'.
+        system_instruction = build_system_instruction_text(rubric)
+        user_instruction = build_user_instruction_text()
+        result = await grade_text_with_fallback(
+            llm_config,
+            self._config,
+            system_instruction=system_instruction,
+            user_instruction=user_instruction,
+            transcript=transcript.text,
+            schema=schema,
+        )
+        validate_output(schema, result.data)
+        await self._core_api.create_cost_log(
+            {
+                "submissionId": submission_id,
+                "provider": result.provider,
+                "model": result.model,
+                "inputTokens": result.input_tokens,
+                "outputTokens": result.output_tokens,
+                "estUsd": estimate_cost_usd(result.provider, result.model, result.input_tokens, result.output_tokens),
+                "callType": "text_grade",
+            }
+        )
+
+        # (3) Lưu bản ghi pilot để đối chiếu (không bao giờ gửi học viên).
+        await self._core_api.create_pilot_text_grading(
+            {
+                "submissionId": submission_id,
+                "criteriaId": criteria["id"],
+                "criteriaVersion": criteria["version"],
+                "transcript": transcript.text,
+                "scores": result.data["scores"],
+                "llmFeedback": result.data["feedback"],
+                "provider": result.provider,
+                "model": result.model,
+            }
+        )
+        logger.info("submission %s: pilot text grading xong (provider=%s)", submission_id, result.provider)
 
     async def _publish_outbound(self, zalo_user_id: str, text: str, submission_id: str | None = None) -> None:
         message = contracts.OutboundMessage(zaloUserId=zalo_user_id, text=text, submissionId=submission_id)

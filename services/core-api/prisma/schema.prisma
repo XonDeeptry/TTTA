@@ -115,12 +115,15 @@ model Submission {
   mediaUrlZalo   String?    @map("media_url_zalo")
   mediaPath      String?    @map("media_path")
   mediaDeletedAt DateTime?  @map("media_deleted_at")
+  audioExtractedAt DateTime? @map("audio_extracted_at")
+  videoDeletedAt DateTime?  @map("video_deleted_at")
   durationSec    Int?       @map("duration_sec")
   status         SubmissionStatus @default(received)
   receivedAt     DateTime   @default(now()) @map("received_at")
   grading        Grading?
   flags          Flag[]
   costLogs       CostLog[]
+  pilotTextGrading PilotTextGrading?
 
   @@map("submissions")
 }
@@ -140,6 +143,25 @@ model Grading {
   sentAt           DateTime?  @map("sent_at")
 
   @@map("gradings")
+}
+
+// Pilot A/B: chấm điểm bằng nhánh text (transcript-only) song song với Grading (nhánh audio),
+// để so sánh chất lượng/chi phí. Một submission có tối đa một bản ghi pilot (1-1, giống Grading).
+// criteriaId chỉ lưu id thô (không có quan hệ tới Criteria) — đủ cho mục đích đối chiếu pilot.
+model PilotTextGrading {
+  id              Int        @id @default(autoincrement())
+  submissionId    Int        @unique @map("submission_id")
+  submission      Submission @relation(fields: [submissionId], references: [id])
+  criteriaId      Int        @map("criteria_id")
+  criteriaVersion Int        @map("criteria_version")
+  transcript      String
+  scores          Json
+  llmFeedback     String     @map("llm_feedback")
+  provider        String
+  model           String
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  @@map("pilot_text_grading")
 }
 
 model Flag {
@@ -201,6 +223,7 @@ model CostLog {
   inputTokens  Int      @map("input_tokens")
   outputTokens Int      @map("output_tokens")
   estUsd       Decimal  @map("est_usd") @db.Decimal(10, 4)
+  callType     String?  @map("call_type")
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@map("cost_log")
