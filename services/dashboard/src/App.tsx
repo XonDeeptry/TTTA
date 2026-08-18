@@ -67,7 +67,7 @@ function SidebarNav({ user, mobileOpen, setMobileOpen }: { user: CurrentUser; mo
       <div className="mb-4 flex items-center px-1 py-1">
         <span className="truncate text-h3 text-primary md:hidden lg:inline">ILM</span>
       </div>
-      <nav className="flex flex-1 flex-col gap-1" aria-label={t('nav.toggleMenu')}>
+      <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto" aria-label={t('nav.toggleMenu')}>
         {items.map((item) => {
           const Icon = item.icon;
           const active = location.pathname.startsWith(item.to);
