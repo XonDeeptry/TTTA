@@ -45,6 +45,8 @@ curl -u ilm:change-me -X POST http://localhost:15672/api/exchanges/%2f/ilm.direc
 
 `TASKS.md` (repo root) is the persistent progress tracker, organized by the 5 build milestones. **Update it whenever a task or phase completes** — the session todo list is not enough.
 
+- When going with plan mode > do not develop just create plan and save it to \Idea\YYYYMMDD-<name>.md format
+
 ## Monorepo layout
 
 `services/zalo-gateway` (TS/NestJS — implemented, M1) · `services/core-api` (TS/NestJS — implemented, M2-M4) · `services/grading-worker` (Python — implemented, M3; non-LLM branches smoke-tested, real Gemini/OpenAI calls need API keys from the project owner) · `services/dashboard` (React — implemented, M2 + M4; all 5 subsystems, containerized) · `infra/` (docker-compose, Caddyfile, .env). Message contracts and RabbitMQ topology constants are duplicated three times now — no shared package mechanism exists across services, let alone across languages — in `services/zalo-gateway/src/contracts.ts`, `services/core-api/src/contracts.ts`, and `services/grading-worker/src/grading_worker/contracts.py`. Keep all three identical when the topology changes.
