@@ -16,6 +16,8 @@ type PrismaMock = {
     findUnique: jest.Mock;
     create: jest.Mock;
     update: jest.Mock;
+    delete: jest.Mock;
+    count: jest.Mock;
   };
 };
 
@@ -39,6 +41,8 @@ function makePrisma(): PrismaMock {
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
+      count: jest.fn(),
     },
   };
 }
@@ -287,5 +291,108 @@ describe('UsersService.resetPassword', () => {
     expect(UsersService.length).toBe(1);
     await service.resetPassword(2, 1, 'brand-new-pass-9');
     expect(Object.keys(prisma)).toEqual(['dashboardUser']);
+  });
+});
+
+describe('UsersService.update', () => {
+  let prisma: PrismaMock;
+  let service: UsersService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new UsersService(prisma as never);
+    prisma.dashboardUser.findFirst.mockResolvedValue(null);
+    prisma.dashboardUser.update.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      Promise.resolve(view({ email: data.email as string | undefined, role: data.role as string | undefined })),
+    );
+  });
+
+  it('404s for an unknown id and writes nothing', async () => {
+    prisma.dashboardUser.findUnique.mockResolvedValue(null);
+    const err = await rejection(service.update(999, { email: 'new@ilm.local' }));
+    expect(err).toBeInstanceOf(NotFoundException);
+    expect(prisma.dashboardUser.update).not.toHaveBeenCalled();
+  });
+
+  it('updates email and role for a staff user with no admin-count check', async () => {
+    prisma.dashboardUser.findUnique.mockResolvedValue({ id: 2, role: 'staff' });
+    const result = await service.update(2, { email: 'new@ilm.local', role: 'admin' });
+    expect(prisma.dashboardUser.count).not.toHaveBeenCalled();
+    expect(prisma.dashboardUser.update).toHaveBeenCalledWith({
+      where: { id: 2 },
+      data: { email: 'new@ilm.local', role: 'admin' },
+      select: expect.anything(),
+    });
+    expect(result.email).toBe('new@ilm.local');
+  });
+
+  it('blocks demoting the last admin to staff', async () => {
+    prisma.dashboardUser.findUnique.mockResolvedValue({ id: 1, role: 'admin' });
+    prisma.dashboardUser.count.mockResolvedValue(0);
+    const err = await rejection(service.update(1, { role: 'staff' }));
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(err.message).toBe('cannot remove the last admin account');
+    expect(prisma.dashboardUser.update).not.toHaveBeenCalled();
+  });
+
+  it('allows demoting an admin when another admin still remains', async () => {
+    prisma.dashboardUser.findUnique.mockResolvedValue({ id: 2, role: 'admin' });
+    prisma.dashboardUser.count.mockResolvedValue(1);
+    await service.update(2, { role: 'staff' });
+    expect(prisma.dashboardUser.update).toHaveBeenCalled();
+  });
+
+  it('maps a duplicate email on update to 409', async () => {
+    prisma.dashboardUser.findUnique.mockResolvedValue({ id: 2, role: 'staff' });
+    prisma.dashboardUser.findFirst.mockResolvedValue({ id: 5 });
+    const err = await rejection(service.update(2, { email: 'taken@ilm.local' }));
+    expect(err).toBeInstanceOf(ConflictException);
+    expect(prisma.dashboardUser.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('UsersService.delete', () => {
+  let prisma: PrismaMock;
+  let service: UsersService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new UsersService(prisma as never);
+  });
+
+  it('refuses to delete your own account without touching the database', async () => {
+    const err = await rejection(service.delete(1, 1));
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(err.message).toBe('cannot delete your own account');
+    expect(prisma.dashboardUser.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('404s for an unknown id', async () => {
+    prisma.dashboardUser.findUnique.mockResolvedValue(null);
+    const err = await rejection(service.delete(999, 1));
+    expect(err).toBeInstanceOf(NotFoundException);
+  });
+
+  it('deletes a staff account without checking admin count', async () => {
+    prisma.dashboardUser.findUnique.mockResolvedValue({ id: 2, role: 'staff' });
+    await service.delete(2, 1);
+    expect(prisma.dashboardUser.count).not.toHaveBeenCalled();
+    expect(prisma.dashboardUser.delete).toHaveBeenCalledWith({ where: { id: 2 } });
+  });
+
+  it('blocks deleting the last admin', async () => {
+    prisma.dashboardUser.findUnique.mockResolvedValue({ id: 2, role: 'admin' });
+    prisma.dashboardUser.count.mockResolvedValue(0);
+    const err = await rejection(service.delete(2, 1));
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(err.message).toBe('cannot remove the last admin account');
+    expect(prisma.dashboardUser.delete).not.toHaveBeenCalled();
+  });
+
+  it('allows deleting an admin when another admin still remains', async () => {
+    prisma.dashboardUser.findUnique.mockResolvedValue({ id: 2, role: 'admin' });
+    prisma.dashboardUser.count.mockResolvedValue(1);
+    await service.delete(2, 1);
+    expect(prisma.dashboardUser.delete).toHaveBeenCalledWith({ where: { id: 2 } });
   });
 });

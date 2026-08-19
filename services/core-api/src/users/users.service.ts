@@ -8,6 +8,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma.service';
 import type { DashboardRole } from '../auth/session.types';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 /** Cùng giá trị với auth.service.ts / bootstrap-admin.service.ts (NFR-S4). */
 const SALT_ROUNDS = 12;
@@ -139,5 +140,72 @@ export class UsersService {
       if (prismaErrorCode(err) === 'P2025') throw new NotFoundException('user not found');
       throw err;
     }
+  }
+
+  /**
+   * Đảm bảo còn ÍT NHẤT 1 admin khác ngoài `excludingId` — chặn cả hạ role (update) lẫn
+   * xóa (delete) nếu thao tác đó khiến hệ thống về 0 admin, không ai đăng nhập được nữa
+   * để tự cứu. Đây là quy tắc thay thế cho BR-7 gốc (F5: "không cho sửa vai trò/xóa tài
+   * khoản") — chủ dự án 2026-08-19 yêu cầu bật CRUD đầy đủ cho Users, đổi lại phải giữ
+   * bất biến "không bao giờ về 0 admin" bằng đường khác.
+   */
+  private async assertOtherAdminExists(excludingId: number): Promise<void> {
+    const remainingAdmins = await this.prisma.dashboardUser.count({
+      where: { role: 'admin', id: { not: excludingId } },
+    });
+    if (remainingAdmins === 0) {
+      throw new BadRequestException('cannot remove the last admin account');
+    }
+  }
+
+  /**
+   * PATCH /users/:id — admin sửa email/role của NGƯỜI KHÁC (hoặc chính mình, trừ hạ role
+   * chính mình xuống staff khi đang là admin cuối — chặn bởi assertOtherAdminExists).
+   * Không đổi mật khẩu ở đây (đã có route riêng resetPassword/change-password).
+   */
+  async update(id: number, dto: UpdateUserDto): Promise<UserView> {
+    const target = await this.prisma.dashboardUser.findUnique({ where: { id }, select: { id: true, role: true } });
+    if (!target) throw new NotFoundException('user not found');
+
+    if (dto.role && dto.role !== 'admin' && target.role === 'admin') {
+      await this.assertOtherAdminExists(id);
+    }
+
+    if (dto.email) {
+      const existing = await this.prisma.dashboardUser.findFirst({
+        where: { email: { equals: dto.email, mode: 'insensitive' }, id: { not: id } },
+        select: { id: true },
+      });
+      if (existing) throw new ConflictException('email already exists');
+    }
+
+    try {
+      return await this.prisma.dashboardUser.update({
+        where: { id },
+        data: { email: dto.email, role: dto.role },
+        select: USER_SELECT,
+      });
+    } catch (err) {
+      if (prismaErrorCode(err) === 'P2002') throw new ConflictException('email already exists');
+      if (prismaErrorCode(err) === 'P2025') throw new NotFoundException('user not found');
+      throw err;
+    }
+  }
+
+  /**
+   * DELETE /users/:id — không cho tự xóa chính mình (phiên đang sống sẽ vô nghĩa/mất quyền
+   * giữa chừng), không cho xóa admin cuối cùng (assertOtherAdminExists).
+   */
+  async delete(id: number, actingAdminId: number): Promise<void> {
+    if (id === actingAdminId) throw new BadRequestException('cannot delete your own account');
+
+    const target = await this.prisma.dashboardUser.findUnique({ where: { id }, select: { id: true, role: true } });
+    if (!target) throw new NotFoundException('user not found');
+
+    if (target.role === 'admin') {
+      await this.assertOtherAdminExists(id);
+    }
+
+    await this.prisma.dashboardUser.delete({ where: { id } });
   }
 }

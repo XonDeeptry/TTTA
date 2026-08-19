@@ -15,6 +15,7 @@ import { UsersController } from './users.controller';
 import type { UsersService } from './users.service';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { ResetPasswordDto } from './dto/reset-password.dto';
+import type { UpdateUserDto } from './dto/update-user.dto';
 import '../auth/session.types';
 
 type SessionUser = { id: number; email: string; role: 'admin' | 'staff'; mustChangePassword: boolean };
@@ -24,7 +25,7 @@ function requestWithSession(user?: SessionUser): Request {
 }
 
 /** ExecutionContext giả, đủ để guard đọc metadata của UsersController + session. */
-function contextFor(handlerName: 'list' | 'create' | 'resetPassword', user?: SessionUser): ExecutionContext {
+function contextFor(handlerName: 'list' | 'create' | 'resetPassword' | 'update' | 'remove', user?: SessionUser): ExecutionContext {
   const handler = (UsersController.prototype as unknown as Record<string, () => unknown>)[handlerName];
   return {
     getClass: () => UsersController,
@@ -33,7 +34,7 @@ function contextFor(handlerName: 'list' | 'create' | 'resetPassword', user?: Ses
   } as unknown as ExecutionContext;
 }
 
-const HANDLERS = ['list', 'create', 'resetPassword'] as const;
+const HANDLERS = ['list', 'create', 'resetPassword', 'update', 'remove'] as const;
 
 describe('UsersController metadata', () => {
   // AC-03 / NFR-S2
@@ -55,8 +56,11 @@ describe('UsersController metadata', () => {
     }
   });
 
-  // AC-17 / NFR-S10
-  it('registers exactly three routes and no destructive verb', () => {
+  // AC-17 / NFR-S10 gốc (F5) chỉ cho phép list/create/resetPassword — chủ dự án
+  // 2026-08-19 yêu cầu bật CRUD đầy đủ (edit + delete), đảo ngược quyết định đó. Bất biến
+  // an toàn "không bao giờ về 0 admin" vẫn còn, nhưng chuyển sang enforce ở tầng service
+  // (`UsersService#assertOtherAdminExists`) thay vì "không tồn tại route xóa nào cả".
+  it('registers exactly five routes, including PATCH/DELETE for edit and delete', () => {
     const routes = Object.getOwnPropertyNames(UsersController.prototype)
       .filter((n) => n !== 'constructor')
       .map((name) => {
@@ -72,17 +76,14 @@ describe('UsersController metadata', () => {
       { name: 'list', path: '/', method: RequestMethod.GET },
       { name: 'create', path: '/', method: RequestMethod.POST },
       { name: 'resetPassword', path: ':id/reset-password', method: RequestMethod.POST },
+      { name: 'update', path: ':id', method: RequestMethod.PATCH },
+      { name: 'remove', path: ':id', method: RequestMethod.DELETE },
     ]);
-    for (const route of routes) {
-      expect([RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.PATCH]).not.toContain(route.method);
-    }
   });
 
-  // AC-17 (nguồn): không có decorator @Delete/@Put/@Patch nào trong cả module
-  it('contains no @Delete / @Put / @Patch decorator anywhere in src/users', () => {
-    for (const [, source] of sourceFiles()) {
-      expect(source).not.toMatch(/@(Delete|Put|Patch)\s*\(/);
-    }
+  // DELETE trả 204 (xóa cứng, không có body) — khác 200/201 mặc định của Nest.
+  it('DELETE /users/:id responds 204', () => {
+    expect(Reflect.getMetadata('__httpCode__', UsersController.prototype.remove)).toBe(204);
   });
 
   // AC-18 / NFR-S3: không log mật khẩu / hash / body
@@ -144,12 +145,12 @@ describe('UsersController guard behavior', () => {
 });
 
 describe('UsersController handlers', () => {
-  let users: { list: jest.Mock; create: jest.Mock; resetPassword: jest.Mock };
+  let users: { list: jest.Mock; create: jest.Mock; resetPassword: jest.Mock; update: jest.Mock; delete: jest.Mock };
   let controller: UsersController;
   const admin: SessionUser = { id: 1, email: 'admin@ilm.local', role: 'admin', mustChangePassword: false };
 
   beforeEach(() => {
-    users = { list: jest.fn(), create: jest.fn(), resetPassword: jest.fn() };
+    users = { list: jest.fn(), create: jest.fn(), resetPassword: jest.fn(), update: jest.fn(), delete: jest.fn() };
     controller = new UsersController(users as unknown as UsersService);
   });
 
@@ -177,5 +178,27 @@ describe('UsersController handlers', () => {
     const body = { newPassword: 'brand-new-pass-9' } as ResetPasswordDto;
     expect(() => controller.resetPassword(2, body, requestWithSession())).toThrow(UnauthorizedException);
     expect(users.resetPassword).not.toHaveBeenCalled();
+  });
+
+  it('delegates update straight to the service', async () => {
+    users.update.mockResolvedValue({ id: 2 });
+    const body = { email: 'new@ilm.local', role: 'staff' } as UpdateUserDto;
+
+    await expect(controller.update(2, body)).resolves.toEqual({ id: 2 });
+    expect(users.update).toHaveBeenCalledWith(2, body);
+  });
+
+  // Cùng pattern với resetPassword: id admin thao tác lấy từ session, không từ body.
+  it('passes the acting admin session id into delete', async () => {
+    users.delete.mockResolvedValue(undefined);
+
+    await controller.remove(2, requestWithSession(admin));
+
+    expect(users.delete).toHaveBeenCalledWith(2, 1);
+  });
+
+  it('throws 401 on delete when the session user is missing (defensive layer behind the guard)', async () => {
+    await expect(controller.remove(2, requestWithSession())).rejects.toThrow(UnauthorizedException);
+    expect(users.delete).not.toHaveBeenCalled();
   });
 });

@@ -100,7 +100,13 @@ class SubmissionPipeline:
             await self._core_api.update_submission(submission_id, {"status": "failed"})
             return
 
-        media_path = await download_original(self._http, msg.mediaUrl, submission_id, msg.kind)
+        # Test Upload (dashboard admin): core-api đã ghi file thẳng vào MEDIA_ROOT dùng chung
+        # và gửi kèm mediaPath — bỏ qua bước tải Zalo, dùng thẳng path đó.
+        media_path = (
+            msg.mediaPath
+            if msg.mediaPath
+            else await download_original(self._http, msg.mediaUrl, submission_id, msg.kind)
+        )
         await self._core_api.update_submission(submission_id, {"mediaPath": media_path})
 
         duration_sec = await probe_duration_sec(_abs_media_path(media_path))
@@ -149,7 +155,9 @@ class SubmissionPipeline:
         # Sai schema → để exception lan lên rabbit_consumer, republish retry → DLQ (mục 3.9).
         validate_output(schema, result.data)
 
-        auto_send = bool(student.get("autoSend"))
+        # testMode (Test Upload, dashboard admin): luôn awaiting_review — binding test là giả
+        # (test:{studentId}), không bao giờ tự gửi dù lớp có autoSend=true.
+        auto_send = bool(student.get("autoSend")) and not msg.testMode
         grading = await self._core_api.create_grading(
             {
                 "submissionId": submission_id,

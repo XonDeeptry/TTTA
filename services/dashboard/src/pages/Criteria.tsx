@@ -5,6 +5,7 @@ import { Alert } from '../components/ui/alert';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
+import { SelectNative } from '../components/ui/select-native';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 interface CriteriaItem {
@@ -22,6 +23,11 @@ interface ClassConfig {
   autoSend: boolean;
 }
 
+interface CourseOption {
+  id: number;
+  key: string;
+}
+
 export function Criteria() {
   const { t } = useTranslation();
   const [courseId, setCourseId] = useState('');
@@ -30,6 +36,7 @@ export function Criteria() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [classes, setClasses] = useState<ClassConfig[]>([]);
   const [classDrafts, setClassDrafts] = useState<Record<string, Partial<ClassConfig>>>({});
+  const [courses, setCourses] = useState<CourseOption[]>([]);
 
   function loadCriteria(): void {
     if (!courseId) return;
@@ -41,6 +48,9 @@ export function Criteria() {
   }
 
   useEffect(loadClasses, []);
+  useEffect(() => {
+    void api.get<CourseOption[]>('/courses').then(setCourses);
+  }, []);
 
   async function upload(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
@@ -76,10 +86,18 @@ export function Criteria() {
           <CardTitle>{t('criteria.upload')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* Native <form>; inputs named exactly "courseId"/"file" so new FormData(e.currentTarget)
-              reads the fields core-api expects — do not wrap these in a controlled/library field. */}
+          {/* Native <form>; fields named exactly "courseId"/"file" so new FormData(e.currentTarget)
+              reads what core-api expects — do not wrap these in a controlled/library field.
+              A plain <select name="courseId"> is still captured by FormData like any input. */}
           <form onSubmit={upload} className="flex flex-wrap items-center gap-2">
-            <Input name="courseId" type="number" placeholder={t('criteria.courseId')} required className="max-w-[10rem]" />
+            <SelectNative name="courseId" required aria-label={t('criteria.courseId')} className="max-w-[12rem]">
+              <option value="">{t('criteria.selectCourse')}</option>
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.key}
+                </option>
+              ))}
+            </SelectNative>
             <input
               name="file"
               type="file"
@@ -103,13 +121,19 @@ export function Criteria() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Input
+            <SelectNative
               value={courseId}
               onChange={(e) => setCourseId(e.target.value)}
-              type="number"
               aria-labelledby="criteria-course-id-heading"
-              className="max-w-[10rem]"
-            />
+              className="max-w-[12rem]"
+            >
+              <option value="">{t('criteria.selectCourse')}</option>
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.key}
+                </option>
+              ))}
+            </SelectNative>
             <Button variant="outline" onClick={loadCriteria}>
               {t('criteria.load')}
             </Button>

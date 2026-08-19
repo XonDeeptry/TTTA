@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Req,
   UnauthorizedException,
@@ -16,6 +18,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService, UserView } from './users.service';
 
 /**
@@ -24,9 +27,11 @@ import { UsersService, UserView } from './users.service';
  * (chưa đăng nhập => 401 "login required"), RolesGuard sau (staff => 403
  * "insufficient role"). Không handler nào được nới lỏng bộ guard này.
  *
- * Cố ý KHÔNG có PATCH/PUT/DELETE: F5 không cho sửa vai trò, sửa email, xoá hay khoá
- * tài khoản (BR-7), nhờ đó số lượng admin không bao giờ giảm và không ai tự khoá mình
- * ra ngoài hệ thống (NFR-S10).
+ * PATCH (sửa email/role) và DELETE (xóa) thêm 2026-08-19 — đảo ngược quyết định BR-7 gốc
+ * của F5 (từng cố ý KHÔNG có 2 route này) theo yêu cầu chủ dự án. Bất biến an toàn cũ
+ * ("số lượng admin không bao giờ về 0", "không ai tự khoá mình ra ngoài") vẫn giữ nguyên,
+ * chỉ chuyển cách thực thi sang `UsersService#assertOtherAdminExists` + chặn tự xóa chính
+ * mình — xem chi tiết trong users.service.ts.
  */
 @Controller('users')
 @UseGuards(SessionAuthGuard, RolesGuard)
@@ -61,5 +66,19 @@ export class UsersController {
     // Lớp phòng thủ thứ hai: SessionAuthGuard đã chặn trước đó.
     if (!sessionUser) throw new UnauthorizedException('login required');
     return this.users.resetPassword(id, sessionUser.id, body.newPassword);
+  }
+
+  @Patch(':id')
+  update(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateUserDto): Promise<UserView> {
+    return this.users.update(id, body);
+  }
+
+  /** Id của admin thao tác lấy từ session để chặn tự xóa chính mình ở tầng service. */
+  @Delete(':id')
+  @HttpCode(204)
+  async remove(@Param('id', ParseIntPipe) id: number, @Req() req: Request): Promise<void> {
+    const sessionUser = req.session.user;
+    if (!sessionUser) throw new UnauthorizedException('login required');
+    await this.users.delete(id, sessionUser.id);
   }
 }

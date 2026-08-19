@@ -7,6 +7,7 @@ import { Separator } from './components/ui/separator';
 import { Tooltip } from './components/ui/tooltip';
 import {
   IconAnalytics,
+  IconCourses,
   IconCriteria,
   IconGauge,
   IconKey,
@@ -17,11 +18,13 @@ import {
   IconSettings,
   IconStudents,
   IconSubmissions,
+  IconTestUpload,
   IconUsers,
 } from './components/icons';
 import { cn } from './lib/utils';
 import { Analytics } from './pages/Analytics';
 import { ChangePassword } from './pages/ChangePassword';
+import { Courses } from './pages/Courses';
 import { Criteria } from './pages/Criteria';
 import { Login } from './pages/Login';
 import { Monitoring } from './pages/Monitoring';
@@ -31,6 +34,7 @@ import { Settings } from './pages/Settings';
 import { Students } from './pages/Students';
 import { SubmissionDetail } from './pages/SubmissionDetail';
 import { Submissions } from './pages/Submissions';
+import { TestUpload } from './pages/TestUpload';
 import { Users } from './pages/Users';
 
 interface NavItem {
@@ -49,6 +53,8 @@ function SidebarNav({ user, mobileOpen, setMobileOpen }: { user: CurrentUser; mo
     ...(user.role === 'admin' ? [{ to: '/monitoring', label: t('nav.monitoring'), icon: IconGauge }] : []),
     ...(user.role === 'admin' ? [{ to: '/settings', label: t('nav.settings'), icon: IconSettings }] : []),
     ...(user.role === 'admin' ? [{ to: '/users', label: t('nav.users'), icon: IconUsers }] : []),
+    ...(user.role === 'admin' ? [{ to: '/test-upload', label: t('nav.testUpload'), icon: IconTestUpload }] : []),
+    ...(user.role === 'admin' ? [{ to: '/courses', label: t('nav.courses'), icon: IconCourses }] : []),
     { to: '/onboarding', label: t('nav.onboarding'), icon: IconOnboarding },
     { to: '/students', label: t('nav.students'), icon: IconStudents },
     { to: '/submissions', label: t('nav.submissions'), icon: IconSubmissions },
@@ -272,6 +278,22 @@ export function App() {
           element={
             <ProtectedShell>
               <Analytics />
+            </ProtectedShell>
+          }
+        />
+        <Route
+          path="/test-upload"
+          element={
+            <ProtectedShell adminOnly>
+              <TestUpload />
+            </ProtectedShell>
+          }
+        />
+        <Route
+          path="/courses"
+          element={
+            <ProtectedShell adminOnly>
+              <Courses />
             </ProtectedShell>
           }
         />

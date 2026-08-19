@@ -1,6 +1,9 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { Student } from '@prisma/client';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
+import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { StudentPage, StudentsService } from './students.service';
 
@@ -15,8 +18,24 @@ export class StudentsController {
     return this.students.list(search, Number(page) || 1);
   }
 
+  /** Thêm tay (admin-only) — luồng chính vẫn là cron Sheets sync, xem students.service.ts. */
+  @Post()
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  create(@Body() body: CreateStudentDto): Promise<Student> {
+    return this.students.create(body);
+  }
+
   @Patch(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateStudentDto): Promise<Student> {
     return this.students.update(id, body);
+  }
+
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @HttpCode(204)
+  async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
+    await this.students.delete(id);
   }
 }

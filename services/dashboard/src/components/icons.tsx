@@ -155,3 +155,21 @@ export function IconKey(props: SVGProps<SVGSVGElement>) {
     </IconBase>
   );
 }
+
+export function IconCourses(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M3 5.5C3 4.7 3.7 4 4.5 4H9v12H4.5A1.5 1.5 0 0 1 3 14.5v-9Z" />
+      <path d="M17 5.5c0-.8-.7-1.5-1.5-1.5H11v12h4.5a1.5 1.5 0 0 0 1.5-1.5v-9Z" />
+    </IconBase>
+  );
+}
+
+export function IconTestUpload(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M8 3h4M8.5 3v4.2L5 14a1.5 1.5 0 0 0 1.3 2.2h7.4A1.5 1.5 0 0 0 15 14l-3.5-6.8V3" />
+      <path d="M7 13h6" />
+    </IconBase>
+  );
+}

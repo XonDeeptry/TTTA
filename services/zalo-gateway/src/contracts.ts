@@ -13,6 +13,10 @@ export interface SubmissionMessage {
   zaloUserId: string;
   text?: string;
   mediaUrl?: string;
+  /** Test Upload only (core-api `test-upload/` module) — gateway không bao giờ set 2 field
+   * này, chỉ giữ shape đồng bộ với core-api/worker. */
+  mediaPath?: string;
+  testMode?: boolean;
   receivedAt: string; // ISO 8601
 }
 

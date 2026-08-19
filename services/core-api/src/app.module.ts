@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module';
 import { ClassesConfigModule } from './classes-config/classes-config.module';
+import { CoursesModule } from './courses/courses.module';
 import { CriteriaModule } from './criteria/criteria.module';
 import { DlqModule } from './dlq/dlq.module';
 import { EventsModule } from './events/events.module';
@@ -21,6 +22,7 @@ import { SettingsModule } from './settings/settings.module';
 import { SheetsSyncModule } from './sheets-sync/sheets-sync.module';
 import { StudentsModule } from './students/students.module';
 import { SubmissionsModule } from './submissions/submissions.module';
+import { TestUploadModule } from './test-upload/test-upload.module';
 import { UsersModule } from './users/users.module';
 import { WorkerApiModule } from './worker-api/worker-api.module';
 
@@ -45,10 +47,12 @@ import { WorkerApiModule } from './worker-api/worker-api.module';
     SubmissionsModule,
     GradingsModule,
     ClassesConfigModule,
+    CoursesModule,
     CriteriaModule,
     ReportsModule,
     MonitoringModule,
     UsersModule,
+    TestUploadModule,
   ],
   controllers: [HealthController],
 })

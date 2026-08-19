@@ -20,6 +20,10 @@ class SubmissionMessage:
     zaloUserId: str
     text: Optional[str] = None
     mediaUrl: Optional[str] = None
+    # Test Upload only (core-api `test-upload/` module): file đã nằm sẵn dưới MEDIA_ROOT,
+    # bỏ qua bước tải Zalo; testMode ép autoSend=false vì binding test là giả.
+    mediaPath: Optional[str] = None
+    testMode: bool = False
     receivedAt: Optional[str] = None
 
     @staticmethod
@@ -32,6 +36,8 @@ class SubmissionMessage:
             zaloUserId=data["zaloUserId"],
             text=data.get("text"),
             mediaUrl=data.get("mediaUrl"),
+            mediaPath=data.get("mediaPath"),
+            testMode=bool(data.get("testMode", False)),
             receivedAt=data.get("receivedAt"),
         )
 
