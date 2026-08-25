@@ -22,7 +22,7 @@ CẢ HAI renderer trước đó — đây KHÔNG phải cách "chữa" một tes
            build_system_instruction_text as t; \
       p='../core-api/src/criteria/__fixtures__/prompt-render.fixtures.json'; \
       d=json.load(open(p,encoding='utf-8')); \
-      [c.update(expected_audio=a(c['rubric']), expected_text=t(c['rubric'])) for c in d['cases']]; \
+      [c.update(expected_audio=a(c['rubric'])) for c in d['cases']]; \
       open(p,'w',encoding='utf-8').write(json.dumps(d,ensure_ascii=False,indent=2)+chr(10))"
 
 Sau đó CHẠY LẠI cả pytest lẫn jest: nếu chỉ một bên xanh thì bản port đã trôi.
@@ -37,10 +37,7 @@ from typing import Any
 
 import pytest
 
-from grading_worker.grading.prompt import (
-    build_system_instruction,
-    build_system_instruction_text,
-)
+from grading_worker.grading.prompt import build_system_instruction
 
 FIXTURE_PATH = (
     Path(__file__).resolve().parents[2]
@@ -98,15 +95,9 @@ def test_audio_branch_matches_golden(case: dict[str, Any]) -> None:
 
 
 @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
-def test_text_branch_matches_golden(case: dict[str, Any]) -> None:
-    assert build_system_instruction_text(case["rubric"]) == case["expected_text"]
-
-
-@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
 def test_render_does_not_mutate_input(case: dict[str, Any]) -> None:
     before = copy.deepcopy(case["rubric"])
     build_system_instruction(case["rubric"])
-    build_system_instruction_text(case["rubric"])
     assert case["rubric"] == before
 
 
@@ -123,7 +114,7 @@ def test_no_total_average_or_level_leaks(case: dict[str, Any]) -> None:
     (`SECRET_LEVEL`, `KHONG_DUOC_XUAT_HIEN`), nên đây là khẳng định bằng dữ liệu chứ không phải
     grep từ khóa chung chung.
     """
-    for rendered in (case["expected_audio"], case["expected_text"]):
+    for rendered in (case["expected_audio"],):
         assert "SECRET_LEVEL" not in rendered
         assert "KHONG_DUOC_XUAT_HIEN" not in rendered
         assert "tổng điểm" not in rendered.lower()

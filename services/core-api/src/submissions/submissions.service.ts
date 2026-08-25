@@ -24,7 +24,6 @@ const DETAIL_INCLUDE = {
   student: true,
   grading: { include: { criteria: true } },
   flags: true,
-  pilotTextGrading: true,
 } satisfies Prisma.SubmissionInclude;
 
 @Injectable()

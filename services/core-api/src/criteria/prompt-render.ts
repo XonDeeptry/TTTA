@@ -46,8 +46,6 @@
 import { normalizeRubric, type RubricV2 } from './rubric-schema';
 
 /** Hai biến thể prompt — tập đóng, DTO của route xem trước dùng lại hằng này. */
-export const PROMPT_VARIANTS = ['audio', 'text'] as const;
-export type PromptVariant = (typeof PROMPT_VARIANTS)[number];
 
 // Hai câu mở đầu + câu đuôi dùng chung cho cả hai builder (nguyên văn `prompt.py`).
 const HEADER_ROLE = 'Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.';
@@ -319,26 +317,9 @@ export function buildSystemInstruction(rubric: unknown): string {
   return lines.join('\n');
 }
 
-/** Nhánh text/pilot (transcript-only) — bản chép của `build_system_instruction_text`. */
-export function buildSystemInstructionText(rubric: unknown): string {
-  const normalized = normalizeRubric(rubric);
-  const lines = headerLines(normalized);
-  lines.push(
-    'QUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.',
-    'CHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.',
-    "Với tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng " +
-      'chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và ' +
-      'phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).',
-    CRITERIA_INTRO,
-  );
-  lines.push(...renderDimensions(normalized));
-  lines.push(...renderOutputFieldsInstruction(normalized));
-  lines.push(...renderCommentBank(normalized));
-  lines.push(CLOSING);
-  return lines.join('\n');
-}
-
-/** Bộ chọn theo biến thể — controller không phải tự phân nhánh. */
-export function renderPrompt(rubric: unknown, variant: PromptVariant): string {
-  return variant === 'text' ? buildSystemInstructionText(rubric) : buildSystemInstruction(rubric);
+export function renderPrompt(rubric: unknown): string {
+  // Chỉ còn MỘT nhánh: bài luôn chấm TRỰC TIẾP TỪ AUDIO. Nhánh transcript-only đã gỡ bỏ
+  // 2026-08-25 — transcript không mang được bằng chứng phát âm, mà `pronunciation` là
+  // tiêu chí BẮT BUỘC (mục 3.10).
+  return buildSystemInstruction(rubric);
 }

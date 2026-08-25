@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * Plain informational alert only — no dismiss/close button is ever rendered by this
- * component (F3-ux §4/§5: required for the SubmissionDetail pilot panel's
+ * component (F3-ux §4/§5: required for the SubmissionDetail warning notices'
  * zero-interactive-controls safety rule). Do not add one.
  */
 export const alertVariants = cva('w-full rounded-md border p-3 text-body', {

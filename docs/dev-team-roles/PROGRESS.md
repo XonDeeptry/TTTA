@@ -6,7 +6,7 @@
 # dev-team-roles — Progress & Architecture
 
 **Status:** COMPLETE
-**Last updated:** 2026-08-23
+**Last updated:** 2026-08-25
 **Last checkpoint:** **Run 3 COMPLETE — F8–F12 all DONE + QA PASS, plus a clean full regression.**
 
 > **F12 QA: PASS. Full regression across F8–F12: clean.** core-api 43/1004 (both `tsc --noEmit` clean), grading-worker 448, zalo-gateway 7/61, dashboard build 96 modules. All three cross-language drift guards consistent and machine-enforced — F12's new one proven two-sided by five mutation experiments, including that "just regenerate the golden file" turns the *other* language red. No new dependency, no F12 migration, no infra change. Seven defects found across two gate rounds, all in the dashboard slice, all closed.
@@ -16,6 +16,8 @@
 Follow-on (same day): **LLM model / temperature / pricing moved out of code and onto the dashboard** (`llm.gemini_model`, `llm.openai_model`, `llm.temperature`, `llm.pricing_json`), with model suggestions fetched live from the provider (`GET /settings/llm-models/:provider`) rather than hardcoded — a hardcoded list is exactly what just went stale.
 
 > **Open product risk — grading is not reproducible.** The same 35-second clip, same rubric, same model, graded four times: at `temperature 0.3` it scored total **5** then **3**; at `temperature 0` it scored **4** then **5**. Temperature 0 narrowed the spread but did **not** remove it — Gemini 3.x is a thinking model and its reasoning trace still varies (output tokens differed 1909 vs 2174 between the two temp-0 runs). Part of the spread is also rubric mismatch: that clip is a young learner repeating playground vocabulary being graded against adult IELTS band descriptors. **Before teachers rely on these scores, measure repeatability with a well-matched rubric**, and keep `classes_config.autoSend` OFF so the human review step stands between the model and the student.
+
+**Post-run removal (2026-08-25, owner decision): grading is audio-only — the F2 transcript branch is gone,** table and all. It had never run (flag shipped off, table empty). Full write-up in **"F2 removal"** at the bottom of this file. Suites after removal: grading-worker **443** (−37), core-api **43 suites / 876 tests** + `tsc` clean (−128), dashboard build clean at 98 modules, i18n **402 = 402**; `zalo-gateway` untouched. Re-accepted end-to-end against a real key afterwards.
 
 **Post-run addition (2026-08-24, owner request):** in-app **Hướng dẫn / Guide** page at `/guide` — a teacher-facing walkthrough of the whole authoring flow (structure → content → what happens after), because the feature shipped without anything explaining how a non-developer uses it. New: `pages/guide/{Guide.tsx,guide-content.ts}`, `IconGuide`; changed: `App.tsx` (route + nav), `i18n/index.ts` (`nav.guide` only). Prose lives in `guide-content.ts` as a **keyed object**, not a flat i18n table, so TypeScript enforces vi/en parity the same way `Record<keyof typeof vi, string>` does for labels. Dashboard-only; build clean at **98 modules**; i18n **410 = 410**. Not gated by the dev-team loop — built directly.
 
@@ -57,7 +59,7 @@ buildable now without owner-supplied credentials/hardware, so it is this run's s
 |---|---------|----------|-------|
 | F3 | Dashboard UI redesign (English Center Management look) | P1 | Added 2026-07-22 by user. **UI-only — no backend changes.** All 9 pages + `App.tsx` shell. **Stack decided: Tailwind + shadcn/ui** (user choice); visual direction chosen by UX via the `ui-ux-pro-max` skill. QA must verify existing functionality still passes. |
 | F1 | M3.6 — Media lifecycle cron (core-api) | P0 | Nightly cron: delete source video 7d after audio extraction; delete audio 90d (configurable) after receipt, set `media_deleted_at`; disk-usage >80% alert surfaced in Monitoring (§3.8) |
-| F2 | Dual-modal pilot scoring (transcript + audio) | P1 | User-added mid-run. **Decided:** A/B dual grading — grade each submission twice (audio-only [current] + text-only from transcript), store BOTH for pilot comparison. Transcript produced by the **same LLM provider** (Gemini/ChatGPT transcribes audio, then grades the text). No new STT dependency. |
+| F2 | ~~Dual-modal pilot scoring (transcript + audio)~~ | P1 | **REMOVED 2026-08-25 by owner — audio-only grading from here on.** Was: A/B dual grading, each submission graded twice (audio + text-from-transcript) for pilot comparison. Reverted in full (code, tests, i18n, routes, report, dashboard panel, `pilot_text_grading` table). Reason: a transcript carries no pronunciation evidence, and `pronunciation` is a mandatory rubric dimension (§3.10). See "F2 removal" below. |
 | F4 | Forced password change on first login | P0 | Run 2. Implement approved design doc exactly: `mustChangePassword` field on `DashboardUser`, bootstrap opt-in, `POST /auth/change-password`, `/change-password` route + `ProtectedShell` gate, vi/en i18n. Foundation for F5. |
 | F5 | Dashboard user management (create user + change password) | P1 | Run 2. Admin-only create user (email/role/initial password → `mustChangePassword:true`), user list, admin password reset, self-service change-password entry point. "Teacher" → maps to existing `staff` role (assumption). Depends on F4. |
 | F6 | Real-time submission status via SSE | P1 | Run 2. Redis pub/sub of status transitions (published from core-api's existing write paths — no grading-worker/contracts change) + core-api SSE endpoint (`GET /events/*`, session-auth, Caddy unbuffered) + `EventSource` in Submissions list/detail. |
@@ -73,7 +75,7 @@ buildable now without owner-supplied credentials/hardware, so it is this run's s
 | Feature | PM | BA | UX | Impl | DBA | DevOps | QA  | Status  |
 |---------|----|----|----|------|-----|--------|-----|---------|
 | F1 M3.6 Media lifecycle cron | ✅ | ✅ | – | ✅ | ✅ | – | ✅ | ✅ DONE |
-| F2 Dual-modal pilot scoring | ✅ | ✅ | ✅ | ✅ | ✅ | – | ✅ | ✅ DONE |
+| ~~F2 Dual-modal pilot scoring~~ | ✅ | ✅ | ✅ | ✅ | ✅ | – | ✅ | 🗑️ REMOVED 2026-08-25 |
 | F3 Dashboard UI redesign | [✅](tasks/F3-pm.md) | [✅](tasks/F3-ba.md) | [✅](tasks/F3-ux.md) | [✅](tasks/F3-frontend.md) | – | [✅](tasks/F3-devops.md) | [✅](tasks/F3-qa.md) | ✅ DONE |
 | F4 Forced password change | [✅](tasks/F4-pm.md) | [✅](tasks/F4-ba.md) | [✅](tasks/F4-ux.md) | [✅](tasks/F4-backend.md) · [✅](tasks/F4-frontend.md) | [✅](tasks/F4-dba.md) | [✅](tasks/F4-devops.md) | [✅](tasks/F4-qa.md) | ✅ DONE |
 | F5 User management | [✅](tasks/F5-pm.md) | [✅](tasks/F5-ba.md) | [✅](tasks/F5-ux.md) | [✅](tasks/F5-backend.md) · [✅](tasks/F5-frontend.md) | – | – | [✅](tasks/F5-qa.md) | ✅ DONE |
@@ -187,3 +189,51 @@ Legend: ✅ done · 🔄 in progress · ⬜ waiting · ❌ fail (fixing, round N
 | F12 | D7 — **hardcoded Vietnamese `nút` in the UI**, `RubricDrawer.tsx:78` (`` `… ${rubric.student_reply.buttons.length} nút` ``). An English-locale user sees `2 nút`. Violates AC-23.1 ("no literal Vietnamese in TSX") + assumption A8. **Introduced by the DEF-2 fix** — which is precisely what a re-gate exists to catch. Latent (both seeds ship `student_reply: null`, so it needs an author-configured template). QA's round-1 sweep structurally could not have caught it: that swept the `en` block of `i18n/index.ts`, which was and remains clean. Note `{{count}}` is in AC-23.4's placeholder inventory and is the **only** placeholder no key uses — a keyed `authoring.replyButtonCount` closes both at once. **Minor.** | 2 | frontend | fixed — `lockPathValueText`'s `student_reply` case now calls `t('authoring.replyButtonCount', { count })`; key added to **both** locale blocks (vi `'{{count}} nút'`, en `'{{count}} button(s)'`). The `tsc -b` pass is itself the parity proof. Post-fix grep confirms the only remaining literal "nút" under `services/dashboard/src` is the localized value inside `i18n/index.ts`. Build clean, 96 modules. |
 | F10 | D1 — **AC-19.6 `scale.step <= 0` accepted (201) instead of rejected (400).** `rubric-template.service.ts:84-88` normalizes *before* validating, and `rubric-schema.ts:152` coerces any non-positive step to 1 — so `rubric-validation.ts:57`'s reject is **unreachable from both write paths**. `scale.max` is *not* coerced, which is why the structurally identical AC-19.4 check does fire: the code is inconsistent with itself. The passing unit test feeds `assertAuthorableRubric` a non-normalized rubric — an input FR-19 says it never receives — so it was false confidence. **Minor.** | 1 | backend | fixed — **class, not case**: patching only `step` would have left `{min:"a",max:5}` silently becoming `{min:0,max:5}`. `assertAuthorableRubric` now *owns* normalization (signature `(rubric: RubricV2) => void` → `(input: unknown) => RubricV2`), reading the author's raw `scale` first, so **a caller can no longer order the two steps wrongly** — the old "caller must normalize first" comment is exactly what failed. Test helper no longer pre-normalizes; DEF-1 now exercised through the service AND real HTTP. Reverse-patch proof: 14 tests fail against pre-fix code. A legitimate `step: 0.5` is now stored verbatim instead of being rewritten to 1. |
 | F10 | D2 — **`NOT NULL` missing on `privileges`/`locked` (AC-03.1/§5.1), and backend's justification is disproven.** Backend claimed forcing `NOT NULL` would break AC-01.3's "No difference detected"; QA applied `ALTER … SET NOT NULL` to both on the migrated populated DB and `migrate diff` **still reported no difference** — Prisma does not diff nullability on scalar lists. Migration lines 38/54. Defence-in-depth only (forced NULLs degrade gracefully everywhere QA probed) except `toView`'s `locked: [...row.locked]`, which would throw. Migration is still uncommitted, so it's a two-line edit. **Minor.** | 1 | backend | fixed — backend accepted the refutation ("reasoning from an assumption I never tested"). Both columns now `NOT NULL DEFAULT ARRAY[]::TEXT[]` (migration lines 43/62). Re-validated on a populated disposable Postgres: all 6 table fingerprints identical, backfill correct, `UPDATE 0` on re-run, `migrate diff` still clean, and `SET privileges = NULL` / `locked = NULL` are now **rejected by Postgres** — closing the `toView` 500. Round-0 deviation 1 struck through and marked withdrawn. |
+
+## F2 removal — audio-only grading (2026-08-25, owner decision)
+
+F2 ("dual-modal pilot scoring") shipped ✅ DONE but was **never once run**: it was gated behind
+`limits.pilot_dual_grading`, which shipped off and was never turned on, so `pilot_text_grading`
+held 0 rows at removal. The owner asked for it to go, scoped as **full removal, drop the table,
+keep no transcript anywhere**.
+
+**Why it was the right call, not just a scope cut.** The pilot's purpose was to compare
+transcript-grading against audio-grading — but the comparison could never have been fair.
+`pronunciation` is a **mandatory** rubric dimension (§3.10) and the output schema demands
+`heard_as` plus second-offsets as evidence. A transcript carries neither. The text branch was
+structurally required to guess on the one dimension the product cannot compromise on.
+
+**Removed:** `_run_pilot_text_grading` and its flag-gated block in `pipeline.py`;
+`Provider.transcribe`/`grade_text` from the protocol and both adapters; `TranscriptResult`;
+`transcribe_with_fallback`/`grade_text_with_fallback`; `build_system_instruction_text`/
+`build_user_instruction_text`; `ConfigStore.get_bool` (added for this flag, used by nothing else);
+setting `limits.pilot_dual_grading`; `POST /internal/pilot-text-gradings` + DTO;
+`reports.pilotComparison()` + `GET /reports/pilot-comparison[/export]`; the read-only pilot panel in
+`SubmissionDetail.tsx` and the "So sánh Pilot" section in `Reports.tsx`; 29 i18n lines from both
+locale blocks; the `PilotTextGrading` model and the `pilotTextGrading` back-relation on `Submission`.
+
+**Deliberately kept:** `cost_log.call_type`. It is an open string column; the
+`transcription`/`text_grade` values simply stop being written, and every existing row is
+`audio_grade`. Dropping it would have been a second destructive migration for no gain.
+
+**Migration** `20260825120000_drop_pilot_text_grading` — `DROP TABLE IF EXISTS "pilot_text_grading"`.
+**Destructive and irreversible**; confirmed empty before running. Verified applied against the
+running DB (`_prisma_migrations` head + `information_schema.tables` count 0).
+
+**Verification after removal:** grading-worker 443 pass (−37), core-api 43 suites / 876 tests pass
++ `tsc` clean (−128), dashboard build clean (98 modules), i18n vi/en parity 402 = 402.
+`zalo-gateway` was **not touched** by the removal (`git status` clean for that service), so its
+suite is unaffected. A source-wide grep for `pilot_?text|pilot_dual|transcribe|TranscriptResult|
+grade_text` across all four `services/*/src` returns nothing.
+
+**Real end-to-end re-acceptance:** `sample/…5213601743983393103.mp4` uploaded through
+`POST /test-upload/submissions` after the removal → graded on `gemini-3.6-flash`, 4285 in / 2131 out
+tokens logged, stopped correctly at `awaiting_review`. The audio path still works.
+
+**Incidental finding during that run:** the first two attempts failed with 401 then 500 after ~5
+minutes each, on `gemini-3.1-pro-preview`. The key was fine — a direct probe answered **HTTP 200 on
+Flash in 4.5s and 200 on Pro-preview in 88s for a one-word prompt**. Preview-tier instability, not
+credentials. The configured model was moved back to `gemini-3.6-flash` via the Settings API (the
+F-series UI-driven model selector doing exactly the job it was built for — no redeploy).
+
+**Do not reintroduce a text-grading path without revisiting §3.10 first.**

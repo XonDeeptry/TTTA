@@ -4,11 +4,9 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
 import { useSubmissionEvents } from '../hooks/useSubmissionEvents';
-import { Alert } from '../components/ui/alert';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Textarea } from '../components/ui/textarea';
 
 interface Grading {
@@ -33,19 +31,6 @@ interface Flag {
   resolvedAt: string | null;
 }
 
-interface PilotTextGrading {
-  id: number;
-  submissionId: number;
-  criteriaId: number;
-  criteriaVersion: number;
-  transcript: string;
-  scores: Record<string, { score: number; comment: string }>;
-  llmFeedback: string;
-  provider: string;
-  model: string;
-  createdAt: string;
-}
-
 interface SubmissionDetailData {
   id: number;
   kind: string;
@@ -55,7 +40,6 @@ interface SubmissionDetailData {
   student: { id: number; fullName: string } | null;
   grading: Grading | null;
   flags: Flag[];
-  pilotTextGrading: PilotTextGrading | null;
 }
 
 export function SubmissionDetail() {
@@ -124,7 +108,7 @@ export function SubmissionDetail() {
         <div className="flex flex-wrap gap-6">
           <Card className="min-w-[320px] flex-1">
             <CardHeader>
-              <CardTitle>{t('submissions.pilotAudioTitle')}</CardTitle>
+              <CardTitle>{t('submissions.gradingTitle')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -190,65 +174,6 @@ export function SubmissionDetail() {
             </CardContent>
           </Card>
 
-          {data.pilotTextGrading && (
-            <Card className="min-w-[320px] flex-1">
-              <CardHeader>
-                <CardTitle>{t('submissions.pilotTextTitle')}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Alert variant="warning">{t('submissions.pilotNotSentNotice')}</Alert>
-
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead scope="col">{t('submissions.pilotScoreDimension')}</TableHead>
-                      <TableHead scope="col">{t('submissions.pilotScoreAudio')}</TableHead>
-                      <TableHead scope="col">{t('submissions.pilotScoreText')}</TableHead>
-                      <TableHead scope="col">{t('submissions.pilotScoreDelta')}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {Object.keys(data.grading.scores).map((dimension) => {
-                      const audioScore = data.grading?.scores[dimension]?.score;
-                      const textScore = data.pilotTextGrading?.scores[dimension]?.score;
-                      const hasBoth = typeof audioScore === 'number' && typeof textScore === 'number';
-                      const delta = hasBoth ? (audioScore as number) - (textScore as number) : null;
-                      return (
-                        <TableRow key={dimension}>
-                          <TableCell>{dimension}</TableCell>
-                          <TableCell className="tabular-nums">{typeof audioScore === 'number' ? audioScore : '—'}</TableCell>
-                          <TableCell className="tabular-nums">{typeof textScore === 'number' ? textScore : '—'}</TableCell>
-                          <TableCell className="tabular-nums">
-                            {delta === null ? '—' : delta > 0 ? `+${delta}` : `${delta}`}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-
-                <div>
-                  <h2 className="text-h2">{t('submissions.pilotLlmFeedback')}</h2>
-                  <p className="mt-1">{data.pilotTextGrading.llmFeedback}</p>
-                </div>
-
-                <div>
-                  <h2 className="text-h2">{t('submissions.pilotTranscript')}</h2>
-                  <div className="mt-1 max-h-[200px] overflow-y-auto rounded-md border border-border p-3">
-                    <pre className="whitespace-pre-wrap text-body">{data.pilotTextGrading.transcript}</pre>
-                  </div>
-                </div>
-
-                <p className="text-caption text-muted-foreground">
-                  {t('submissions.pilotProviderModel', {
-                    provider: data.pilotTextGrading.provider,
-                    model: data.pilotTextGrading.model,
-                    createdAt: new Date(data.pilotTextGrading.createdAt).toLocaleString(),
-                  })}
-                </p>
-              </CardContent>
-            </Card>
-          )}
         </div>
       )}
 

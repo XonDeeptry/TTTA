@@ -3,7 +3,7 @@ import type { Response } from 'express';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
 import { parseRange } from './date-range';
 import { toCsv, toXlsxBuffer } from './report-export';
-import { CostRow, PilotComparisonRow, ReportsService, SubmissionRateRow } from './reports.service';
+import { CostRow, ReportsService, SubmissionRateRow } from './reports.service';
 
 async function respondExport(res: Response, format: string | undefined, rows: Record<string, unknown>[], filename: string): Promise<void> {
   if (format === 'xlsx') {
@@ -73,21 +73,4 @@ export class ReportsController {
     await respondExport(res, format, rows as unknown as Record<string, unknown>[], 'chi-phi-llm');
   }
 
-  @Get('pilot-comparison')
-  async pilotComparison(@Query('from') from?: string, @Query('to') to?: string): Promise<PilotComparisonRow[]> {
-    const range = parseRange(from, to);
-    return this.reports.pilotComparison(range.from, range.to);
-  }
-
-  @Get('pilot-comparison/export')
-  async exportPilotComparison(
-    @Res() res: Response,
-    @Query('format') format?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-  ): Promise<void> {
-    const range = parseRange(from, to);
-    const rows = await this.reports.pilotComparison(range.from, range.to);
-    await respondExport(res, format, rows as unknown as Record<string, unknown>[], 'pilot-so-sanh');
-  }
 }

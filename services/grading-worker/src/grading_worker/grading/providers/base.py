@@ -13,15 +13,6 @@ class GradingResult:
     model: str
 
 
-@dataclass
-class TranscriptResult:
-    text: str
-    input_tokens: int
-    output_tokens: int
-    provider: str
-    model: str
-
-
 class Provider(Protocol):
     name: str
 
@@ -31,23 +22,6 @@ class Provider(Protocol):
         user_instruction: str,
         audio_path: str,
         mime_type: str,
-        schema: dict[str, Any],
-        model: str,
-        temperature: float,
-    ) -> GradingResult: ...
-
-    async def transcribe(
-        self,
-        audio_path: str,
-        mime_type: str,
-        model: str,
-    ) -> TranscriptResult: ...
-
-    async def grade_text(
-        self,
-        system_instruction: str,
-        user_instruction: str,
-        transcript: str,
         schema: dict[str, Any],
         model: str,
         temperature: float,

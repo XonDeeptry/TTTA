@@ -2,10 +2,12 @@
 giọng theo `tone`) + rubric JSON + few-shot mẫu giáo viên. Trả về text — provider adapter
 tự quyết định gắn audio vào request theo cách riêng của SDK từng bên.
 
-F8: rubric đi qua `normalize_rubric()` ngay ở cửa vào ⇒ hai builder (audio và text/pilot) render
-được cả rubric v1 lẫn v2 mà không cần biết version. Phần thân chung (khối tiêu chí, lưới yếu tố
-con, ngân hàng nhận xét, yêu cầu `output_fields`) nằm trong các HÀM DÙNG CHUNG bên dưới —
-KHÔNG chép đôi giữa hai builder, nếu không chúng sẽ trôi khỏi nhau.
+F8: rubric đi qua `normalize_rubric()` ngay ở cửa vào ⇒ builder render được cả rubric v1 lẫn v2
+mà không cần biết version.
+
+Chỉ còn MỘT builder: bài luôn được chấm TRỰC TIẾP TỪ AUDIO. Nhánh chấm-từ-transcript (pilot A/B)
+đã bị gỡ bỏ hoàn toàn ngày 2026-08-25 theo yêu cầu chủ dự án — transcript không mang được bằng
+chứng phát âm, mà `pronunciation` là tiêu chí BẮT BUỘC (mục 3.10).
 
 RANH GIỚI CỨNG (Phần 5 tài liệu thiết kế, BR-09): prompt TUYỆT ĐỐI không được nhắc tới tổng
 điểm, điểm trung bình hay tên cấp độ (`levels`). LLM chỉ chấm TỪNG tiêu chí; tổng và cấp độ do
@@ -136,28 +138,3 @@ def build_user_instruction() -> str:
     return "Hãy chấm bài nói trong file audio đính kèm theo đúng tiêu chí và schema đã cho."
 
 
-def build_system_instruction_text(rubric: dict[str, Any]) -> str:
-    """Pilot A/B nhánh text (transcript-only): system prompt PHẢI khác nhánh audio — nêu rõ mô
-    hình chỉ đọc BẢN CHÉP LỜI (transcript), KHÔNG nghe được audio; phát âm phải suy luận từ bằng
-    chứng trong transcript với độ tin cậy thấp và thừa nhận hạn chế đó trong nhận xét. Vẫn liệt
-    kê ĐẦY ĐỦ mọi tiêu chí (kể cả 'pronunciation' bắt buộc) với trọng số/band, cùng giọng điệu +
-    ngôn ngữ nhận xét như prompt audio."""
-    normalized = normalize_rubric(rubric)
-    lines = _header_lines(normalized)
-    lines += [
-        "QUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.",
-        "CHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.",
-        "Với tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng "
-        "chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và "
-        "phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).",
-        _CRITERIA_INTRO,
-    ]
-    lines += _render_dimensions(normalized)
-    lines += _render_output_fields_instruction(normalized)
-    lines += _render_comment_bank(normalized)
-    lines.append(_CLOSING)
-    return "\n".join(lines)
-
-
-def build_user_instruction_text() -> str:
-    return "Hãy chấm bài nói dựa trên bản chép lời (transcript) dưới đây theo đúng tiêu chí và schema đã cho."

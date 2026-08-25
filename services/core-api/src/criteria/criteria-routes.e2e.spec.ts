@@ -683,31 +683,6 @@ describe('F12 FR-01 — POST /criteria/json', () => {
 });
 
 describe('F12 FR-02 — POST /criteria/prompt-preview', () => {
-  it('AC-02.6 200 (không phải 201) + đúng hai khóa; prompt có xuống dòng thật', async () => {
-    const res = await call('POST', '/criteria/prompt-preview', { rubric: AUTHORED_RUBRIC });
-    expect(res.status).toBe(200);
-    const body = res.body as { variant: string; prompt: string };
-    expect(Object.keys(body).sort()).toEqual(['prompt', 'variant']);
-    expect(body.variant).toBe('audio');
-    expect(body.prompt).toContain('\n');
-    expect(body.prompt).toContain('[key=pronunciation]');
-  });
-
-  it('AC-02.2 variant "text" ⇒ nhánh transcript; variant lạ ⇒ 400', async () => {
-    const text = await call('POST', '/criteria/prompt-preview', {
-      rubric: AUTHORED_RUBRIC,
-      variant: 'text',
-    });
-    expect(text.status).toBe(200);
-    expect((text.body as { prompt: string }).prompt).toContain('BẢN CHÉP LỜI');
-
-    for (const variant of ['bogus', '', 'AUDIO', 1, null, []]) {
-      expect((await call('POST', '/criteria/prompt-preview', { rubric: AUTHORED_RUBRIC, variant })).status).toBe(
-        400,
-      );
-    }
-  });
-
   it('AC-02.3 rubric bị TỪ CHỐI lúc lưu vẫn xem trước được (xem trước không phải cổng kiểm)', async () => {
     const broken = { ...AUTHORED_RUBRIC, scale: { min: 0, max: 5, step: 0 }, dimensions: [] };
     expect((await call('POST', '/criteria/json', { courseId: 3, rubric: broken })).status).toBe(400);

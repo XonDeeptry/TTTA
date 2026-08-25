@@ -1,6 +1,6 @@
 import { CriteriaController } from './criteria.controller';
 import { CriteriaService } from './criteria.service';
-import { buildSystemInstruction, buildSystemInstructionText } from './prompt-render';
+import { buildSystemInstruction } from './prompt-render';
 import { assertAuthorableRubric } from './rubric-validation';
 
 /**
@@ -57,69 +57,37 @@ describe('CriteriaController.previewPrompt (F12 FR-02)', () => {
     dimensions: [{ key: 'pronunciation', label: 'Phát âm', weight: 1, bands: { '0': ['Chưa rõ.'] } }],
   };
 
-  it('AC-02.1 không chạm database lần nào', () => {
-    controller.previewPrompt({ rubric: RUBRIC });
-    controller.previewPrompt({ rubric: RUBRIC, variant: 'text' });
+  // AC-02.1 — handler không chạm DB. Mock có ĐỦ mọi phương thức nên "0 lời gọi" là khẳng định về
+  // controller, không phải về hình dạng mock.
+  it('không đọc/ghi database', () => {
+    controller.previewPrompt({ rubric: RUBRIC } as never);
     expectNoDatabaseAccess();
   });
 
-  it('AC-02.2 variant vắng mặt ⇒ nhánh audio, và `variant` được vọng lại', () => {
-    expect(controller.previewPrompt({ rubric: RUBRIC })).toEqual({
-      variant: 'audio',
-      prompt: buildSystemInstruction(RUBRIC),
-    });
-  });
-
-  it('AC-02.2 variant = "audio" | "text" ⇒ đúng hai bộ dựng', () => {
-    expect(controller.previewPrompt({ rubric: RUBRIC, variant: 'audio' }).prompt).toBe(
-      buildSystemInstruction(RUBRIC),
-    );
-    expect(controller.previewPrompt({ rubric: RUBRIC, variant: 'text' }).prompt).toBe(
-      buildSystemInstructionText(RUBRIC),
-    );
-    expect(controller.previewPrompt({ rubric: RUBRIC, variant: 'text' }).variant).toBe('text');
-  });
-
-  /**
-   * AC-02.3 — mỗi rubric dưới đây bị `assertAuthorableRubric` từ chối (test tự khẳng định điều đó,
-   * nên nếu luật lưu đổi thì ca này đỏ chứ không âm thầm mất ý nghĩa), nhưng xem trước vẫn 200.
-   */
+  // AC-02.3 — xem trước DỄ DÃI: rubric dưới đây bị `assertAuthorableRubric` từ chối (thiếu
+  // `scale`/`levels` hợp lệ, `dimensions` rỗng...) nhưng vẫn phải ra chuỗi prompt, vì đây là ô
+  // xem trước chứ không phải cổng lưu.
   it.each([
-    ['thiếu pronunciation', { dimensions: [{ key: 'fluency', label: 'F', weight: 1 }] }],
-    ['scale.step = 0', { scale: { min: 0, max: 5, step: 0 }, dimensions: [{ key: 'pronunciation' }] }],
-    ['không có tiêu chí nào', { dimensions: [] }],
-    [
-      'bảng cấp độ hở',
-      {
-        dimensions: [{ key: 'pronunciation' }],
-        scale: { min: 0, max: 5, step: 1 },
-        aggregation: { method: 'sum', round: 'none' },
-        levels: [
-          { min: 0, max: 1, code: 'A', label: 'a' },
-          { min: 3, max: 5, code: 'B', label: 'b' },
-        ],
-      },
-    ],
-  ])('AC-02.3 rubric "%s" bị từ chối lúc LƯU nhưng vẫn xem trước được', (_name, rubric) => {
+    ['dimensions rỗng', { schema_version: 2, dimensions: [] }],
+    ['thiếu pronunciation', { schema_version: 2, dimensions: [{ key: 'fluency' }] }],
+    ['scale.max = 0', { ...RUBRIC, scale: { min: 0, max: 0, step: 1 } }],
+    ['rác hoàn toàn', {}],
+    ['null', null],
+  ])('vẫn xem trước được dù rubric %s bị cổng lưu từ chối', (_label, rubric) => {
     expect(() => assertAuthorableRubric(rubric)).toThrow();
-    const result = controller.previewPrompt({ rubric });
-    expect(typeof result.prompt).toBe('string');
-    expect(result.prompt.length).toBeGreaterThan(0);
+
+    const res = controller.previewPrompt({ rubric } as never);
+
+    expect(typeof res.prompt).toBe('string');
     expectNoDatabaseAccess();
   });
 
-  it.each([[null], [undefined], [[]], ['str'], [42], [{}], [1e308], [{ a: { b: { c: [1, 2] } } }]])(
-    'AC-02.4 rubric rác %p ⇒ vẫn ra chuỗi, không ném',
-    (rubric) => {
-      expect(typeof controller.previewPrompt({ rubric }).prompt).toBe('string');
-      expect(typeof controller.previewPrompt({ rubric, variant: 'text' }).prompt).toBe('string');
-    },
-  );
+  // Chỉ còn MỘT nhánh sau khi gỡ chấm-từ-transcript (2026-08-25): phản hồi là `{ prompt }` và
+  // phải khớp CHÍNH XÁC renderer, không có lắp ghép riêng ở tầng controller.
+  it('trả đúng { prompt } và khớp renderer', () => {
+    const res = controller.previewPrompt({ rubric: RUBRIC } as never);
 
-  it('AC-02.6 trả về đúng hai khóa, `prompt` là chuỗi có ký tự xuống dòng THẬT', () => {
-    const result = controller.previewPrompt({ rubric: RUBRIC });
-    expect(Object.keys(result).sort()).toEqual(['prompt', 'variant']);
-    expect(result.prompt).toContain('\n');
-    expect(result.prompt).not.toContain('\\n'); // không escape sẵn kiểu HTML/JSON hai lần
+    expect(Object.keys(res)).toEqual(['prompt']);
+    expect(res.prompt).toBe(buildSystemInstruction(RUBRIC));
   });
 });

@@ -1,5 +1,4 @@
 import { Allow, IsIn, ValidateIf } from 'class-validator';
-import { PROMPT_VARIANTS, type PromptVariant } from '../prompt-render';
 
 /**
  * Body của `POST /criteria/prompt-preview` (F12 FR-02, §7.2).
@@ -15,10 +14,4 @@ export class PromptPreviewDto {
   @Allow()
   rubric?: unknown;
 
-  /** VẮNG MẶT (`undefined`) ⇒ mặc định 'audio'. Mọi giá trị khác — kể cả `null` — phải nằm trong
-   * tập đóng, nếu không thì 400 (AC-02.2). Dùng `@ValidateIf` chứ KHÔNG dùng `@IsOptional()`:
-   * `@IsOptional()` bỏ qua cả `null`, nên `variant: null` sẽ lặng lẽ thành 'audio'. */
-  @ValidateIf((dto: PromptPreviewDto) => dto.variant !== undefined)
-  @IsIn(PROMPT_VARIANTS)
-  variant?: PromptVariant;
 }

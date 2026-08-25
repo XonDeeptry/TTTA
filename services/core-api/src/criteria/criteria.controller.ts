@@ -28,7 +28,7 @@ import { PromptPreviewDto } from './dto/prompt-preview.dto';
 import { SetTemplateActiveDto } from './dto/set-template-active.dto';
 import { UpdateRubricTemplateDto } from './dto/update-rubric-template.dto';
 import { UploadCriteriaDto } from './dto/upload-criteria.dto';
-import { renderPrompt, type PromptVariant } from './prompt-render';
+import { renderPrompt } from './prompt-render';
 import { RubricTemplateService, type RubricTemplateView } from './rubric-template.service';
 
 /**
@@ -157,9 +157,8 @@ export class CriteriaController {
   @Post('prompt-preview')
   @HttpCode(200)
   @RequiresPrivilege('criteria_author', 'rubric_template')
-  previewPrompt(@Body() body: PromptPreviewDto): { variant: PromptVariant; prompt: string } {
-    const variant: PromptVariant = body.variant ?? 'audio';
-    return { variant, prompt: renderPrompt(body.rubric, variant) };
+  previewPrompt(@Body() body: PromptPreviewDto): { prompt: string } {
+    return { prompt: renderPrompt(body.rubric) };
   }
 
   @Get(':id')

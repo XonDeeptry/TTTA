@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 
-export type PromptVariant = 'audio' | 'text';
-
 /**
  * Live LLM-prompt preview pane, shared by both drawers (F12 FR-20). Renders exactly the string
  * `POST /criteria/prompt-preview` returns — ZERO client-side prompt assembly (AC-20.7/20.8: plain
@@ -15,7 +13,6 @@ export type PromptVariant = 'audio' | 'text';
  */
 export function PromptPreview({ rubric }: { rubric: unknown }) {
   const { t } = useTranslation();
-  const [variant, setVariant] = useState<PromptVariant>('audio');
   const [prompt, setPrompt] = useState('');
   const [updating, setUpdating] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -26,7 +23,7 @@ export function PromptPreview({ rubric }: { rubric: unknown }) {
     setUpdating(true);
     const timer = window.setTimeout(() => {
       api
-        .post<{ variant: PromptVariant; prompt: string }>('/criteria/prompt-preview', { rubric, variant })
+        .post<{ prompt: string }>('/criteria/prompt-preview', { rubric })
         .then((res) => {
           if (seq !== requestSeq.current) return; // AC-20.3: stale response discarded
           setPrompt(res.prompt);
@@ -42,36 +39,11 @@ export function PromptPreview({ rubric }: { rubric: unknown }) {
     }, 400); // AC-20.2: debounced 300–500ms
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rubric, variant]);
+  }, [rubric]);
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-h3">{t('authoring.preview')}</span>
-        <fieldset className="flex items-center gap-3 text-caption" aria-label={t('authoring.previewVariant')}>
-          <legend className="sr-only">{t('authoring.previewVariant')}</legend>
-          <label className="flex items-center gap-1">
-            <input
-              type="radio"
-              name="prompt-preview-variant"
-              checked={variant === 'audio'}
-              onChange={() => setVariant('audio')}
-              className="h-4 w-4 accent-primary"
-            />
-            {t('authoring.variantAudio')}
-          </label>
-          <label className="flex items-center gap-1">
-            <input
-              type="radio"
-              name="prompt-preview-variant"
-              checked={variant === 'text'}
-              onChange={() => setVariant('text')}
-              className="h-4 w-4 accent-primary"
-            />
-            {t('authoring.variantText')}
-          </label>
-        </fieldset>
-      </div>
+      <span className="text-h3">{t('authoring.preview')}</span>
       {updating && <p className="text-caption text-muted-foreground">{t('authoring.previewUpdating')}</p>}
       {failed && <p className="text-caption text-destructive">{t('authoring.previewError')}</p>}
       <pre

@@ -38,7 +38,6 @@ export const SETTING_DEFS: SettingDef[] = [
   // (mục 3.12) im lặng — đây là chỗ điền đơn giá thật mà không cần sửa code.
   { key: 'llm.pricing_json', kind: 'string', masked: false },
   { key: 'limits.outbound_48h_guard', kind: 'boolean', masked: false },
-  { key: 'limits.pilot_dual_grading', kind: 'boolean', masked: false },
   { key: 'limits.max_clip_duration_sec', kind: 'number', masked: false },
   { key: 'limits.media_retention_days', kind: 'number', masked: false },
   { key: 'sheets.service_account_json', kind: 'string', masked: true },

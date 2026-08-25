@@ -22,7 +22,6 @@ _ENV_FALLBACKS: dict[str, str | None] = {
     "llm.gemini_api_key": os.environ.get("GEMINI_API_KEY"),
     "llm.openai_api_key": os.environ.get("OPENAI_API_KEY"),
     "limits.max_clip_duration_sec": os.environ.get("MAX_CLIP_DURATION_SEC"),
-    "limits.pilot_dual_grading": os.environ.get("PILOT_DUAL_GRADING"),
 }
 
 
