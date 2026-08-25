@@ -10,6 +10,7 @@ import {
   IconCourses,
   IconCriteria,
   IconGauge,
+  IconGuide,
   IconKey,
   IconLogout,
   IconMenu,
@@ -26,6 +27,7 @@ import { Analytics } from './pages/Analytics';
 import { ChangePassword } from './pages/ChangePassword';
 import { Courses } from './pages/Courses';
 import { Criteria } from './pages/Criteria';
+import { Guide } from './pages/guide/Guide';
 import { Login } from './pages/Login';
 import { Monitoring } from './pages/Monitoring';
 import { Onboarding } from './pages/Onboarding';
@@ -61,6 +63,9 @@ function SidebarNav({ user, mobileOpen, setMobileOpen }: { user: CurrentUser; mo
     { to: '/reports', label: t('nav.reports'), icon: IconReports },
     { to: '/criteria', label: t('nav.criteria'), icon: IconCriteria },
     { to: '/analytics', label: t('nav.analytics'), icon: IconAnalytics },
+    // Hướng dẫn để CUỐI và mở cho MỌI vai trò — người chưa có quyền soạn chính là người cần đọc
+    // mục 3 để biết phải xin quyền gì; giấu đi là tạo đúng cái "dead end" F12-ux đã cảnh báo.
+    { to: '/guide', label: t('nav.guide'), icon: IconGuide },
   ];
 
   return (
@@ -294,6 +299,14 @@ export function App() {
           element={
             <ProtectedShell adminOnly>
               <Courses />
+            </ProtectedShell>
+          }
+        />
+        <Route
+          path="/guide"
+          element={
+            <ProtectedShell>
+              <Guide />
             </ProtectedShell>
           }
         />

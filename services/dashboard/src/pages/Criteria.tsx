@@ -1,12 +1,16 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { Alert } from '../components/ui/alert';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { SelectNative } from '../components/ui/select-native';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { IconCriteria } from '../components/icons';
+import { TemplateDrawer } from './criteria/TemplateDrawer';
+import { RubricDrawer } from './criteria/RubricDrawer';
 
 interface CriteriaItem {
   id: number;
@@ -30,6 +34,7 @@ interface CourseOption {
 
 export function Criteria() {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [courseId, setCourseId] = useState('');
   const [items, setItems] = useState<CriteriaItem[]>([]);
   const [preview, setPreview] = useState<unknown>(null);
@@ -37,6 +42,14 @@ export function Criteria() {
   const [classes, setClasses] = useState<ClassConfig[]>([]);
   const [classDrafts, setClassDrafts] = useState<Record<string, Partial<ClassConfig>>>({});
   const [courses, setCourses] = useState<CourseOption[]>([]);
+
+  // F12 — privilege-driven drawer entry points (AC-10.1: `privileges.includes(...)` only, never
+  // a client-side "admin has everything" rule — the server already expands that, F10 AC-11.2).
+  const privileges = user?.privileges ?? [];
+  const canTemplates = privileges.includes('rubric_template');
+  const canAuthor = privileges.includes('criteria_author');
+  const [activeDrawer, setActiveDrawer] = useState<'template' | 'authoring' | null>(null);
+  const [editingCriteria, setEditingCriteria] = useState<{ id: number; courseId: number } | null>(null);
 
   function loadCriteria(): void {
     if (!courseId) return;
@@ -89,24 +102,30 @@ export function Criteria() {
           {/* Native <form>; fields named exactly "courseId"/"file" so new FormData(e.currentTarget)
               reads what core-api expects — do not wrap these in a controlled/library field.
               A plain <select name="courseId"> is still captured by FormData like any input. */}
-          <form onSubmit={upload} className="flex flex-wrap items-center gap-2">
-            <SelectNative name="courseId" required aria-label={t('criteria.courseId')} className="max-w-[12rem]">
-              <option value="">{t('criteria.selectCourse')}</option>
-              {courses.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.key}
-                </option>
-              ))}
-            </SelectNative>
-            <input
-              name="file"
-              type="file"
-              accept=".docx"
-              required
-              className="text-body file:mr-2 file:rounded-md file:border file:border-input file:bg-card file:px-3 file:py-1 file:text-body"
-            />
-            <Button type="submit">{t('criteria.uploadButton')}</Button>
-          </form>
+          {/* F12 AC-10.4: this pre-existing form stays visible but disabled+explained for a staff
+              member holding neither `admin` nor `criteria_author` — removing it outright would
+              read as a regression rather than a permission boundary (F12-ux.md §5). */}
+          <fieldset disabled={!canAuthor} className="space-y-3 disabled:opacity-60">
+            <form onSubmit={upload} className="flex flex-wrap items-center gap-2">
+              <SelectNative name="courseId" required aria-label={t('criteria.courseId')} className="max-w-[12rem]">
+                <option value="">{t('criteria.selectCourse')}</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.key}
+                  </option>
+                ))}
+              </SelectNative>
+              <input
+                name="file"
+                type="file"
+                accept=".docx"
+                required
+                className="text-body file:mr-2 file:rounded-md file:border file:border-input file:bg-card file:px-3 file:py-1 file:text-body"
+              />
+              <Button type="submit">{t('criteria.uploadButton')}</Button>
+            </form>
+          </fieldset>
+          {!canAuthor && <p className="text-caption text-muted-foreground">{t('criteria.uploadNoPrivilege')}</p>}
           {uploadError && (
             <Alert variant="destructive" role="alert">
               {uploadError}
@@ -114,6 +133,27 @@ export function Criteria() {
           )}
         </CardContent>
       </Card>
+
+      {(canTemplates || canAuthor) && (
+        <div className="flex flex-wrap gap-2">
+          {canTemplates && (
+            <Button variant="outline" onClick={() => setActiveDrawer('template')}>
+              <IconCriteria /> {t('templates.open')}
+            </Button>
+          )}
+          {canAuthor && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingCriteria(null);
+                setActiveDrawer('authoring');
+              }}
+            >
+              <IconCriteria /> {t('authoring.open')}
+            </Button>
+          )}
+        </div>
+      )}
 
       <Card className="max-w-xl">
         <CardHeader>
@@ -147,6 +187,18 @@ export function Criteria() {
                 <Button variant="ghost" size="sm" onClick={() => setPreview(c.rubric)}>
                   {t('criteria.preview')}
                 </Button>
+                {canAuthor && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setEditingCriteria({ id: c.id, courseId: c.courseId });
+                      setActiveDrawer('authoring');
+                    }}
+                  >
+                    {t('templates.edit')}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -209,6 +261,22 @@ export function Criteria() {
           </CardContent>
         </Card>
       </div>
+
+      {/* F12 — additive: both drawers render unconditionally (their own `open` flag hides them);
+          only one may be open at a time, enforced by `activeDrawer` (F12-ux.md §1.1 AC-05.10). */}
+      <TemplateDrawer open={activeDrawer === 'template'} onClose={() => setActiveDrawer(null)} />
+      <RubricDrawer
+        open={activeDrawer === 'authoring'}
+        onClose={() => {
+          setActiveDrawer(null);
+          setEditingCriteria(null);
+        }}
+        courses={courses}
+        initialCriteria={editingCriteria}
+        onSaved={() => {
+          if (courseId) loadCriteria();
+        }}
+      />
     </main>
   );
 }

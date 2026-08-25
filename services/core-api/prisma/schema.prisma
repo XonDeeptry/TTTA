@@ -58,6 +58,12 @@ model Criteria {
   rubric         Json
   sourceFilename String?    @map("source_filename")
   version        Int        @default(1)
+  // F10: chỉ TRUY VẾT "soạn ra từ mẫu nào" — lưu id thô, KHÔNG có quan hệ, đúng tiền lệ
+  // `PilotTextGrading.criteriaId` trong chính schema này. Cố ý không @relation, không
+  // REFERENCES, không ON DELETE, không index: nhờ vậy xóa một `rubric_templates` không bao
+  // giờ đụng tới `criteria` đã soạn (BR-07/BR-08) và một giá trị mồ côi là trạng thái BÌNH
+  // THƯỜNG, không phải lỗi dữ liệu. F12 mới là bên GHI trường này; F10 luôn để NULL.
+  templateKey    String?    @map("template_key")
   createdAt      DateTime   @default(now()) @map("created_at")
   gradings       Grading[]
 
@@ -76,6 +82,11 @@ model Student {
   campus           String?
   status           String         @default("active")
   syncedFromSheetAt DateTime?     @map("synced_from_sheet_at")
+  // F9: ánh xạ Zalo-user → học viên → cấp độ (mục 5). Ảnh chụp cấp độ của bài NỘP gần nhất
+  // (theo submissions.received_at, KHÔNG phải thời điểm ghi) — có thể đi xuống, và một lần
+  // chấm lại bài cũ không được ghi đè cấp độ mới hơn (BR-09).
+  currentLevelCode String?        @map("current_level_code")
+  currentLevelAt   DateTime?      @map("current_level_at")
   bindings         ZaloBinding[]
   submissions      Submission[]
 
@@ -141,6 +152,14 @@ model Grading {
   reviewedBy       String?    @map("reviewed_by")
   autoSent         Boolean    @default(false) @map("auto_sent")
   sentAt           DateTime?  @map("sent_at")
+  // F9: kết quả `computeTotal` chốt tại thời điểm chấm — phục vụ HIỂN THỊ, tin nhắn Zalo (F11)
+  // và ánh xạ cấp độ học viên. Báo cáo KHÔNG đọc mấy cột này mà tính lại từ `scores` (BR-06).
+  // NULL = chưa tính: grading trước F9, hoặc `counted === 0` (BR-05). Không có backfill (BR-07).
+  totalScore       Float?     @map("total_score")
+  levelCode        String?    @map("level_code")
+  levelLabel       String?    @map("level_label")
+  // Cột do F11 ghi (nút "#ilm:ack:<id>"); F9 chỉ TẠO cột, không bao giờ ghi (BR-11).
+  studentAckAt     DateTime?  @map("student_ack_at")
 
   @@map("gradings")
 }
@@ -247,7 +266,35 @@ model DashboardUser {
   passwordHash       String        @map("password_hash")
   role               DashboardRole
   mustChangePassword Boolean       @default(false) @map("must_change_password")
+  // F10 (thiết kế mục 4.2): quyền phụ, ĐỘC LẬP với role — vẫn đúng 2 role cũ, không thêm
+  // role thứ ba. Giá trị hợp lệ: 'rubric_template' | 'criteria_author' (auth/privileges.ts).
+  // `admin` mặc nhiên có mọi quyền nên mảng này bị BỎ QUA khi role = admin.
+  privileges         String[]      @default([])
   createdAt          DateTime      @default(now()) @map("created_at")
 
   @@map("dashboard_users")
+}
+
+// F10 — mẫu CẤU TRÚC chấm điểm (thiết kế Phần 4). Hai mẫu mặc định được seed vào đây lúc
+// khởi động khi bảng còn RỖNG (BootstrapRubricTemplatesService), nên chúng là DỮ LIỆU sửa
+// được bằng UI chứ không phải hằng số trong code.
+//
+// KHÔNG có khóa ngoại nào trỏ vào bảng này (xem `Criteria.templateKey`) — đó chính là điều
+// khiến "xóa mẫu" là một thao tác an toàn, không hồi tố lên `criteria`/`gradings`.
+model RubricTemplate {
+  id        Int      @id @default(autoincrement())
+  // định danh ổn định, BẤT BIẾN sau khi tạo (reset + truy vết đều tra theo key)
+  key       String   @unique
+  name      String
+  // một RubricV2 đã `normalizeRubric` (12 khóa top-level)
+  rubric    Json
+  // đường dẫn trường mà NGƯỜI SOẠN NỘI DUNG không được sửa; không ràng buộc `rubric_template`
+  locked    String[] @default([])
+  // chỉ seeder mới đặt true — chặn xóa (409) và bật nút "khôi phục bản gốc"
+  isSystem  Boolean  @default(false) @map("is_system")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("rubric_templates")
 }

@@ -35,12 +35,27 @@ export class AuthController {
     });
   }
 
+  /**
+   * F10 — bổ sung `privileges` (THÊM trường, bốn trường cũ giữ nguyên tên/kiểu/giá trị — AC-11.3).
+   *
+   * Giá trị là tập CÓ HIỆU LỰC đọc tươi từ Postgres, nên với `admin` nó chứa ĐỦ cả hai quyền dù
+   * cột trong DB đang rỗng (AC-11.2). Nhờ vậy front-end chỉ cần `privileges.includes('...')` và
+   * KHÔNG phải tự cài lại luật "admin có mọi quyền" ở client — một luật bị nhân bản là một luật
+   * sẽ lệch.
+   *
+   * `POST /auth/login` và `POST /auth/change-password` KHÔNG đổi shape, và `session.user` cũng
+   * không mọc thêm trường nào (AC-11.5): quyền thay đổi giữa chừng phiên nên không được đóng băng
+   * vào session.
+   */
   @Get('me')
   @UseGuards(SessionAuthGuard)
-  me(
-    @Req() req: Request,
-  ): { id: number; email: string; role: DashboardRole; mustChangePassword: boolean } | undefined {
-    return req.session.user;
+  async me(@Req() req: Request): Promise<
+    | { id: number; email: string; role: DashboardRole; mustChangePassword: boolean; privileges: string[] }
+    | undefined
+  > {
+    const user = req.session.user;
+    if (!user) return undefined;
+    return { ...user, privileges: await this.auth.effectivePrivileges(user.id) };
   }
 
   /**

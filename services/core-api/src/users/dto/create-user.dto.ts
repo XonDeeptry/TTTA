@@ -1,4 +1,5 @@
-import { IsEmail, IsIn, IsString, MinLength } from 'class-validator';
+import { IsArray, IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { DASHBOARD_PRIVILEGES, type DashboardPrivilege } from '../../auth/privileges';
 import type { DashboardRole } from '../../auth/session.types';
 
 /**
@@ -19,4 +20,14 @@ export class CreateUserDto {
   @IsString()
   @MinLength(8)
   password!: string;
+
+  /**
+   * F10 — quyền phụ. VẮNG MẶT ⇒ `[]` (AC-10.6/AC-03.6): backfill của migration là chuyện MỘT LẦN
+   * cho dữ liệu cũ, KHÔNG phải giá trị mặc định mới. Tài khoản tạo sau F10 khởi đầu rỗng và admin
+   * tick checkbox để cấp.
+   */
+  @IsOptional()
+  @IsArray()
+  @IsIn(DASHBOARD_PRIVILEGES as readonly string[], { each: true })
+  privileges?: DashboardPrivilege[];
 }

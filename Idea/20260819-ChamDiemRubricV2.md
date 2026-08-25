@@ -2,7 +2,7 @@
 
 **Ngày:** 2026-08-19 · **Phiên bản:** 1.0 · **Trạng thái:** Chờ duyệt — chưa triển khai
 
-**Quan hệ với các tài liệu khác:** tài liệu này **bổ sung chi tiết cho mục 3.9 (chuẩn hóa rubric) và mục 3.10 (chấm phát âm bắt buộc)** của `20260719-KienTrucMicroservices.md`, không thay thế nó. Thứ tự ưu tiên kiến trúc giữ nguyên: `20260719-KienTrucMicroservices.md` > `UpdateFoundation.md` > `Foundation.md`. `Foundation.md` vẫn là chuẩn cho phạm vi sản phẩm và ranh giới nghiệp vụ. Khi tài liệu này được duyệt và build xong, tài liệu kiến trúc cần một mục **changelog v1.6** ghi lại 4 quyết định ở Phần 9.
+**Quan hệ với các tài liệu khác:** tài liệu này **bổ sung chi tiết cho mục 3.9 (chuẩn hóa rubric) và mục 3.10 (chấm phát âm bắt buộc)** của `20260719-KienTrucMicroservices.md`, không thay thế nó. Thứ tự ưu tiên kiến trúc giữ nguyên: `20260719-KienTrucMicroservices.md` > `UpdateFoundation.md` > `Foundation.md`. `Foundation.md` vẫn là chuẩn cho phạm vi sản phẩm và ranh giới nghiệp vụ. Khi tài liệu này được duyệt và build xong, tài liệu kiến trúc cần một mục **changelog v1.6** ghi lại 5 quyết định ở Phần 9.
 
 **Nguồn gốc:** hai file rubric thật của trung tâm, đặt tại `Criteria-Source/` (`RubricSpeakingA0-C.pdf`, `Analystic-ScoringBand.pdf`). Đây là lần đầu có rubric thật để đối chiếu — mô hình rubric hiện tại (mục 3.9) được thiết kế khi **chưa có** file mẫu nào tồn tại, nên nó không biểu diễn được cả hai file này.
 
@@ -148,17 +148,60 @@ Vẫn lưu trong cột `criteria.rubric` (kiểu `Json`) — **không cần migr
 
 ## Phần 4 — Mẫu tiêu chí (template) & phân quyền
 
-**Quyết định của chủ dự án:** không hardcode sẵn hai rubric trên vào code. Thay vào đó **admin (hoặc người được cấp quyền) định nghĩa trước bộ khung, giáo viên khác điền nội dung vào.**
+**Quyết định của chủ dự án:** hệ thống **có sẵn hai cấu trúc chấm điểm mặc định** — `RubricSpeakingA0-C` (Cambridge YL, `sum` 0–5 → 25 điểm → 4 cấp độ) và `Analystic-ScoringBand` (IELTS, `average` band 0–9) — **nhưng cả hai đều sửa được bởi admin hoặc người được cấp quyền.** Giáo viên thường chọn một mẫu rồi điền nội dung vào.
 
-**Bảng mới `RubricTemplate`** — lưu một rubric v2 với phần mô tả để trống, kèm danh sách `locked` liệt kê những gì giáo viên **không** được sửa (mặc định: `dimensions[].key`, `scale`, `aggregation`, `levels`, `output_fields`).
+**Điểm mấu chốt: mặc định là DỮ LIỆU, không phải hằng số trong code.** Hai mẫu này được **seed vào bảng `rubric_templates`** lúc khởi động, đúng theo khuôn `BootstrapAdminService` đã có (tạo admin đầu tiên khi `dashboard_users` rỗng). Nhờ vậy chúng vừa "có sẵn ngay khi cài" vừa sửa được bằng UI như mọi mẫu khác — không phải sửa code, không phải deploy lại.
 
-**Phân quyền:** `DashboardUser.privileges String[] @default([])`.
+**Bảng mới `RubricTemplate`:**
 
-- Vẫn giữ **2 role cũ** `admin` | `staff` — **không** thêm role thứ ba (tránh migration enum + rà lại mọi `@Roles()` đang có).
-- `admin` mặc nhiên có mọi quyền.
-- `staff` được cấp `"rubric_template"` thì soạn/sửa được template.
-- Thực thi bằng `PrivilegeGuard` + decorator `@RequiresPrivilege('rubric_template')`, dựng theo đúng khuôn `RolesGuard` / `@Roles` đã có trong `auth/`.
-- Cấp quyền bằng checkbox trên màn Người dùng đã có sẵn.
+| Cột | Ý nghĩa |
+| :---- | :---- |
+| `key` | định danh ổn định, `UNIQUE` (`cambridge_yl_a0_a2`, `ielts_speaking`) |
+| `name` | tên giáo viên thấy |
+| `rubric` | một rubric v2 với phần mô tả band để trống hoặc điền sẵn |
+| `locked` | danh sách trường giáo viên **không** được sửa — mặc định `dimensions[].key`, `scale`, `aggregation`, `levels`, `output_fields` |
+| `isSystem` | `true` với hai mẫu seed — chỉ dùng để bật nút "khôi phục bản gốc" và chặn xóa |
+| `isActive` | ẩn khỏi danh sách chọn mà không xóa |
+
+### 4.1. CRUD đầy đủ trên cấu trúc mẫu
+
+Hai mẫu mặc định **không phải tập đóng** — người có quyền tạo được bao nhiêu cấu trúc mới tùy ý (ví dụ rubric Writing, rubric thi thử nội bộ, rubric riêng cho một khóa doanh nghiệp).
+
+| Thao tác | Endpoint | Mẫu thường | Mẫu `isSystem` |
+| :---- | :---- | :---- | :---- |
+| Liệt kê | `GET /criteria/templates?includeInactive=` | ✔ | ✔ |
+| Xem chi tiết | `GET /criteria/templates/:key` | ✔ | ✔ |
+| **Tạo mới** | `POST /criteria/templates` | ✔ (từ số không) | — |
+| **Nhân bản** | `POST /criteria/templates/:key/duplicate` | ✔ | ✔ → bản sao là mẫu thường |
+| **Sửa** | `PUT /criteria/templates/:key` | ✔ | ✔ (sửa được mọi trường) |
+| **Xóa** | `DELETE /criteria/templates/:key` | ✔ xóa thật | ✘ **409** — chỉ `isActive=false` |
+| Ẩn / hiện | `PATCH /criteria/templates/:key/active` | ✔ | ✔ |
+| Khôi phục bản gốc | `POST /criteria/templates/:key/reset` | ✘ 409 | ✔ ghi đè lại từ seed |
+
+**Xóa không cần lo phá dữ liệu cũ.** `criteria.rubric` là **bản sao độc lập** tại thời điểm soạn — xóa mẫu không đụng gì tới các `criteria` đã sinh ra từ nó, và cũng không đụng tới bài đã chấm. Nguồn gốc chỉ được ghi lại bằng `Criteria.templateKey String?` — **một chuỗi thường, không phải khóa ngoại**, đúng theo tiền lệ đã có trong schema (`PilotTextGrading.criteriaId` cũng "lưu id thô, không có quan hệ"). Nhờ vậy không phát sinh ràng buộc `ON DELETE` nào, và mẫu bị xóa chỉ để lại một `templateKey` mồ côi — chấp nhận được với dữ liệu chỉ mang tính truy vết.
+
+**Quy tắc riêng của hai mẫu mặc định:**
+
+- Sửa trực tiếp được **mọi trường**, kể cả `scale`, `aggregation`, `levels`, danh sách tiêu chí, và chính danh sách `locked`.
+- Định nghĩa gốc vẫn nằm trong code (`criteria/templates/*.seed.ts`) → nút **"Khôi phục bản gốc"**.
+- **Không xóa được** (409), chỉ ẩn — nếu lỡ xóa thì không có đường lấy lại ngoài redeploy, mà nút khôi phục đã phục vụ đúng nhu cầu đó rồi.
+- Seed **chỉ chạy khi bảng rỗng** (giống hệt `BootstrapAdminService`) → **không bao giờ ghi đè bản đã bị sửa** ở lần khởi động sau.
+- Sửa mẫu **không** hồi tố các `criteria` đã soạn từ nó. Mẫu chỉ là điểm khởi đầu.
+
+### 4.2. Hai quyền tách biệt
+
+`DashboardUser.privileges String[] @default([])`. Vẫn giữ **2 role cũ** `admin` | `staff` — **không** thêm role thứ ba (tránh migration enum + rà lại mọi `@Roles()` đang có). `admin` mặc nhiên có mọi quyền.
+
+| Quyền | Cho phép làm gì | Ai thường được cấp |
+| :---- | :---- | :---- |
+| `rubric_template` | **Toàn bộ CRUD ở mục 4.1** — dựng/sửa/xóa *cấu trúc* chấm điểm: tiêu chí nào, thang bao nhiêu, cộng hay trung bình, các mốc cấp độ | Trưởng bộ môn, người thiết kế chương trình |
+| `criteria_author` | Sửa/cập nhật **nội dung chấm điểm** trong khuôn một mẫu — mô tả từng band, yếu tố con, ngân hàng nhận xét, giọng điệu; upload `.docx`; lưu version mới | Giáo viên phụ trách khóa |
+
+Hai quyền **độc lập**: cấp `criteria_author` cho một giáo viên thì họ soạn được nội dung nhưng **không** đổi được cấu trúc — đúng ý "chỉ định quyền cho giáo viên để chỉnh sửa nội dung chấm điểm". Ai cần cả hai thì cấp cả hai.
+
+Thực thi bằng `PrivilegeGuard` + decorator `@RequiresPrivilege(...)`, dựng theo đúng khuôn `RolesGuard` / `@Roles` đã có trong `auth/`. Cấp quyền bằng checkbox trên màn Người dùng đã có sẵn.
+
+> **Lưu ý migration — tránh khóa nhầm người đang dùng.** Hiện `/criteria` chỉ gác bằng `SessionAuthGuard`, nghĩa là **mọi `staff` đang upload `.docx` được**. Nếu migration để `privileges=[]` cho tất cả thì họ mất quyền ngay khi deploy. **Migration phải cấp sẵn `criteria_author` cho toàn bộ `staff` đang tồn tại** (một câu `UPDATE`), giữ nguyên hành vi hiện tại; từ đó về sau tài khoản mới mặc định là rỗng. Quyền **đọc** (`GET`) vẫn mở cho mọi `staff` như cũ — chỉ đường **ghi** mới bị gác.
 
 ---
 
@@ -222,12 +265,15 @@ Màn `pages/Criteria.tsx` **giữ nguyên** đường upload `.docx` (làm kênh
 
 **Không thêm dependency:** dự án **không dùng Radix** — `components/ui/` là các component tự viết bằng `class-variance-authority` + `tailwind-merge`. Vậy `components/ui/drawer.tsx` cũng phải tự viết (panel trượt + backdrop + focus trap + phím Esc) cho đồng bộ.
 
-**Drawer 1 — Mẫu tiêu chí** *(chỉ người có quyền `rubric_template`)*
-Định nghĩa: khóa + nhãn từng tiêu chí · `scale` min/max/step · phương pháp tổng hợp · trọng số · các khoảng cấp độ · `output_fields` · khối `student_reply` gồm cả bộ nút.
+**Drawer 1 — Cấu trúc chấm điểm** *(quyền `rubric_template`)*
+Mở ra là **danh sách mọi mẫu**: hai mẫu mặc định đã seed (Cambridge YL A0–A2, IELTS Speaking) đứng đầu, kèm mọi mẫu tự tạo — mỗi dòng có badge "Mặc định"/"Đang ẩn" và các nút theo bảng 4.1.
+Nút **"+ Tạo cấu trúc mới"** mở form trắng; nút **"Nhân bản"** trên một dòng mở form đã điền sẵn — đây là đường nhanh nhất để dựng biến thể (ví dụ IELTS rút gọn còn 3 tiêu chí).
+Định nghĩa/sửa: khóa + nhãn từng tiêu chí · `scale` min/max/step · phương pháp tổng hợp · trọng số · các khoảng cấp độ · `output_fields` · khối `student_reply` gồm cả bộ nút · danh sách `locked`.
 Kiểm tra trực tiếp khi gõ: các khoảng cấp độ phải **liền mạch và phủ kín** `0..max`; hiển thị tổng tối đa tính được (`= 25`) và tự cập nhật khi đổi thang.
+Mẫu `isSystem` khác mẫu thường ở đúng hai chỗ: có thêm nút **"Khôi phục bản gốc"** (có hộp xác nhận — thao tác này mất hết chỉnh sửa), và **không có nút Xóa** (chỉ công tắc ẩn/hiện). Mẫu thường thì xóa được, có hộp xác nhận nhắc rằng các tiêu chí đã soạn từ nó **không bị ảnh hưởng**.
 
-**Drawer 2 — Soạn tiêu chí** *(mọi giáo viên)*
-Chọn khóa → chọn mẫu → điền.
+**Drawer 2 — Soạn nội dung chấm điểm** *(quyền `criteria_author`)*
+Chọn khóa → chọn mẫu (hai mẫu mặc định đứng đầu danh sách) → điền.
 
 - Mô tả band hiển thị dạng **lưới: mỗi giá trị band một dòng, mỗi dòng một ô textarea** — suy ra từ `scale`. Đổi thang 0–5 → 0–9 thì **thêm dòng**, thay vì bắt gõ lại một dòng nối bằng `;`. Đây là điểm khiến biểu diễn IELTS trở nên khả thi cho giáo viên.
 - Các dòng yếu tố con; các dòng ngân hàng nhận xét (tiêu chí × ý định × nội dung).
@@ -240,9 +286,10 @@ Chọn khóa → chọn mẫu → điền.
 
 ## Phần 8 — Phạm vi thay đổi theo service
 
-**core-api** — *Mới:* `criteria/rubric-schema.ts` (kiểu v2 + `normalizeRubric`) · `lib/rubric-scoring.ts` · `criteria/rubric-template.{service,controller}.ts` · `auth/privilege.guard.ts` + `@RequiresPrivilege`.
-*Sửa:* `criteria.controller.ts` (thêm `POST /criteria/json`, `GET/POST /criteria/templates` — **khai báo route chữ TRƯỚC `@Get(':id')`**, nếu không `ParseIntPipe` sẽ trả 400 cho chúng) · `criteria.service.ts` · `docx-parser.ts` (xuất v2) · `worker-api.controller.ts` (tính + lưu tổng/cấp độ, cập nhật cấp độ học sinh) · `reports.service.ts` (dùng `computeTotal`) · `users.{controller,service}.ts` + `update-user.dto.ts` · `scripts/generate-rubric-template.ts`.
-*Migration Prisma:* bảng `RubricTemplate` · `DashboardUser.privileges` · `Grading.totalScore/levelCode/levelLabel/studentAckAt` · `Student.currentLevelCode/currentLevelAt`.
+**core-api** — *Mới:* `criteria/rubric-schema.ts` (kiểu v2 + `normalizeRubric`) · `lib/rubric-scoring.ts` · `criteria/rubric-template.{service,controller}.ts` · `auth/privilege.guard.ts` + `@RequiresPrivilege` · **`criteria/templates/cambridge-yl.seed.ts`** và **`criteria/templates/ielts-speaking.seed.ts`** (định nghĩa gốc hai mẫu mặc định, chép nguyên từ hai PDF) · **`criteria/bootstrap-rubric-templates.service.ts`** (seed khi bảng rỗng, khuôn `BootstrapAdminService`).
+*Sửa:* `criteria.controller.ts` (thêm `POST /criteria/json` + **7 route CRUD mẫu ở bảng 4.1** — **khai báo mọi route chữ TRƯỚC `@Get(':id')`**, nếu không `ParseIntPipe` sẽ trả 400 cho chúng) · `criteria.service.ts` · `docx-parser.ts` (xuất v2) · `worker-api.controller.ts` (tính + lưu tổng/cấp độ, cập nhật cấp độ học sinh) · `reports.service.ts` (dùng `computeTotal`) · `users.{controller,service}.ts` + `update-user.dto.ts` (2 checkbox quyền) · `scripts/generate-rubric-template.ts`.
+*Migration Prisma:* bảng `RubricTemplate` (`key UNIQUE`, `name`, `rubric Json`, `locked`, `isSystem`, `isActive`) · `Criteria.templateKey String?` (truy vết, **không** khóa ngoại) · `DashboardUser.privileges` · `Grading.totalScore/levelCode/levelLabel/studentAckAt` · `Student.currentLevelCode/currentLevelAt`.
+*Trong cùng migration:* `UPDATE dashboard_users SET privileges = ARRAY['criteria_author'] WHERE role = 'staff'` — giữ nguyên quyền upload `.docx` mà `staff` đang có (xem cảnh báo cuối mục 4.2).
 
 **grading-worker** — *Mới:* `grading/rubric_schema.py`.
 *Sửa:* `grading/schema.py` (scale/step, trường `fix`, lấy khóa từ `dimension.key`) · `grading/prompt.py` (gạch đầu dòng, lưới yếu tố con, ngân hàng nhận xét nhóm theo tiêu chí/ý định) · `pipeline.py` (nhánh payload nút **trước** nhánh text→flag; outbound kèm nút) · `contracts.py`.
@@ -254,12 +301,13 @@ Chọn khóa → chọn mẫu → điền.
 
 ---
 
-## Phần 9 — Bốn quyết định cần ghi vào changelog v1.6 của tài liệu kiến trúc
+## Phần 9 — Năm quyết định cần ghi vào changelog v1.6 của tài liệu kiến trúc
 
 1. **Rubric schema v2** — bổ sung quy tắc tổng hợp điểm (`sum`/`average`/`weighted_average`), quy đổi tổng → cấp độ, mô tả band dạng danh sách, lưới yếu tố con, và ngân hàng nhận xét có cấu trúc. Mục 3.9 được viết khi chưa có rubric thật nào; hai file ở `Criteria-Source/` cho thấy mô hình cũ không đủ. Có shim v1→v2 nên **không mất dữ liệu cũ**.
-2. **Mẫu tiêu chí do admin định nghĩa + quyền theo người dùng** — thêm `DashboardUser.privileges` (mảng chuỗi) thay vì role thứ ba, giữ nguyên `admin`/`staff` của changelog v1.3 mục 2.
-3. **Tổng điểm và cấp độ tính ở core-api, không ở LLM và không ở worker** — một bản cài đặt duy nhất; đồng thời sửa bug `weight` bị bỏ qua trong `reports.service.ts` (Phần 2).
-4. **Tin nhắn ra đầu tiên có tương tác (nút bấm)** — nới ranh giới "bot không hội thoại" của changelog v1.1 mục 1, có kiểm soát bằng tập hành động đóng. Cần chủ dự án xác nhận lại khi duyệt tài liệu này.
+2. **Hai cấu trúc chấm điểm mặc định, seed dạng dữ liệu và sửa được** — `RubricSpeakingA0-C` (Cambridge YL) và `Analystic-ScoringBand` (IELTS) có sẵn ngay khi cài, seed vào `rubric_templates` khi bảng rỗng theo khuôn `BootstrapAdminService`. Chúng **không phải tập đóng**: bảng có **CRUD đầy đủ** (tạo mới, nhân bản, sửa, xóa, ẩn/hiện) nên trung tâm tự dựng thêm cấu trúc khác. Hai mẫu seed chỉ khác mẫu thường ở hai điểm — có nút khôi phục bản gốc, và không xóa được (chỉ ẩn). Cố ý **không** hardcode chúng thành hằng số trong đường chấm — sửa rubric không được kéo theo deploy.
+3. **Phân quyền theo `privileges` (mảng chuỗi) thay vì role thứ ba**, giữ nguyên `admin`/`staff` của changelog v1.3 mục 2. **Tách làm hai quyền**: `rubric_template` (dựng/sửa/xóa *cấu trúc* chấm điểm) và `criteria_author` (sửa *nội dung* chấm điểm trong khuôn mẫu). Nhờ tách, giáo viên phụ trách khóa được cấp quyền soạn nội dung mà không đổi được cấu trúc. Migration phải cấp sẵn `criteria_author` cho mọi `staff` đang tồn tại để không khóa nhầm người đang dùng.
+4. **Tổng điểm và cấp độ tính ở core-api, không ở LLM và không ở worker** — một bản cài đặt duy nhất; đồng thời sửa bug `weight` bị bỏ qua trong `reports.service.ts` (Phần 2).
+5. **Tin nhắn ra đầu tiên có tương tác (nút bấm)** — nới ranh giới "bot không hội thoại" của changelog v1.1 mục 1, có kiểm soát bằng tập hành động đóng. Cần chủ dự án xác nhận lại khi duyệt tài liệu này.
 
 ---
 
@@ -273,15 +321,27 @@ Chọn khóa → chọn mẫu → điền.
    - `computeTotal` cho **cả hai file nguồn** — KID `sum` 5×(0–5) → 18/25 → "Mover (A1) ~ Junior Panda"; IELTS `average` 4×(0–9) làm tròn về số nguyên;
    - từ chối bộ `levels` bị hở khoảng hoặc chồng lấn;
    - **test đối chiếu TS ↔ Python**: hai bản `normalizeRubric` phải cho cùng kết quả trên một fixture dùng chung (đây là lưới đỡ cho việc nhân đôi code ở Phần 3).
-2. **Fixture dựng từ chính hai file PDF.** Soạn cả hai rubric qua drawer rồi khẳng định JSON lưu ra tái hiện đúng các bảng trong PDF. Hai fixture này **thay thế luôn ý tưởng hardcode preset** — chúng là dữ liệu seed.
-3. **Xem trước prompt.** Snapshot `build_system_instruction` cho cả hai fixture; xác nhận gạch đầu dòng, lưới yếu tố con và ngân hàng nhận xét đều render đúng.
-4. **End-to-end, chưa cần khóa LLM.** `docker compose up -d --build`, rồi bắn message fixture thẳng vào queue `submissions` bằng lệnh `curl` management API đã có trong `CLAUDE.md`:
+2. **Hai mẫu seed CHÍNH LÀ fixture test.** File `criteria/templates/*.seed.ts` vừa là dữ liệu chạy thật vừa là fixture — không được có bản chép thứ hai trong `__fixtures__`, nếu không chúng sẽ trôi khỏi nhau. Ca bắt buộc:
+   - seed chạy trên DB rỗng → tạo đúng 2 hàng, `isSystem=true`;
+   - seed chạy lại khi bảng **đã có dữ liệu** → **không ghi đè** (đây là bảo hiểm cho việc admin đã sửa mẫu);
+   - `POST /criteria/templates/:key/reset` → khôi phục đúng bằng seed gốc;
+   - mỗi mẫu seed nạp qua `normalizeRubric` + `computeTotal` phải tái hiện **đúng các bảng trong PDF** (KID tổng tối đa 25 và 4 khoảng cấp độ; IELTS 4 tiêu chí band 0–9 trung bình).
+3. **CRUD mẫu (bảng 4.1).** Mỗi ô trong bảng là một ca test:
+   - tạo mới → nhân bản → sửa → xóa, vòng đời đầy đủ của một mẫu thường;
+   - `DELETE` trên mẫu `isSystem` → **409**, hàng vẫn còn;
+   - `reset` trên mẫu thường → **409**;
+   - nhân bản mẫu `isSystem` → bản sao có `isSystem=false` và **xóa được**;
+   - **xóa mẫu rồi, các `criteria` sinh ra từ nó vẫn đọc và chấm bình thường** — đây là ca quan trọng nhất, chứng minh `templateKey` không phải khóa ngoại;
+   - `key` trùng → 409.
+4. **Phân quyền.** `staff` `privileges=[]` gọi mọi route ghi → 403; có `criteria_author` thì soạn nội dung được nhưng gọi CRUD cấu trúc vẫn 403; có `rubric_template` thì ngược lại; `admin` qua hết. Thêm một test cho migration: `staff` đã tồn tại từ trước phải có sẵn `criteria_author` sau khi migrate.
+5. **Xem trước prompt.** Snapshot `build_system_instruction` cho cả hai fixture; xác nhận gạch đầu dòng, lưới yếu tố con và ngân hàng nhận xét đều render đúng.
+6. **End-to-end, chưa cần khóa LLM.** `docker compose up -d --build`, rồi bắn message fixture thẳng vào queue `submissions` bằng lệnh `curl` management API đã có trong `CLAUDE.md`:
    - `"kind":"text","text":"#ilm:ack:1"` → chạy đúng nhánh payload nút mới;
    - một tin text thường → xác nhận nhánh flag cho tư vấn **không đổi**.
    Kiểm chứng: `docker compose logs grading-worker --tail 20` và
    `docker compose exec postgres psql -U ilm -d ilm -c 'select id,total_score,level_label from gradings'`.
-5. **Đường chấm thật** vẫn cần khóa Gemini/OpenAI thật — không đổi so với hiện trạng, vẫn chỉ unit test với provider giả.
-6. **Gửi Zalo thật** (ẩn số `template_type` ở Phần 6) cần credentials OA — xác nhận ở lần gửi thật đầu tiên.
+7. **Đường chấm thật** vẫn cần khóa Gemini/OpenAI thật — không đổi so với hiện trạng, vẫn chỉ unit test với provider giả.
+8. **Gửi Zalo thật** (ẩn số `template_type` ở Phần 6) cần credentials OA — xác nhận ở lần gửi thật đầu tiên.
 
 Cập nhật `TASKS.md` sau mỗi phase, theo đúng quy ước trong `CLAUDE.md`.
 
@@ -289,19 +349,20 @@ Cập nhật `TASKS.md` sau mỗi phase, theo đúng quy ước trong `CLAUDE.md
 
 ## Phần 11 — Thứ tự triển khai đề xuất
 
-Bốn nhánh khá độc lập, nhưng có thứ tự phụ thuộc nên tôn trọng:
+Năm nhánh khá độc lập, nhưng có thứ tự phụ thuộc nên tôn trọng:
 
 | # | Nhánh | Phụ thuộc | Ghi chú |
 | :---- | :---- | :---- | :---- |
 | 1 | Schema v2 + shim `normalizeRubric` (TS **và** Python) | — | Nền của mọi thứ còn lại |
 | 2 | `computeTotal` + migration Prisma | 1 | Sửa luôn bug `weight` |
-| 3 | Nút bấm Zalo | — (chỉ cần contracts) | Nhánh nhỏ nhất, chạm cả 3 bản contracts |
-| 4 | Hai drawer | 1, 2 | Cần schema và hàm tính tổng đã chốt |
+| 3 | **Hai mẫu seed + bootstrap + CRUD mẫu + 2 quyền** | 1, 2 | Chép hai PDF thành seed; **làm sớm** vì nó là fixture cho mọi test sau. Nhớ câu `UPDATE` cấp `criteria_author` cho `staff` cũ |
+| 4 | Nút bấm Zalo | — (chỉ cần contracts) | Nhánh nhỏ nhất, chạm cả 3 bản contracts |
+| 5 | Hai drawer | 1, 2, 3 | Cần schema, hàm tính tổng, và mẫu seed để có gì mà hiển thị |
 
 **Hai điểm còn thực sự mở, cần quyết trước khi build tới:**
 
 - Trường `template_type` của payload nút Zalo (Phần 6) — chỉ chốt được với OA thật.
-- Danh sách `locked` cụ thể trên `RubricTemplate` (Phần 4) — tôi đề xuất khóa `key`/`scale`/`aggregation`/`levels`/`output_fields`, nhưng đây là quyết định nghiệp vụ, nên hỏi giáo viên của trung tâm xác nhận.
+- Danh sách `locked` cụ thể trên hai mẫu mặc định (Phần 4) — tôi đề xuất khóa `key`/`scale`/`aggregation`/`levels`/`output_fields`, nhưng đây là quyết định nghiệp vụ, nên hỏi giáo viên của trung tâm xác nhận. Lưu ý `locked` chỉ ràng buộc **giáo viên thường**; admin/người có quyền `rubric_template` sửa được mọi thứ, kể cả chính danh sách `locked`.
 
 ---
 

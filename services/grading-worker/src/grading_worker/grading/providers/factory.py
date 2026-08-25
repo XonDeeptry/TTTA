@@ -18,8 +18,46 @@ logger = logging.getLogger(__name__)
 _OTHER = {"gemini": "openai", "openai": "gemini"}
 
 
-def _default_model(provider_name: str) -> str:
-    return "gemini-2.5-flash" if provider_name == "gemini" else "gpt-4o-audio-preview"
+# Chốt chặn CUỐI CÙNG khi cả `courses.llm_config.model` lẫn setting `llm.<provider>_model` đều
+# trống. Không phải "model chuẩn" — chỉ là giá trị để hệ thống chạy được khi chưa ai cấu hình.
+#
+# Bài học 2026-08-25: hằng số cũ `gemini-2.5-flash` bị Google ngừng cấp cho người dùng mới, mọi
+# lượt chấm trả 404, và vì tên model nằm trong code nên phải sửa + deploy lại mới chấm được. Giờ
+# đổi được từ dashboard (Cấu hình -> LLM -> Model Gemini/OpenAI), không cần deploy.
+_FALLBACK_MODEL = {"gemini": "gemini-3.6-flash", "openai": "gpt-4o-audio-preview"}
+DEFAULT_TEMPERATURE = 0.3
+
+
+async def _resolve_model(provider_name: str, config: ConfigStore) -> str:
+    """Thứ tự ưu tiên: `courses.llm_config.model` (bên gọi lo) -> setting `llm.<provider>_model`
+    -> hằng số dự phòng. Người vận hành đổi model cho từng provider ngay trên dashboard."""
+    configured = await config.get(f"llm.{provider_name}_model")
+    # Chỉ nhận `str` đúng như hợp đồng `ConfigStore.get() -> str | None`. Bắt kiểu ở đây có chủ ý:
+    # tin tưởng kiểu trả về là đúng cách lỗi token usage đã trốn được (xem `gemini._usage_tokens`).
+    if isinstance(configured, str) and configured.strip():
+        return configured.strip()
+    return _FALLBACK_MODEL.get(provider_name, _FALLBACK_MODEL["gemini"])
+
+
+async def _resolve_temperature(llm_config: dict[str, Any], config: ConfigStore) -> float:
+    """`courses.llm_config.temperature` -> setting `llm.temperature` -> 0.3.
+
+    Đưa ra cấu hình được vì chấm thử 2026-08-25 cho thấy cùng một clip lệch tới 2 band giữa hai
+    lần chấm ở mức 0.3 — hạ về 0 là núm vặn đầu tiên khi cần điểm ổn định hơn."""
+    per_course = llm_config.get("temperature")
+    if isinstance(per_course, (int, float)) and not isinstance(per_course, bool):
+        return float(per_course)
+
+    raw = await config.get("llm.temperature")
+    # Chỉ nhận `str` — xem ghi chú kiểu ở `_resolve_model`. `float()` trên một object lạ có thể
+    # ÂM THẦM ra một số (ví dụ 1.0), tức là chấm bài ở nhiệt độ không ai chọn.
+    if not isinstance(raw, str) or not raw.strip():
+        return DEFAULT_TEMPERATURE
+    try:
+        return float(raw)
+    except ValueError:
+        logger.warning("llm.temperature không phải số ('%s') — dùng mặc định %s", raw, DEFAULT_TEMPERATURE)
+        return DEFAULT_TEMPERATURE
 
 
 async def _build_provider(name: str, config: ConfigStore) -> Provider | None:
@@ -42,8 +80,8 @@ async def grade_with_fallback(
     if primary is None:
         raise RuntimeError(f"Provider '{primary_name}' chưa có API key trong settings — chưa cấu hình qua dashboard")
 
-    model = llm_config.get("model") or _default_model(primary_name)
-    temperature = llm_config.get("temperature", 0.3)
+    model = llm_config.get("model") or await _resolve_model(primary_name, config)
+    temperature = await _resolve_temperature(llm_config, config)
 
     try:
         return await primary.grade(model=model, temperature=temperature, **grade_kwargs)
@@ -54,7 +92,7 @@ async def grade_with_fallback(
             logger.error("Provider chính '%s' lỗi và không có provider dự phòng: %s", primary_name, primary_err)
             raise
         logger.warning("Provider chính '%s' lỗi (%s) — thử provider dự phòng '%s'", primary_name, primary_err, fallback_name)
-        return await fallback.grade(model=_default_model(fallback_name), temperature=temperature, **grade_kwargs)
+        return await fallback.grade(model=await _resolve_model(fallback_name, config), temperature=temperature, **grade_kwargs)
 
 
 async def transcribe_with_fallback(
@@ -71,7 +109,7 @@ async def transcribe_with_fallback(
     if primary is None:
         raise RuntimeError(f"Provider '{primary_name}' chưa có API key trong settings — chưa cấu hình qua dashboard")
 
-    model = llm_config.get("model") or _default_model(primary_name)
+    model = llm_config.get("model") or await _resolve_model(primary_name, config)
 
     try:
         return await primary.transcribe(audio_path=audio_path, mime_type=mime_type, model=model)
@@ -82,7 +120,7 @@ async def transcribe_with_fallback(
             logger.error("Provider chính '%s' lỗi (transcribe) và không có provider dự phòng: %s", primary_name, primary_err)
             raise
         logger.warning("Provider chính '%s' lỗi transcribe (%s) — thử provider dự phòng '%s'", primary_name, primary_err, fallback_name)
-        return await fallback.transcribe(audio_path=audio_path, mime_type=mime_type, model=_default_model(fallback_name))
+        return await fallback.transcribe(audio_path=audio_path, mime_type=mime_type, model=await _resolve_model(fallback_name, config))
 
 
 async def grade_text_with_fallback(
@@ -97,8 +135,8 @@ async def grade_text_with_fallback(
     if primary is None:
         raise RuntimeError(f"Provider '{primary_name}' chưa có API key trong settings — chưa cấu hình qua dashboard")
 
-    model = llm_config.get("model") or _default_model(primary_name)
-    temperature = llm_config.get("temperature", 0.3)
+    model = llm_config.get("model") or await _resolve_model(primary_name, config)
+    temperature = await _resolve_temperature(llm_config, config)
 
     try:
         return await primary.grade_text(model=model, temperature=temperature, **grade_kwargs)
@@ -109,4 +147,4 @@ async def grade_text_with_fallback(
             logger.error("Provider chính '%s' lỗi (grade_text) và không có provider dự phòng: %s", primary_name, primary_err)
             raise
         logger.warning("Provider chính '%s' lỗi grade_text (%s) — thử provider dự phòng '%s'", primary_name, primary_err, fallback_name)
-        return await fallback.grade_text(model=_default_model(fallback_name), temperature=temperature, **grade_kwargs)
+        return await fallback.grade_text(model=await _resolve_model(fallback_name, config), temperature=temperature, **grade_kwargs)

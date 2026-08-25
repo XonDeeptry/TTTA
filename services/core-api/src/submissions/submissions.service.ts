@@ -1,7 +1,9 @@
 import { existsSync, unlinkSync } from 'fs';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, Submission } from '@prisma/client';
+import { normalizeRubric } from '../criteria/rubric-schema';
 import { resolveMediaPath } from '../lib/media-path';
+import { computeTotal } from '../lib/rubric-scoring';
 import { PrismaService } from '../prisma.service';
 
 const PAGE_SIZE = 20;
@@ -47,7 +49,15 @@ export class SubmissionsService {
   async detail(id: number) {
     const submission = await this.prisma.submission.findUnique({ where: { id }, include: DETAIL_INCLUDE });
     if (!submission) throw new NotFoundException('submission not found');
-    return submission;
+
+    // AC-13.1: `totalMax` được DẪN XUẤT Ở SERVER. Dashboard KHÔNG được tự tính lại số học chấm
+    // điểm (`dashboard/src/lib/rubric.ts` là file của F12, không tạo ở đây). `max <= 0` (rubric
+    // hỏng/không đọc được) ⇒ null để màn hình rơi vào nhánh "chưa có tổng điểm", không phải 0.
+    const grading = submission.grading;
+    if (!grading) return { ...submission, grading: null };
+
+    const max = computeTotal(normalizeRubric(grading.criteria?.rubric), grading.scores).max;
+    return { ...submission, grading: { ...grading, totalMax: max > 0 ? max : null } };
   }
 
   async deleteMedia(id: number): Promise<Submission> {

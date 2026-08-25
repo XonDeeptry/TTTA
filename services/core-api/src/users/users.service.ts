@@ -23,6 +23,7 @@ const USER_SELECT = {
   email: true,
   role: true,
   mustChangePassword: true,
+  privileges: true,
   createdAt: true,
 } as const;
 
@@ -32,7 +33,16 @@ export interface UserView {
   email: string;
   role: DashboardRole;
   mustChangePassword: boolean;
+  /** F10 — giá trị ĐÃ LƯU, không phải tập có hiệu lực. Với `admin` mảng này có thể rỗng mà vẫn
+   * có mọi quyền (BR-01); màn Người dùng vì thế ẩn checkbox khi role = admin. Tập CÓ HIỆU LỰC
+   * chỉ được suy ra ở `GET /auth/me` cho chính người đang đăng nhập. */
+  privileges: string[];
   createdAt: Date;
+}
+
+/** Khử trùng lặp, giữ thứ tự xuất hiện đầu (AC-10.5). */
+function dedupePrivileges(privileges: readonly string[]): string[] {
+  return [...new Set(privileges)];
 }
 
 /** Prisma known-request-error được nhận diện theo `code` (duck-typing) để test mock được. */
@@ -88,6 +98,8 @@ export class UsersService {
           passwordHash,
           role: dto.role,
           mustChangePassword: true,
+          // Vắng mặt ⇒ [] (AC-10.6). Không kế thừa gì từ backfill migration.
+          privileges: dedupePrivileges(dto.privileges ?? []),
         },
         select: USER_SELECT,
       });
@@ -182,7 +194,13 @@ export class UsersService {
     try {
       return await this.prisma.dashboardUser.update({
         where: { id },
-        data: { email: dto.email, role: dto.role },
+        data: {
+          email: dto.email,
+          role: dto.role,
+          // `undefined` ⇒ Prisma bỏ qua cột; `[]` ⇒ thu hồi hết. Đây là ranh giới giữa "không
+          // đụng tới" và "xóa sạch", nên KHÔNG được thay bằng `?? []` (AC-10.2 vs AC-10.3).
+          privileges: dto.privileges === undefined ? undefined : dedupePrivileges(dto.privileges),
+        },
         select: USER_SELECT,
       });
     } catch (err) {

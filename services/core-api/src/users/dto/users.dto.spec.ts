@@ -30,7 +30,10 @@ describe('CreateUserDto', () => {
       role_: 'admin',
     });
 
-    expect(Object.keys(cleaned).sort()).toEqual(['email', 'password', 'role']);
+    // F10: `privileges` là trường DTO hợp lệ mới (FR-10/AC-10.6); class-transformer luôn dựng
+    // khóa cho mọi trường đã khai báo, kể cả khi body không gửi (giá trị `undefined`). Ba câu
+    // `not.toHaveProperty` bên dưới — phần mang ý nghĩa an ninh của ca test — giữ nguyên.
+    expect(Object.keys(cleaned).sort()).toEqual(['email', 'password', 'privileges', 'role']);
     expect(cleaned).not.toHaveProperty('passwordHash');
     expect(cleaned).not.toHaveProperty('mustChangePassword');
     expect(cleaned).not.toHaveProperty('id');

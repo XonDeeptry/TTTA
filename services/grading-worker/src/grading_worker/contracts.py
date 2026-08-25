@@ -42,12 +42,32 @@ class SubmissionMessage:
         )
 
 
+# F11: tập hành động nút bấm — TẬP ĐÓNG. Thêm giá trị mới phải sửa cả BA bản contracts
+# và nhánh xử lý trong pipeline.py, nếu không tin nhắn sẽ rơi xuống flag.
+ButtonAction = Literal["ack", "request_advisor", "select_student"]
+
+
+@dataclass
+class OutboundButton:
+    # title: nhãn học viên nhìn thấy (Zalo giới hạn 100 ký tự)
+    # payload: chuỗi quay lại NGUYÊN VĂN qua `user_send_text` (giới hạn 1.000 ký tự),
+    # luôn có dạng `#ilm:<action>:<arg>[:<arg>]`, mọi arg chỉ gồm chữ số.
+    title: str
+    action: ButtonAction
+    payload: str
+
+    def to_dict(self) -> dict:
+        return {"title": self.title, "action": self.action, "payload": self.payload}
+
+
 @dataclass
 class OutboundMessage:
     zaloUserId: str
     text: str
     templateKey: Optional[str] = None
     submissionId: Optional[str] = None
+    # F11: vắng mặt hoặc rỗng = tin text thuần đúng như trước F11.
+    buttons: Optional[list[OutboundButton]] = None
     v: int = 1
 
     def to_dict(self) -> dict:
@@ -56,8 +76,17 @@ class OutboundMessage:
             payload["templateKey"] = self.templateKey
         if self.submissionId is not None:
             payload["submissionId"] = self.submissionId
+        if self.buttons:  # rỗng/None => KHÔNG có khóa `buttons` trên wire
+            payload["buttons"] = [b.to_dict() for b in self.buttons]
         return payload
 
+
+ILM_PAYLOAD_PREFIX = "#ilm:"
+BUTTON_ACTIONS = ("ack", "request_advisor", "select_student")
+MAX_BUTTONS = 5
+MAX_BUTTON_TITLE_LEN = 100
+MAX_BUTTON_PAYLOAD_LEN = 1000
+MAX_OUTBOUND_TEXT_LEN = 2000
 
 EXCHANGE = "ilm.direct"
 DLX = "ilm.dlx"

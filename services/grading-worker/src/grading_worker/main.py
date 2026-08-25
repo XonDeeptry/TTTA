@@ -32,7 +32,15 @@ async def main() -> None:
     rabbit = RabbitConsumer(RABBITMQ_URL)
 
     await rabbit.connect()
-    pipeline = SubmissionPipeline(core_api, config, http, publish=lambda msg: rabbit.publish(Q_OUTBOUND, msg))
+    pipeline = SubmissionPipeline(
+        core_api,
+        config,
+        http,
+        publish=lambda msg: rabbit.publish(Q_OUTBOUND, msg),
+        # F11 FR-12: nút `select_student` gán bài treo cho học viên rồi đẩy LẠI chính bài đó vào
+        # `submissions` để lượt sau chấm bình thường (upsert theo messageId nên lặp là vô hại).
+        publish_submission=lambda msg: rabbit.publish(Q_SUBMISSIONS, msg),
+    )
 
     logger.info("grading-worker listening on queue '%s'", Q_SUBMISSIONS)
     try:

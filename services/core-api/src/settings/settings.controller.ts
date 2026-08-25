@@ -17,6 +17,12 @@ export class SettingsController {
     return this.settings.list();
   }
 
+  /** Gợi ý model cho màn Cấu hình — hỏi thẳng provider, không bao giờ ném lỗi (xem service). */
+  @Get('llm-models/:provider')
+  llmModels(@Param('provider') provider: string): Promise<{ provider: string; models: string[]; error?: string }> {
+    return this.settings.listLlmModels(provider);
+  }
+
   @Put(':key')
   upsert(
     @Param('key') key: string,

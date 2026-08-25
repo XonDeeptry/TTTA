@@ -466,3 +466,71 @@ async def test_pilot_not_reached_on_pending_binding(pipeline, core_api, config):
 
     transcribe_mock.assert_not_called()
     core_api.create_pilot_text_grading.assert_not_called()
+
+
+# ─── Hợp đồng pipeline ↔ provider ────────────────────────────────────────────────────────────
+# Bối cảnh: chấm thử clip THẬT đầu tiên vỡ ngay với
+#   `GeminiProvider.grade() missing 1 required positional argument: 'schema'`
+# trong khi 448 test đều xanh. Lý do: mọi test đều patch `grade_with_fallback` bằng AsyncMock TRẦN
+# — nó nuốt mọi tham số, nên ranh giới pipeline→provider chưa từng được kiểm. `grade_with_fallback`
+# lại nhận `**grade_kwargs: Any` nên type check cũng không thấy.
+#
+# Hai test dưới đây ràng lời gọi thật vào CHỮ KÝ THẬT của `Provider.grade`, nên sẽ đỏ trở lại nếu
+# ai đó bỏ sót tham số bắt buộc — kể cả một tham số mới thêm vào protocol sau này.
+
+
+def _required_provider_grade_params() -> set[str]:
+    """Tham số BẮT BUỘC của `Provider.grade` mà PIPELINE phải cấp.
+
+    `model`/`temperature` do `grade_with_fallback` tự điền từ `llmConfig`, không phải việc của
+    pipeline — nên loại khỏi tập cần kiểm.
+    """
+    import inspect
+
+    from grading_worker.grading.providers.base import Provider
+
+    sig = inspect.signature(Provider.grade)
+    supplied_by_factory = {"self", "model", "temperature"}
+    return {
+        name
+        for name, p in sig.parameters.items()
+        if name not in supplied_by_factory
+        and p.default is inspect.Parameter.empty
+        and p.kind
+        in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    }
+
+
+async def test_audio_grading_supplies_every_required_provider_argument(pipeline, core_api):
+    """Chặn đúng lỗi đã xảy ra ngoài production: thiếu `schema` trên nhánh audio."""
+    p, _ = pipeline
+    _setup_gradable(core_api)
+    grade = AsyncMock(return_value=GRADING_RESULT)
+
+    with contextlib.ExitStack() as stack:
+        for cm in _gradable_patches():
+            stack.enter_context(cm)
+        stack.enter_context(patch("grading_worker.pipeline.grade_with_fallback", grade))
+        await p.handle(base_message())
+
+    passed = set(grade.await_args.kwargs)
+    missing = _required_provider_grade_params() - passed
+    assert not missing, f"pipeline không truyền tham số bắt buộc cho Provider.grade: {sorted(missing)}"
+
+
+async def test_audio_grading_passes_the_schema_it_validates_against(pipeline, core_api):
+    """`schema` gửi cho provider phải LÀ CHÍNH cái schema dùng để validate kết quả trả về —
+    hai bên lệch nhau thì LLM bị ép theo một hình dạng rồi lại bị chấm theo hình dạng khác."""
+    p, _ = pipeline
+    _setup_gradable(core_api)
+    grade = AsyncMock(return_value=GRADING_RESULT)
+
+    with contextlib.ExitStack() as stack:
+        for cm in _gradable_patches():
+            stack.enter_context(cm)
+        stack.enter_context(patch("grading_worker.pipeline.grade_with_fallback", grade))
+        await p.handle(base_message())
+
+    from grading_worker.grading.schema import build_output_schema
+
+    assert grade.await_args.kwargs["schema"] == build_output_schema(RUBRIC)

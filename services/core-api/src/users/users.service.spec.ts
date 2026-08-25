@@ -21,7 +21,12 @@ type PrismaMock = {
   };
 };
 
-const VIEW_KEYS = ['createdAt', 'email', 'id', 'mustChangePassword', 'role'];
+/**
+ * F10 FR-10: `UserView` mọc thêm `privileges`. Đây là một ĐỊNH NGHĨA fixture, không phải một
+ * assertion bị nới — mọi câu `expect(...).toEqual(VIEW_KEYS)` bên dưới giữ nguyên từng chữ và
+ * giờ ĐÒI HỎI THÊM sự có mặt của `privileges` (chặt hơn trước, không lỏng hơn).
+ */
+const VIEW_KEYS = ['createdAt', 'email', 'id', 'mustChangePassword', 'privileges', 'role'];
 
 /** Bắt lỗi HTTP để kiểm cả status lẫn message (không phụ thuộc field nội bộ của Nest). */
 async function rejection(p: Promise<unknown>): Promise<HttpException> {
@@ -54,6 +59,7 @@ function view(over: Partial<Record<string, unknown>> = {}): Record<string, unkno
     email: 'teacher@ilm.local',
     role: 'staff',
     mustChangePassword: true,
+    privileges: [],
     createdAt: new Date('2026-07-22T12:30:00.000Z'),
     ...over,
   };
@@ -128,7 +134,14 @@ describe('UsersService.create', () => {
       data: { email: string; passwordHash: string; role: string; mustChangePassword: boolean };
       select: Record<string, boolean>;
     };
-    expect(Object.keys(arg.data).sort()).toEqual(['email', 'mustChangePassword', 'passwordHash', 'role']);
+    // F10 FR-10: `privileges` là cột hợp lệ thứ năm. Danh sách vẫn VÉT CẠN — chỉ thêm một tên.
+    expect(Object.keys(arg.data).sort()).toEqual([
+      'email',
+      'mustChangePassword',
+      'passwordHash',
+      'privileges',
+      'role',
+    ]);
     expect(arg.data.mustChangePassword).toBe(true);
     expect(arg.data.role).toBe('staff');
     expect(arg.data.passwordHash).toMatch(/^\$2[aby]\$12\$/);
@@ -151,7 +164,15 @@ describe('UsersService.create', () => {
 
     const arg = prisma.dashboardUser.create.mock.calls[0][0] as { data: Record<string, unknown> };
     expect(arg.data.mustChangePassword).toBe(true);
-    expect(Object.keys(arg.data).sort()).toEqual(['email', 'mustChangePassword', 'passwordHash', 'role']);
+    // F10: `privileges` là cột thứ năm được ghi hợp lệ (FR-10). Danh sách vẫn VÉT CẠN và vẫn
+    // chứng minh `mustChangePassword` không tới từ body — chỉ thêm một tên, không bỏ tên nào.
+    expect(Object.keys(arg.data).sort()).toEqual([
+      'email',
+      'mustChangePassword',
+      'passwordHash',
+      'privileges',
+      'role',
+    ]);
   });
 
   // AC-07 / NFR-S7
@@ -394,5 +415,91 @@ describe('UsersService.delete', () => {
     prisma.dashboardUser.count.mockResolvedValue(1);
     await service.delete(2, 1);
     expect(prisma.dashboardUser.delete).toHaveBeenCalledWith({ where: { id: 2 } });
+  });
+});
+
+/**
+ * F10 FR-10 — `/users` mang thêm `privileges`. Khối này được THÊM VÀO, không sửa ca nào có trước.
+ */
+describe('F10 — UsersService privileges', () => {
+  let prisma: PrismaMock;
+  let service: UsersService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new UsersService(prisma as never);
+    prisma.dashboardUser.findFirst.mockResolvedValue(null);
+    prisma.dashboardUser.findUnique.mockResolvedValue({ id: 2, role: 'staff' });
+    prisma.dashboardUser.create.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      Promise.resolve(view({ privileges: data.privileges as string[] })),
+    );
+    prisma.dashboardUser.update.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      Promise.resolve(view({ privileges: (data.privileges as string[] | undefined) ?? [] })),
+    );
+  });
+
+  // AC-10.1
+  it('USER_SELECT nạp privileges và vẫn KHÔNG BAO GIỜ nạp passwordHash', async () => {
+    prisma.dashboardUser.findMany.mockResolvedValue([view()]);
+    await service.list();
+    const arg = prisma.dashboardUser.findMany.mock.calls[0][0] as { select: Record<string, boolean> };
+    expect(arg.select.privileges).toBe(true);
+    expect(arg.select).not.toHaveProperty('passwordHash');
+  });
+
+  // AC-10.6 / AC-03.6
+  it('POST /users không gửi privileges ⇒ ghi [] (backfill là chuyện MỘT LẦN, không phải mặc định)', async () => {
+    await service.create({ email: 'a@b.c', role: 'staff', password: 'initial1' } as CreateUserDto);
+    const data = (prisma.dashboardUser.create.mock.calls[0][0] as { data: Record<string, unknown> }).data;
+    expect(data.privileges).toEqual([]);
+  });
+
+  it('POST /users có privileges ⇒ ghi đúng mảng đó', async () => {
+    await service.create({
+      email: 'a@b.c',
+      role: 'staff',
+      password: 'initial1',
+      privileges: ['criteria_author'],
+    } as CreateUserDto);
+    const data = (prisma.dashboardUser.create.mock.calls[0][0] as { data: Record<string, unknown> }).data;
+    expect(data.privileges).toEqual(['criteria_author']);
+  });
+
+  // AC-10.2
+  it('PATCH không gửi privileges ⇒ cột KHÔNG bị ghi (undefined, không phải [])', async () => {
+    await service.update(2, { email: 'new@ilm.local' });
+    const data = (prisma.dashboardUser.update.mock.calls[0][0] as { data: Record<string, unknown> }).data;
+    expect(data.privileges).toBeUndefined();
+    expect('privileges' in data).toBe(true); // key có mặt nhưng giá trị undefined ⇒ Prisma bỏ qua
+  });
+
+  // AC-10.3
+  it('PATCH privileges = THAY THẾ TOÀN BỘ, kể cả về rỗng', async () => {
+    await service.update(2, { privileges: ['criteria_author'] });
+    expect(
+      (prisma.dashboardUser.update.mock.calls[0][0] as { data: Record<string, unknown> }).data.privileges,
+    ).toEqual(['criteria_author']);
+
+    await service.update(2, { privileges: [] });
+    expect(
+      (prisma.dashboardUser.update.mock.calls[1][0] as { data: Record<string, unknown> }).data.privileges,
+    ).toEqual([]);
+  });
+
+  // AC-10.5
+  it('trùng lặp trong mảng bị khử trước khi lưu', async () => {
+    await service.update(2, { privileges: ['criteria_author', 'criteria_author', 'rubric_template'] });
+    expect(
+      (prisma.dashboardUser.update.mock.calls[0][0] as { data: Record<string, unknown> }).data.privileges,
+    ).toEqual(['criteria_author', 'rubric_template']);
+  });
+
+  // AC-10.7
+  it('đặt privileges cho một admin được CHẤP NHẬN và lưu nguyên văn (dù không ảnh hưởng phân quyền)', async () => {
+    prisma.dashboardUser.findUnique.mockResolvedValue({ id: 1, role: 'admin' });
+    await service.update(1, { privileges: ['rubric_template'] });
+    expect(
+      (prisma.dashboardUser.update.mock.calls[0][0] as { data: Record<string, unknown> }).data.privileges,
+    ).toEqual(['rubric_template']);
   });
 });

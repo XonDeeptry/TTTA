@@ -83,6 +83,58 @@ export class SettingsService implements OnModuleInit {
     return toRedisString(row.value);
   }
 
+  /**
+   * Danh sách model ĐANG khả dụng, hỏi thẳng provider bằng API key đã lưu.
+   *
+   * Có endpoint này vì một danh sách model hardcode chắc chắn sẽ lỗi thời: ngày 2026-08-25
+   * `gemini-2.5-flash` bị Google ngừng cấp cho người dùng mới và mọi lượt chấm trả 404 cho tới khi
+   * sửa code rồi deploy lại. Màn Cấu hình dùng kết quả này làm GỢI Ý (datalist) chứ không phải
+   * danh sách đóng — vẫn gõ tay được, nên provider đổi đường dẫn/định dạng cũng không khóa người dùng.
+   *
+   * KHÔNG bao giờ ném lỗi: chưa có key, provider chết, hết hạn mạng… đều trả mảng rỗng kèm `error`
+   * để UI hiển thị, vì đây chỉ là tiện ích chọn model chứ không phải đường ghi dữ liệu.
+   */
+  async listLlmModels(provider: string): Promise<{ provider: string; models: string[]; error?: string }> {
+    const known = ['gemini', 'openai'];
+    if (!known.includes(provider)) return { provider, models: [], error: 'unknown provider' };
+
+    const apiKey = await this.getRaw(`llm.${provider}_api_key`);
+    if (!apiKey) return { provider, models: [], error: 'no api key configured' };
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    try {
+      if (provider === 'gemini') {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}&pageSize=200`,
+          { signal: controller.signal },
+        );
+        if (!res.ok) return { provider, models: [], error: `provider returned ${res.status}` };
+        const body = (await res.json()) as { models?: { name?: string }[] };
+        // `name` về dạng "models/gemini-3.6-flash" — cắt tiền tố để khớp giá trị mà SDK nhận.
+        const models = (body.models ?? [])
+          .map((m) => (m.name ?? '').replace(/^models\//, ''))
+          .filter(Boolean)
+          .sort();
+        return { provider, models };
+      }
+
+      const res = await fetch('https://api.openai.com/v1/models', {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: controller.signal,
+      });
+      if (!res.ok) return { provider, models: [], error: `provider returned ${res.status}` };
+      const body = (await res.json()) as { data?: { id?: string }[] };
+      const models = (body.data ?? []).map((m) => m.id ?? '').filter(Boolean).sort();
+      return { provider, models };
+    } catch (err) {
+      this.logger.warn(`listLlmModels(${provider}) thất bại: ${(err as Error).message}`);
+      return { provider, models: [], error: 'could not reach provider' };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   private async mirror(key: string, value: Prisma.JsonValue): Promise<void> {
     await this.redis.mirrorConfig(key, toRedisString(value));
   }

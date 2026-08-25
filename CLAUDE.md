@@ -49,7 +49,12 @@ curl -u ilm:change-me -X POST http://localhost:15672/api/exchanges/%2f/ilm.direc
 
 ## Monorepo layout
 
-`services/zalo-gateway` (TS/NestJS — implemented, M1) · `services/core-api` (TS/NestJS — implemented, M2-M4) · `services/grading-worker` (Python — implemented, M3; non-LLM branches smoke-tested, real Gemini/OpenAI calls need API keys from the project owner) · `services/dashboard` (React — implemented, M2 + M4; all 5 subsystems, containerized) · `infra/` (docker-compose, Caddyfile, .env). Message contracts and RabbitMQ topology constants are duplicated three times now — no shared package mechanism exists across services, let alone across languages — in `services/zalo-gateway/src/contracts.ts`, `services/core-api/src/contracts.ts`, and `services/grading-worker/src/grading_worker/contracts.py`. Keep all three identical when the topology changes.
+`services/zalo-gateway` (TS/NestJS — implemented, M1) · `services/core-api` (TS/NestJS — implemented, M2-M4) · `services/grading-worker` (Python — implemented, M3; **the full audio grading path was accepted against a real Gemini key on 2026-08-25** — see the v1.6 changelog) · `services/dashboard` (React — implemented, M2 + M4; all 5 subsystems, containerized) · `infra/` (docker-compose, Caddyfile, .env). Message contracts and RabbitMQ topology constants are duplicated three times now — no shared package mechanism exists across services, let alone across languages — in `services/zalo-gateway/src/contracts.ts`, `services/core-api/src/contracts.ts`, and `services/grading-worker/src/grading_worker/contracts.py`. Keep all three identical when the topology changes.
+
+There are now **three cross-language duplicates**, all deliberate (no shared package mechanism spans TS and Python) and all guarded by a shared fixture asserted from BOTH languages — never edit one side alone:
+1. **Message contracts / queue topology** — the three `contracts.*` files above.
+2. **`normalizeRubric`** — `core-api/src/criteria/rubric-schema.ts` ↔ `grading-worker/.../grading/rubric_schema.py`, fixture `core-api/src/criteria/__fixtures__/rubric-normalize.fixtures.json`. Two rounds of QA went on divergences here (JS `String()` semantics, then `.trim()` vs `.strip()` differing on 6 code points) — both found only by differential fuzzing.
+3. **Prompt renderer** — `core-api/src/criteria/prompt-render.ts` ↔ `grading-worker/.../grading/prompt.py`, fixture `core-api/src/criteria/__fixtures__/prompt-render.fixtures.json`. Exists because the criteria editor needs a live prompt preview and the dashboard has no test suite of its own.
 
 ## zalo-gateway architecture (implemented)
 
@@ -85,7 +90,7 @@ The Postgres source of truth — the only service that talks to Postgres directl
 
 **RabbitMQ** (`rabbit.service.ts`): publish-only port of the gateway's service (no consume loop — core-api doesn't consume queues in M2), but asserts the identical topology so either service can start first. DLQ inspection/retry (`dlq/`) and queue-depth reporting reuse this same AMQP channel directly (`channel.get`/`channel.checkQueue`) rather than adding an HTTP client for RabbitMQ's management API.
 
-**Media** (`media/`): `GET /media/:submissionId` streams the file at `submissions.media_path` (session-auth, path-traversal-checked against `MEDIA_ROOT`, factored into `lib/media-path.ts`'s `resolveMediaPath()` — reused by the M4 `submissions/` module's delete endpoint too). The retention/deletion cron (§3.8: video deleted 7 days after audio extraction, audio kept 90 days) is still `TASKS.md` M3.6, deliberately deferred until there's been at least one real graded submission to confirm the write path — grading-worker exists now but hasn't graded a real clip yet (no LLM API keys configured).
+**Media** (`media/`): `GET /media/:submissionId` streams the file at `submissions.media_path` (session-auth, path-traversal-checked against `MEDIA_ROOT`, factored into `lib/media-path.ts`'s `resolveMediaPath()` — reused by the M4 `submissions/` module's delete endpoint too). The retention/deletion cron (§3.8: video deleted 7 days after audio extraction, audio kept 90 days) is still `TASKS.md` M3.6, deliberately deferred until there's been at least one real graded submission to confirm the write path — grading-worker has now graded real clips (2026-08-25), so this cron is unblocked.
 
 **M4 dashboard-facing modules** (`students/`, `submissions/`, `gradings/`, `classes-config/`, `criteria/`, `reports/`, `monitoring/` — all session-auth, phân hệ 1 admin-only per §3.7, phân hệ 2-5 admin+staff):
 - `submissions/` + `gradings/`: list/detail/status-filter submissions; `PATCH /gradings/:id` edits `reviewedFeedback`; `POST /gradings/:id/send` publishes `reviewedFeedback ?? llmFeedback` onto `outbound` and flips `submission.status` to `sent` — same outbound path the gateway's `OutboundConsumer` already handles, no new consumer needed.
@@ -95,7 +100,7 @@ The Postgres source of truth — the only service that talks to Postgres directl
 
 Global `@Global()`-marked infrastructure modules (`prisma.module.ts`, `redis.module.ts`, `rabbit.module.ts`, `settings.module.ts`) exist so guards used via `@UseGuards()` in any feature module (e.g. `InternalTokenGuard`, which depends on `SettingsService`) resolve correctly — Nest instantiates a guard class in the DI scope of whichever module's controller uses it, not the module where the guard was originally declared, so its dependencies must be globally reachable.
 
-## grading-worker architecture (implemented; real LLM calls need API keys)
+## grading-worker architecture (implemented; real LLM path accepted 2026-08-25)
 
 The only service that calls Gemini/OpenAI. Consumes `submissions`, writes everything back through core-api's `/internal/*` API — never touches Postgres directly. Uses `aio-pika` (not `pika`) specifically because grading calls take 30–90 seconds and an async event loop keeps servicing AMQP heartbeats during that wait.
 
@@ -103,7 +108,14 @@ The only service that calls Gemini/OpenAI. Consumes `submissions`, writes everyt
 
 **Config** (`config.py`): reads `config:*` directly from Redis (same as the gateway), not by round-tripping every value through core-api — this matches the architecture doc's v1.2 changelog, which explicitly mirrors settings "for gateway/worker" to read.
 
-**LLM provider SDKs** (`grading/providers/gemini.py`, `openai_provider.py`): Gemini uses the current `google-genai` SDK's `client.interactions.create(...)` — confirmed against live docs on 2026-07-20 because the SDK shape had changed since pre-cutoff training knowledge (it used to be `generate_content`). OpenAI uses the standard Chat Completions `input_audio` content part, which didn't need re-verification. Neither has been exercised against a real API key yet — `llm.gemini_api_key`/`llm.openai_api_key` need to be set via the dashboard's `/settings` screen first (same deferred-credentials situation as Zalo in M1.8 and Sheets in M2.4). If either SDK's shape has drifted further by the time real keys are available, only that one file needs fixing — the rest of the pipeline is provider-agnostic via `grading/providers/base.py`'s `Provider` protocol.
+**LLM provider SDKs** (`grading/providers/gemini.py`, `openai_provider.py`): Gemini uses the `google-genai` SDK's `client.interactions.create(...)`. **Accepted against a real key on 2026-08-25** — the endpoint shape is correct, but three things broke on first contact and none were visible to the 448 mocked tests:
+1. `pipeline.py` called `grade_with_fallback()` **without `schema=`**, which every `Provider.grade()` requires — so the audio path could never have worked. The pilot text path passed it correctly. Hidden because every test patches `grade_with_fallback` with a bare `AsyncMock` (swallows any argument) and its signature is `**grade_kwargs: Any`.
+2. The hardcoded model `gemini-2.5-flash` is **retired for new users** (404 naming `gemini-3.6-flash` as the replacement).
+3. `interaction.usage` exposes `total_input_tokens`/`total_output_tokens`/`total_thought_tokens`, **not** `input_tokens`/`output_tokens` — so every `cost_log` recorded 0 tokens and `est_usd = 0`, silently disabling the §3.12 cost alert. `_usage_tokens()` now reads the real names and folds thought tokens into output (they are billed, and under-reporting is the dangerous direction for a cost alarm).
+
+The lesson worth carrying: **mocking the outer boundary (`grade_with_fallback`) cannot test the inner contract.** Regression tests now bind the call to the real `Provider.grade` signature and to the SDK's actual `Usage` shape.
+
+Model, temperature and pricing are **no longer hardcoded** — see `llm.*` in `setting-defs.ts`. Resolution order is `courses.llm_config` → settings → a fallback constant. The Settings screen suggests models from a **live provider query** (`GET /settings/llm-models/:provider`) while still accepting free text, precisely because a hardcoded list goes stale the way `gemini-2.5-flash` just did. OpenAI uses the standard Chat Completions `input_audio` content part and is still unexercised (no OpenAI key configured), so the fallback provider is effectively unavailable. The rest of the pipeline stays provider-agnostic via `grading/providers/base.py`'s `Provider` protocol.
 
 **Retry/DLQ** (`rabbit_consumer.py`): a line-for-line Python port of the gateway's `RabbitService.consume()` retry logic — same header-based `x-retry` counter, same `MAX_RETRIES`/`RETRY_TTL_MS` constants from `contracts.py`.
 

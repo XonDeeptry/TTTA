@@ -1,0 +1,650 @@
+{
+  "_readme": "FIXTURE DÙNG CHUNG TS ↔ Python cho bộ dựng prompt (F12 FR-03). Được đọc bởi CẢ HAI: core-api `src/criteria/prompt-render.spec.ts` và grading-worker `tests/test_prompt_render_fixtures.py`. `expected_*` được sinh ra từ bản PYTHON (`grading/prompt.py`) — bản chạy lúc chấm thật, tức bản có thẩm quyền. Sửa một trong hai renderer mà quên bản kia ⇒ một trong hai bộ test đỏ. KHÔNG tự tay sửa `expected_*` cho khớp code: nếu chuỗi mong đợi sai thì hành vi đã đổi, hãy sửa cả hai renderer. Ba miền KHÔNG khớp được (literal float phần lẻ bằng 0, thứ tự khóa chỉ-số-mảng khi rơi về thứ tự chèn, khóa band đọc ra NaN) cố ý không có mặt ở đây — xem khối MIỀN TƯƠNG ĐƯƠNG đầu file prompt-render.ts.",
+  "cases": [
+    {
+      "name": "v1_legacy_no_schema_version",
+      "_why": "rubric v1 nguyên bản: không có schema_version, dùng band_scale, bands là CHUỖI, few_shot_examples thay cho comment_bank, dimension dùng `name` thay cho key/label.",
+      "rubric": {
+        "course_key": "kid_a1",
+        "band_scale": [
+          0,
+          4
+        ],
+        "dimensions": [
+          {
+            "name": "pronunciation",
+            "weight": 2,
+            "bands": {
+              "0": "Chua ro tieng.",
+              "4": "Ro rang, de nghe."
+            }
+          },
+          {
+            "name": "tu_vung",
+            "weight": 1,
+            "bands": {
+              "0": "Rat it tu.",
+              "4": "Tu vung phong phu."
+            }
+          }
+        ],
+        "few_shot_examples": [
+          "Con doc to va ro rang!",
+          "Chu y am cuoi nhe."
+        ]
+      },
+      "expected_audio": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: kid_a1. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nCHỈ đánh giá dựa trên nội dung audio đính kèm. KHÔNG bịa thông tin không có trong audio.\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: pronunciation [key=pronunciation] (trọng số 2):\n  Band 0:\n    • Chua ro tieng.\n  Band 4:\n    • Ro rang, de nghe.\n- Tiêu chí: tu_vung [key=tu_vung] (trọng số 1):\n  Band 0:\n    • Rat it tu.\n  Band 4:\n    • Tu vung phong phu.\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVí dụ nhận xét mẫu do giáo viên cung cấp (bám theo văn phong này; nhãn [trong ngoặc vuông] chỉ để PHÂN LOẠI ví dụ — TUYỆT ĐỐI KHÔNG chép nhãn đó vào nhận xét trả về):\n  Dùng chung:\n    - Con doc to va ro rang!\n    - Chu y am cuoi nhe.\nVới tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, nghe thành gì, gợi ý sửa, vị trí ước lượng trong clip (giây).\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON.",
+      "expected_text": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: kid_a1. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nQUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.\nCHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.\nVới tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: pronunciation [key=pronunciation] (trọng số 2):\n  Band 0:\n    • Chua ro tieng.\n  Band 4:\n    • Ro rang, de nghe.\n- Tiêu chí: tu_vung [key=tu_vung] (trọng số 1):\n  Band 0:\n    • Rat it tu.\n  Band 4:\n    • Tu vung phong phu.\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVí dụ nhận xét mẫu do giáo viên cung cấp (bám theo văn phong này; nhãn [trong ngoặc vuông] chỉ để PHÂN LOẠI ví dụ — TUYỆT ĐỐI KHÔNG chép nhãn đó vào nhận xét trả về):\n  Dùng chung:\n    - Con doc to va ro rang!\n    - Chu y am cuoi nhe.\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON."
+    },
+    {
+      "name": "v2_sub_factors_on_two_dimensions",
+      "_why": "AC-03.4 — sub_factors trên >= 2 tiêu chí; lưới yếu tố con phải render đủ cả hai.",
+      "rubric": {
+        "schema_version": 2,
+        "course_key": "teen_b1",
+        "task_type": "speaking_clip",
+        "tone": "nghiêm túc",
+        "feedback_language": "vi",
+        "scale": {
+          "min": 1,
+          "max": 4,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "weighted_average",
+          "round": "nearest_int"
+        },
+        "levels": [
+          {
+            "min": 0,
+            "max": 10,
+            "code": "SECRET_LEVEL",
+            "label": "KHONG_DUOC_XUAT_HIEN"
+          }
+        ],
+        "output_fields": [
+          "comment",
+          "fix"
+        ],
+        "dimensions": [
+          {
+            "key": "pronunciation",
+            "label": "Phát âm",
+            "weight": 2,
+            "bands": {
+              "1": [
+                "Nhiều âm sai."
+              ],
+              "4": [
+                "Gần như chuẩn.",
+                "Nối âm tự nhiên."
+              ]
+            },
+            "sub_factors": [
+              {
+                "label": "Âm cuối",
+                "by_band": {
+                  "1": "Nuốt âm cuối",
+                  "4": "Bật rõ âm cuối"
+                }
+              },
+              {
+                "label": "Trọng âm",
+                "by_band": {
+                  "1": "Sai trọng âm",
+                  "4": "Đúng trọng âm"
+                }
+              }
+            ]
+          },
+          {
+            "key": "fluency",
+            "label": "Độ trôi chảy",
+            "weight": 1,
+            "bands": {
+              "1": [
+                "Ngập ngừng liên tục."
+              ],
+              "4": [
+                "Nói liền mạch."
+              ]
+            },
+            "sub_factors": [
+              {
+                "label": "Tốc độ",
+                "by_band": {
+                  "1": "Rất chậm",
+                  "4": "Tự nhiên"
+                }
+              }
+            ]
+          }
+        ],
+        "comment_bank": []
+      },
+      "expected_audio": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: teen_b1. Loại bài: speaking_clip.\nGiọng điệu nhận xét: nghiêm túc.\nViết nhận xét bằng ngôn ngữ: vi.\nCHỈ đánh giá dựa trên nội dung audio đính kèm. KHÔNG bịa thông tin không có trong audio.\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 2):\n  Band 1:\n    • Nhiều âm sai.\n  Band 4:\n    • Gần như chuẩn.\n    • Nối âm tự nhiên.\n  Yếu tố con (tham chiếu khi chấm tiêu chí này):\n    - Âm cuối: 1 = Nuốt âm cuối | 4 = Bật rõ âm cuối\n    - Trọng âm: 1 = Sai trọng âm | 4 = Đúng trọng âm\n- Tiêu chí: Độ trôi chảy [key=fluency] (trọng số 1):\n  Band 1:\n    • Ngập ngừng liên tục.\n  Band 4:\n    • Nói liền mạch.\n  Yếu tố con (tham chiếu khi chấm tiêu chí này):\n    - Tốc độ: 1 = Rất chậm | 4 = Tự nhiên\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment') VÀ một hướng sửa bài cụ thể, làm được ngay (trường 'fix').\nVới tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, nghe thành gì, gợi ý sửa, vị trí ước lượng trong clip (giây).\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON.",
+      "expected_text": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: teen_b1. Loại bài: speaking_clip.\nGiọng điệu nhận xét: nghiêm túc.\nViết nhận xét bằng ngôn ngữ: vi.\nQUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.\nCHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.\nVới tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 2):\n  Band 1:\n    • Nhiều âm sai.\n  Band 4:\n    • Gần như chuẩn.\n    • Nối âm tự nhiên.\n  Yếu tố con (tham chiếu khi chấm tiêu chí này):\n    - Âm cuối: 1 = Nuốt âm cuối | 4 = Bật rõ âm cuối\n    - Trọng âm: 1 = Sai trọng âm | 4 = Đúng trọng âm\n- Tiêu chí: Độ trôi chảy [key=fluency] (trọng số 1):\n  Band 1:\n    • Ngập ngừng liên tục.\n  Band 4:\n    • Nói liền mạch.\n  Yếu tố con (tham chiếu khi chấm tiêu chí này):\n    - Tốc độ: 1 = Rất chậm | 4 = Tự nhiên\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment') VÀ một hướng sửa bài cụ thể, làm được ngay (trường 'fix').\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON."
+    },
+    {
+      "name": "v2_comment_bank_mixed_grouping",
+      "_why": "AC-03.4 — chốt THỨ TỰ NHÓM: theo thứ tự tiêu chí trong rubric → tiêu chí lạ (theo thứ tự xuất hiện) → nhóm dùng chung (dimension=null) xếp CUỐI. Entry lạ đứng ĐẦU mảng để chứng minh thứ tự nhóm không phải thứ tự mảng.",
+      "rubric": {
+        "schema_version": 2,
+        "course_key": "kid_a2",
+        "scale": {
+          "min": 0,
+          "max": 6,
+          "step": 2
+        },
+        "aggregation": {
+          "method": "sum",
+          "round": "none"
+        },
+        "output_fields": [
+          "comment"
+        ],
+        "dimensions": [
+          {
+            "key": "pronunciation",
+            "label": "Phát âm",
+            "weight": 1,
+            "bands": {
+              "0": [
+                "Chưa rõ."
+              ]
+            }
+          },
+          {
+            "key": "ngu_dieu",
+            "label": "Ngữ điệu",
+            "weight": 1,
+            "bands": {
+              "6": [
+                "Rất tốt."
+              ]
+            }
+          }
+        ],
+        "comment_bank": [
+          {
+            "dimension": "da_bi_xoa",
+            "intent": "góp ý",
+            "text": "Tiêu chí này đã bị đổi tên."
+          },
+          {
+            "dimension": null,
+            "intent": null,
+            "text": "Bài làm nghiêm túc."
+          },
+          {
+            "dimension": "ngu_dieu",
+            "intent": "khen",
+            "text": "Lên xuống giọng rất tự nhiên."
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": "Âm /th/ đã rõ hơn tuần trước."
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": null,
+            "text": "Chú ý âm /s/ cuối từ."
+          },
+          {
+            "dimension": null,
+            "intent": "khen",
+            "text": "Nộp bài đúng hạn."
+          }
+        ]
+      },
+      "expected_audio": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: kid_a2. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nCHỈ đánh giá dựa trên nội dung audio đính kèm. KHÔNG bịa thông tin không có trong audio.\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band 0:\n    • Chưa rõ.\n- Tiêu chí: Ngữ điệu [key=ngu_dieu] (trọng số 1):\n  Band 6:\n    • Rất tốt.\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVí dụ nhận xét mẫu do giáo viên cung cấp (bám theo văn phong này; nhãn [trong ngoặc vuông] chỉ để PHÂN LOẠI ví dụ — TUYỆT ĐỐI KHÔNG chép nhãn đó vào nhận xét trả về):\n  Tiêu chí Phát âm:\n    - [khen] Âm /th/ đã rõ hơn tuần trước.\n    - Chú ý âm /s/ cuối từ.\n  Tiêu chí Ngữ điệu:\n    - [khen] Lên xuống giọng rất tự nhiên.\n  Tiêu chí da_bi_xoa:\n    - [góp ý] Tiêu chí này đã bị đổi tên.\n  Dùng chung:\n    - Bài làm nghiêm túc.\n    - [khen] Nộp bài đúng hạn.\nVới tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, nghe thành gì, gợi ý sửa, vị trí ước lượng trong clip (giây).\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON.",
+      "expected_text": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: kid_a2. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nQUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.\nCHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.\nVới tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band 0:\n    • Chưa rõ.\n- Tiêu chí: Ngữ điệu [key=ngu_dieu] (trọng số 1):\n  Band 6:\n    • Rất tốt.\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVí dụ nhận xét mẫu do giáo viên cung cấp (bám theo văn phong này; nhãn [trong ngoặc vuông] chỉ để PHÂN LOẠI ví dụ — TUYỆT ĐỐI KHÔNG chép nhãn đó vào nhận xét trả về):\n  Tiêu chí Phát âm:\n    - [khen] Âm /th/ đã rõ hơn tuần trước.\n    - Chú ý âm /s/ cuối từ.\n  Tiêu chí Ngữ điệu:\n    - [khen] Lên xuống giọng rất tự nhiên.\n  Tiêu chí da_bi_xoa:\n    - [góp ý] Tiêu chí này đã bị đổi tên.\n  Dùng chung:\n    - Bài làm nghiêm túc.\n    - [khen] Nộp bài đúng hạn.\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON."
+    },
+    {
+      "name": "v2_band_keys_python_float_grammar",
+      "_why": "Bẫy trôi số 1: `_band_order` dùng `float()` của Python, KHÔNG phải `Number()` của JS. Bốn khóa này đều đọc được thành số bên Python (10, 2, 3, 0.5) nhưng `Number()` trả NaN cho ba trong bốn ⇒ bản TS dùng `Number()` sẽ rơi về thứ tự chèn và test đỏ.",
+      "rubric": {
+        "schema_version": 2,
+        "course_key": "grammar_probe",
+        "scale": {
+          "min": 0,
+          "max": 10,
+          "step": 5
+        },
+        "output_fields": [
+          "comment"
+        ],
+        "dimensions": [
+          {
+            "key": "pronunciation",
+            "label": "Phát âm",
+            "weight": 1,
+            "bands": {
+              "1_0": [
+                "Gạch dưới PEP 515 ⇒ 10."
+              ],
+              "٢": [
+                "Chữ số Ả Rập-Ấn ⇒ 2."
+              ],
+              " 3　": [
+                "Khoảng trắng Unicode hai đầu ⇒ 3."
+              ],
+              ".5": [
+                "Thiếu phần nguyên ⇒ 0.5."
+              ]
+            },
+            "sub_factors": []
+          }
+        ],
+        "comment_bank": []
+      },
+      "expected_audio": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: grammar_probe. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nCHỈ đánh giá dựa trên nội dung audio đính kèm. KHÔNG bịa thông tin không có trong audio.\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band .5:\n    • Thiếu phần nguyên ⇒ 0.5.\n  Band ٢:\n    • Chữ số Ả Rập-Ấn ⇒ 2.\n  Band  3　:\n    • Khoảng trắng Unicode hai đầu ⇒ 3.\n  Band 1_0:\n    • Gạch dưới PEP 515 ⇒ 10.\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVới tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, nghe thành gì, gợi ý sửa, vị trí ước lượng trong clip (giây).\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON.",
+      "expected_text": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: grammar_probe. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nQUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.\nCHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.\nVới tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band .5:\n    • Thiếu phần nguyên ⇒ 0.5.\n  Band ٢:\n    • Chữ số Ả Rập-Ấn ⇒ 2.\n  Band  3　:\n    • Khoảng trắng Unicode hai đầu ⇒ 3.\n  Band 1_0:\n    • Gạch dưới PEP 515 ⇒ 10.\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON."
+    },
+    {
+      "name": "v2_band_keys_non_numeric_fallback",
+      "_why": "AC-03.4 — khóa band KHÔNG phải số ⇒ giữ nguyên thứ tự chèn (không sắp lại). Cố ý KHÔNG trộn khóa dạng chỉ-số-mảng: xem điểm 2 của khối MIỀN TƯƠNG ĐƯƠNG.",
+      "rubric": {
+        "schema_version": 2,
+        "course_key": "fallback_probe",
+        "scale": {
+          "min": 0,
+          "max": 3,
+          "step": 1
+        },
+        "output_fields": [
+          "comment"
+        ],
+        "dimensions": [
+          {
+            "key": "pronunciation",
+            "label": "Phát âm",
+            "weight": 1,
+            "bands": {
+              "trung_binh": [
+                "Ở giữa."
+              ],
+              "cao": [
+                "Tốt."
+              ],
+              "thap": [
+                "Yếu."
+              ]
+            },
+            "sub_factors": [
+              {
+                "label": "Ghi chú",
+                "by_band": {
+                  "cao": "ổn",
+                  "thap": "cần luyện"
+                }
+              }
+            ]
+          }
+        ],
+        "comment_bank": []
+      },
+      "expected_audio": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: fallback_probe. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nCHỈ đánh giá dựa trên nội dung audio đính kèm. KHÔNG bịa thông tin không có trong audio.\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band trung_binh:\n    • Ở giữa.\n  Band cao:\n    • Tốt.\n  Band thap:\n    • Yếu.\n  Yếu tố con (tham chiếu khi chấm tiêu chí này):\n    - Ghi chú: cao = ổn | thap = cần luyện\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVới tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, nghe thành gì, gợi ý sửa, vị trí ước lượng trong clip (giây).\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON.",
+      "expected_text": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: fallback_probe. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nQUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.\nCHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.\nVới tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band trung_binh:\n    • Ở giữa.\n  Band cao:\n    • Tốt.\n  Band thap:\n    • Yếu.\n  Yếu tố con (tham chiếu khi chấm tiêu chí này):\n    - Ghi chú: cao = ổn | thap = cần luyện\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON."
+    },
+    {
+      "name": "v2_band_keys_unparseable_hex_and_empty",
+      "_why": "`Number('0x10')` = 16 và `Number('')` = 0 trong JS, còn `float()` của Python NÉM ValueError cho cả hai ⇒ phải rơi về thứ tự chèn. Bản TS dùng `Number()` sẽ sắp lại và đỏ.",
+      "rubric": {
+        "schema_version": 2,
+        "course_key": "hex_probe",
+        "scale": {
+          "min": 0,
+          "max": 3,
+          "step": 1
+        },
+        "output_fields": [
+          "comment"
+        ],
+        "dimensions": [
+          {
+            "key": "pronunciation",
+            "label": "Phát âm",
+            "weight": 1,
+            "bands": {
+              "0x10": [
+                "Chuỗi hex."
+              ],
+              "gioi": [
+                "Chữ."
+              ],
+              "": [
+                "Khóa rỗng."
+              ]
+            },
+            "sub_factors": []
+          }
+        ],
+        "comment_bank": []
+      },
+      "expected_audio": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: hex_probe. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nCHỈ đánh giá dựa trên nội dung audio đính kèm. KHÔNG bịa thông tin không có trong audio.\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band 0x10:\n    • Chuỗi hex.\n  Band gioi:\n    • Chữ.\n  Band :\n    • Khóa rỗng.\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVới tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, nghe thành gì, gợi ý sửa, vị trí ước lượng trong clip (giây).\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON.",
+      "expected_text": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: hex_probe. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nQUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.\nCHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.\nVới tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band 0x10:\n    • Chuỗi hex.\n  Band gioi:\n    • Chữ.\n  Band :\n    • Khóa rỗng.\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON."
+    },
+    {
+      "name": "v2_band_keys_infinity_sorts_last",
+      "_why": "`float('inf')` = vô cực bên Python (JS: `Number('inf')` = NaN). Mọi khóa đều đọc được ⇒ đi nhánh sắp xếp số, 'inf' phải nằm CUỐI.",
+      "rubric": {
+        "schema_version": 2,
+        "course_key": "inf_probe",
+        "scale": {
+          "min": 0,
+          "max": 2,
+          "step": 1
+        },
+        "output_fields": [
+          "comment"
+        ],
+        "dimensions": [
+          {
+            "key": "pronunciation",
+            "label": "Phát âm",
+            "weight": 1,
+            "bands": {
+              "0": [
+                "Không."
+              ],
+              "inf": [
+                "Vô hạn."
+              ],
+              "1": [
+                "Có."
+              ],
+              "-inf": [
+                "Âm vô hạn."
+              ]
+            },
+            "sub_factors": []
+          }
+        ],
+        "comment_bank": []
+      },
+      "expected_audio": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: inf_probe. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nCHỈ đánh giá dựa trên nội dung audio đính kèm. KHÔNG bịa thông tin không có trong audio.\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band -inf:\n    • Âm vô hạn.\n  Band 0:\n    • Không.\n  Band 1:\n    • Có.\n  Band inf:\n    • Vô hạn.\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVới tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, nghe thành gì, gợi ý sửa, vị trí ước lượng trong clip (giây).\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON.",
+      "expected_text": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: inf_probe. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nQUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.\nCHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.\nVới tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band -inf:\n    • Âm vô hạn.\n  Band 0:\n    • Không.\n  Band 1:\n    • Có.\n  Band inf:\n    • Vô hạn.\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON."
+    },
+    {
+      "name": "v2_weight_number_formatting",
+      "_why": "Bẫy trôi số 2: f-string của Python in số theo `str()`, KHÔNG theo `String()` của JS. 0.00001 ⇒ '1e-05' (JS: '0.00001'); 100000000000000000 ⇒ '1e+17' (JS: '100000000000000000'). Cố ý KHÔNG có literal float phần lẻ bằng 0 (`1.0`) — xem điểm 1 của khối MIỀN TƯƠNG ĐƯƠNG.",
+      "rubric": {
+        "schema_version": 2,
+        "course_key": "weight_probe",
+        "scale": {
+          "min": 0,
+          "max": 8,
+          "step": 4
+        },
+        "output_fields": [
+          "comment"
+        ],
+        "dimensions": [
+          {
+            "key": "pronunciation",
+            "label": "Phát âm",
+            "weight": 3,
+            "bands": {},
+            "sub_factors": []
+          },
+          {
+            "key": "nua_diem",
+            "label": "Nửa điểm",
+            "weight": 0.5,
+            "bands": {},
+            "sub_factors": []
+          },
+          {
+            "key": "rat_nho",
+            "label": "Rất nhỏ",
+            "weight": 1e-05,
+            "bands": {},
+            "sub_factors": []
+          },
+          {
+            "key": "rat_lon",
+            "label": "Rất lớn",
+            "weight": 100000000000000000,
+            "bands": {},
+            "sub_factors": []
+          },
+          {
+            "key": "le_hai_chu_so",
+            "label": "Lẻ hai chữ số",
+            "weight": 2.25,
+            "bands": {},
+            "sub_factors": []
+          },
+          {
+            "key": "khong_hop_le",
+            "label": "Trọng số hỏng",
+            "weight": "x",
+            "bands": {},
+            "sub_factors": []
+          }
+        ],
+        "comment_bank": []
+      },
+      "expected_audio": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: weight_probe. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nCHỈ đánh giá dựa trên nội dung audio đính kèm. KHÔNG bịa thông tin không có trong audio.\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 3):\n- Tiêu chí: Nửa điểm [key=nua_diem] (trọng số 0.5):\n- Tiêu chí: Rất nhỏ [key=rat_nho] (trọng số 1e-05):\n- Tiêu chí: Rất lớn [key=rat_lon] (trọng số 1e+17):\n- Tiêu chí: Lẻ hai chữ số [key=le_hai_chu_so] (trọng số 2.25):\n- Tiêu chí: Trọng số hỏng [key=khong_hop_le] (trọng số 1):\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVới tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, nghe thành gì, gợi ý sửa, vị trí ước lượng trong clip (giây).\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON.",
+      "expected_text": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: weight_probe. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nQUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.\nCHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.\nVới tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 3):\n- Tiêu chí: Nửa điểm [key=nua_diem] (trọng số 0.5):\n- Tiêu chí: Rất nhỏ [key=rat_nho] (trọng số 1e-05):\n- Tiêu chí: Rất lớn [key=rat_lon] (trọng số 1e+17):\n- Tiêu chí: Lẻ hai chữ số [key=le_hai_chu_so] (trọng số 2.25):\n- Tiêu chí: Trọng số hỏng [key=khong_hop_le] (trọng số 1):\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON."
+    },
+    {
+      "name": "v2_output_fields_with_fix",
+      "_why": "AC-03.4 — `output_fields` CÓ 'fix' ⇒ câu hướng dẫn hai trường.",
+      "rubric": {
+        "schema_version": 2,
+        "course_key": "fix_on",
+        "scale": {
+          "min": 0,
+          "max": 4,
+          "step": 2
+        },
+        "output_fields": [
+          "fix",
+          "comment"
+        ],
+        "dimensions": [
+          {
+            "key": "pronunciation",
+            "label": "Phát âm",
+            "weight": 1,
+            "bands": {
+              "2": [
+                "Tạm."
+              ]
+            }
+          }
+        ],
+        "comment_bank": []
+      },
+      "expected_audio": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: fix_on. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nCHỈ đánh giá dựa trên nội dung audio đính kèm. KHÔNG bịa thông tin không có trong audio.\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band 2:\n    • Tạm.\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment') VÀ một hướng sửa bài cụ thể, làm được ngay (trường 'fix').\nVới tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, nghe thành gì, gợi ý sửa, vị trí ước lượng trong clip (giây).\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON.",
+      "expected_text": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: fix_on. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nQUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.\nCHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.\nVới tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band 2:\n    • Tạm.\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment') VÀ một hướng sửa bài cụ thể, làm được ngay (trường 'fix').\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON."
+    },
+    {
+      "name": "v2_output_fields_without_fix",
+      "_why": "AC-03.4 — `output_fields` KHÔNG có 'fix' ⇒ câu hướng dẫn một trường.",
+      "rubric": {
+        "schema_version": 2,
+        "course_key": "fix_off",
+        "scale": {
+          "min": 0,
+          "max": 4,
+          "step": 2
+        },
+        "output_fields": [
+          "comment"
+        ],
+        "dimensions": [
+          {
+            "key": "pronunciation",
+            "label": "Phát âm",
+            "weight": 1,
+            "bands": {
+              "2": [
+                "Tạm."
+              ]
+            }
+          }
+        ],
+        "comment_bank": []
+      },
+      "expected_audio": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: fix_off. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nCHỈ đánh giá dựa trên nội dung audio đính kèm. KHÔNG bịa thông tin không có trong audio.\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band 2:\n    • Tạm.\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVới tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, nghe thành gì, gợi ý sửa, vị trí ước lượng trong clip (giây).\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON.",
+      "expected_text": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: fix_off. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nQUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.\nCHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.\nVới tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band 2:\n    • Tạm.\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON."
+    },
+    {
+      "name": "v2_empty_bank_and_empty_sub_factors",
+      "_why": "AC-03.4 — comment_bank rỗng ⇒ KHÔNG có dòng tiêu đề ngân hàng nhận xét; sub_factors: [] ⇒ KHÔNG có tiêu đề 'Yếu tố con' rỗng.",
+      "rubric": {
+        "schema_version": 2,
+        "course_key": "empty_probe",
+        "tone": "trung tính",
+        "feedback_language": "en",
+        "scale": {
+          "min": 0,
+          "max": 1,
+          "step": 1
+        },
+        "output_fields": [
+          "comment"
+        ],
+        "dimensions": [
+          {
+            "key": "pronunciation",
+            "label": "Pronunciation",
+            "weight": 1,
+            "bands": {},
+            "sub_factors": []
+          }
+        ],
+        "comment_bank": []
+      },
+      "expected_audio": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: empty_probe. Loại bài: speaking_clip.\nGiọng điệu nhận xét: trung tính.\nViết nhận xét bằng ngôn ngữ: en.\nCHỈ đánh giá dựa trên nội dung audio đính kèm. KHÔNG bịa thông tin không có trong audio.\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Pronunciation [key=pronunciation] (trọng số 1):\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVới tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, nghe thành gì, gợi ý sửa, vị trí ước lượng trong clip (giây).\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON.",
+      "expected_text": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: empty_probe. Loại bài: speaking_clip.\nGiọng điệu nhận xét: trung tính.\nViết nhận xét bằng ngôn ngữ: en.\nQUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.\nCHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.\nVới tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Pronunciation [key=pronunciation] (trọng số 1):\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON."
+    },
+    {
+      "name": "v2_sub_factor_partial_by_band",
+      "_why": "AC-03.4 — yếu tố con chỉ định nghĩa MỘT SỐ band (nguồn IELTS thật chỉ có 4/6/8/9), kèm một yếu tố con nhãn rỗng và by_band rỗng ⇒ lưới rỗng vẫn phải render (không bỏ dòng).",
+      "rubric": {
+        "schema_version": 2,
+        "course_key": "partial_probe",
+        "scale": {
+          "min": 0,
+          "max": 9,
+          "step": 1
+        },
+        "output_fields": [
+          "comment"
+        ],
+        "dimensions": [
+          {
+            "key": "pronunciation",
+            "label": "Phát âm",
+            "weight": 1,
+            "bands": {
+              "4": [
+                "Trung bình."
+              ],
+              "9": [
+                "Xuất sắc."
+              ],
+              "6": [
+                "Khá."
+              ]
+            },
+            "sub_factors": [
+              {
+                "label": "Nối âm",
+                "by_band": {
+                  "9": "Rất mượt",
+                  "4": "Rời rạc"
+                }
+              },
+              {
+                "label": "",
+                "by_band": {}
+              }
+            ]
+          }
+        ],
+        "comment_bank": [
+          {
+            "dimension": "pronunciation",
+            "intent": "",
+            "text": "Ý định rỗng ⇒ không có tiền tố."
+          }
+        ]
+      },
+      "expected_audio": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: partial_probe. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nCHỈ đánh giá dựa trên nội dung audio đính kèm. KHÔNG bịa thông tin không có trong audio.\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band 4:\n    • Trung bình.\n  Band 6:\n    • Khá.\n  Band 9:\n    • Xuất sắc.\n  Yếu tố con (tham chiếu khi chấm tiêu chí này):\n    - Nối âm: 4 = Rời rạc | 9 = Rất mượt\n    - : \nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVí dụ nhận xét mẫu do giáo viên cung cấp (bám theo văn phong này; nhãn [trong ngoặc vuông] chỉ để PHÂN LOẠI ví dụ — TUYỆT ĐỐI KHÔNG chép nhãn đó vào nhận xét trả về):\n  Tiêu chí Phát âm:\n    - Ý định rỗng ⇒ không có tiền tố.\nVới tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, nghe thành gì, gợi ý sửa, vị trí ước lượng trong clip (giây).\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON.",
+      "expected_text": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: partial_probe. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nQUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.\nCHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.\nVới tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\n  Band 4:\n    • Trung bình.\n  Band 6:\n    • Khá.\n  Band 9:\n    • Xuất sắc.\n  Yếu tố con (tham chiếu khi chấm tiêu chí này):\n    - Nối âm: 4 = Rời rạc | 9 = Rất mượt\n    - : \nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVí dụ nhận xét mẫu do giáo viên cung cấp (bám theo văn phong này; nhãn [trong ngoặc vuông] chỉ để PHÂN LOẠI ví dụ — TUYỆT ĐỐI KHÔNG chép nhãn đó vào nhận xét trả về):\n  Tiêu chí Phát âm:\n    - Ý định rỗng ⇒ không có tiền tố.\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON."
+    },
+    {
+      "name": "v2_numeric_dimension_keys_group_order",
+      "_why": "Bẫy trôi số 3: `MACHINE_KEY_PATTERN` cho phép khóa tiêu chí toàn chữ số ('42', '7'). `_render_comment_bank` bên Python gom nhóm bằng dict (giữ thứ tự chèn); nếu bản TS dùng object thường thay vì `Map` thì JS xếp khóa dạng chỉ-số-mảng lên trước theo thứ tự TĂNG DẦN ⇒ nhóm '7' sẽ nhảy lên trước '42' và test đỏ.",
+      "rubric": {
+        "schema_version": 2,
+        "course_key": "numeric_keys",
+        "scale": {
+          "min": 0,
+          "max": 3,
+          "step": 1
+        },
+        "output_fields": [
+          "comment"
+        ],
+        "dimensions": [
+          {
+            "key": "42",
+            "label": "Tiêu chí bốn hai",
+            "weight": 1,
+            "bands": {}
+          },
+          {
+            "key": "7",
+            "label": "Tiêu chí bảy",
+            "weight": 1,
+            "bands": {}
+          },
+          {
+            "key": "pronunciation",
+            "label": "Phát âm",
+            "weight": 1,
+            "bands": {}
+          }
+        ],
+        "comment_bank": [
+          {
+            "dimension": "7",
+            "intent": null,
+            "text": "Thuộc tiêu chí bảy."
+          },
+          {
+            "dimension": "9",
+            "intent": null,
+            "text": "Tiêu chí lạ, không khớp key nào."
+          },
+          {
+            "dimension": null,
+            "intent": null,
+            "text": "Dùng chung, phải xếp cuối."
+          },
+          {
+            "dimension": "42",
+            "intent": null,
+            "text": "Thuộc tiêu chí bốn hai."
+          }
+        ]
+      },
+      "expected_audio": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: numeric_keys. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nCHỈ đánh giá dựa trên nội dung audio đính kèm. KHÔNG bịa thông tin không có trong audio.\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Tiêu chí bốn hai [key=42] (trọng số 1):\n- Tiêu chí: Tiêu chí bảy [key=7] (trọng số 1):\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVí dụ nhận xét mẫu do giáo viên cung cấp (bám theo văn phong này; nhãn [trong ngoặc vuông] chỉ để PHÂN LOẠI ví dụ — TUYỆT ĐỐI KHÔNG chép nhãn đó vào nhận xét trả về):\n  Tiêu chí Tiêu chí bốn hai:\n    - Thuộc tiêu chí bốn hai.\n  Tiêu chí Tiêu chí bảy:\n    - Thuộc tiêu chí bảy.\n  Tiêu chí 9:\n    - Tiêu chí lạ, không khớp key nào.\n  Dùng chung:\n    - Dùng chung, phải xếp cuối.\nVới tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, nghe thành gì, gợi ý sửa, vị trí ước lượng trong clip (giây).\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON.",
+      "expected_text": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: numeric_keys. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nQUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.\nCHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.\nVới tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\n- Tiêu chí: Tiêu chí bốn hai [key=42] (trọng số 1):\n- Tiêu chí: Tiêu chí bảy [key=7] (trọng số 1):\n- Tiêu chí: Phát âm [key=pronunciation] (trọng số 1):\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVí dụ nhận xét mẫu do giáo viên cung cấp (bám theo văn phong này; nhãn [trong ngoặc vuông] chỉ để PHÂN LOẠI ví dụ — TUYỆT ĐỐI KHÔNG chép nhãn đó vào nhận xét trả về):\n  Tiêu chí Tiêu chí bốn hai:\n    - Thuộc tiêu chí bốn hai.\n  Tiêu chí Tiêu chí bảy:\n    - Thuộc tiêu chí bảy.\n  Tiêu chí 9:\n    - Tiêu chí lạ, không khớp key nào.\n  Dùng chung:\n    - Dùng chung, phải xếp cuối.\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON."
+    },
+    {
+      "name": "garbage_empty_object",
+      "_why": "AC-02.4 — rubric rỗng vẫn render ra chuỗi (normalize không bao giờ ném), và hai bản phải cho cùng một chuỗi mặc định.",
+      "rubric": {},
+      "expected_audio": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: ?. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nCHỈ đánh giá dựa trên nội dung audio đính kèm. KHÔNG bịa thông tin không có trong audio.\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nVới tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, nghe thành gì, gợi ý sửa, vị trí ước lượng trong clip (giây).\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON.",
+      "expected_text": "Bạn là giáo viên chấm bài nói tiếng Anh cho học viên trung tâm ILM.\nKhóa: ?. Loại bài: speaking_clip.\nGiọng điệu nhận xét: khích lệ.\nViết nhận xét bằng ngôn ngữ: vi.\nQUAN TRỌNG: Em CHỈ nhận được BẢN CHÉP LỜI (transcript) dạng văn bản, KHÔNG nghe được audio gốc.\nCHỈ đánh giá dựa trên nội dung transcript. KHÔNG bịa thông tin không có trong transcript.\nVới tiêu chí 'pronunciation': vì không nghe được audio, chỉ được suy luận phát âm từ bằng chứng trong transcript (lỗi chính tả/chép sai gợi ý phát âm sai) với ĐỘ TIN CẬY THẤP, và phải nêu rõ hạn chế này trong nhận xét (không nghe trực tiếp nên đánh giá phát âm chỉ mang tính tham khảo).\nChấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:\nVới MỖI tiêu chí, viết một nhận xét (trường 'comment').\nTrả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON."
+    }
+  ]
+}

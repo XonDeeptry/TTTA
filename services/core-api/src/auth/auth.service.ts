@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/
 import * as bcrypt from 'bcrypt';
 import { DashboardUser } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { effectivePrivileges } from './privileges';
 
 const SALT_ROUNDS = 12;
 
@@ -14,6 +15,25 @@ export class AuthService {
     if (!user) return null;
     const ok = await bcrypt.compare(password, user.passwordHash);
     return ok ? user : null;
+  }
+
+  /**
+   * F10 — tập quyền CÓ HIỆU LỰC của một tài khoản, đọc TƯƠI từ Postgres.
+   *
+   * Cùng nguồn sự thật với `PrivilegeGuard` (cũng đọc DB mỗi request, xem D-1) — đây chính là lý
+   * do: nếu `/auth/me` đọc bản sao trong session còn guard đọc DB, giao diện sẽ hiện nút mà guard
+   * từ chối (hoặc giấu nút mà guard cho qua) suốt phần đời còn lại của phiên đó.
+   *
+   * Hàng không còn tồn tại (tài khoản bị xóa nhưng session còn sống) ⇒ `[]`, KHÔNG ném lỗi:
+   * `/auth/me` phải luôn trả 200 để dashboard còn biết đường mà đăng xuất (AC-11.4).
+   */
+  async effectivePrivileges(userId: number): Promise<string[]> {
+    const row = await this.prisma.dashboardUser.findUnique({
+      where: { id: userId },
+      select: { role: true, privileges: true },
+    });
+    if (!row) return [];
+    return effectivePrivileges(row.role, row.privileges);
   }
 
   /**

@@ -20,6 +20,19 @@ export interface SubmissionMessage {
   receivedAt: string; // ISO 8601
 }
 
+/** F11: tập hành động nút bấm — TẬP ĐÓNG. Thêm giá trị mới phải sửa cả BA bản contracts
+ * và nhánh xử lý trong grading-worker/pipeline.py, nếu không tin nhắn sẽ rơi xuống flag. */
+export type ButtonAction = 'ack' | 'request_advisor' | 'select_student';
+
+export interface OutboundButton {
+  /** Nhãn học viên nhìn thấy — Zalo giới hạn 100 ký tự. */
+  title: string;
+  action: ButtonAction;
+  /** Chuỗi quay lại NGUYÊN VĂN qua sự kiện `user_send_text` — Zalo giới hạn 1.000 ký tự.
+   * Luôn có dạng `#ilm:<action>:<arg>[:<arg>]`, mọi arg chỉ gồm chữ số. */
+  payload: string;
+}
+
 export interface OutboundMessage {
   v: 1;
   zaloUserId: string;
@@ -27,7 +40,16 @@ export interface OutboundMessage {
   templateKey?: string;
   text: string;
   submissionId?: string;
+  /** F11: vắng mặt hoặc rỗng = tin text thuần đúng như trước F11. */
+  buttons?: OutboundButton[];
 }
+
+export const ILM_PAYLOAD_PREFIX = '#ilm:';
+export const BUTTON_ACTIONS: readonly ButtonAction[] = ['ack', 'request_advisor', 'select_student'];
+export const MAX_BUTTONS = 5;
+export const MAX_BUTTON_TITLE_LEN = 100;
+export const MAX_BUTTON_PAYLOAD_LEN = 1000;
+export const MAX_OUTBOUND_TEXT_LEN = 2000;
 
 export const EXCHANGE = 'ilm.direct';
 export const DLX = 'ilm.dlx';

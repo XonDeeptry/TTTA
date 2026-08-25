@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, SubmissionKind } from '@prisma/client';
+import { normalizeRubric, type RubricV2 } from '../criteria/rubric-schema';
+import { computeTotal } from '../lib/rubric-scoring';
 import { PrismaService } from '../prisma.service';
 
 const UNASSIGNED_CLASS = '(chưa gán lớp)';
@@ -85,21 +87,35 @@ export interface PendingReviewSummary {
   oldestSubmissionId: number | null;
 }
 
-/** Một grading trong khoảng thời gian, kèm band_max của khóa (giải quyết N+1 bằng include). */
+/** Một grading trong khoảng thời gian, kèm rubric đã ghim + band_max của khóa (giải quyết N+1
+ * bằng include). `rubric` là bản ĐÃ chuẩn hóa và đã vá `scale.max` (xem `resolveRubric`). */
 interface GradingInRange {
   scores: unknown;
   bandMax: number;
+  rubric: RubricV2;
   receivedAt: Date;
   className: string;
 }
 
-/** band_max = Criteria.rubric.band_scale[1], ép về số dương, fallback 3 (BR-02). Không bao giờ 0
- * ⇒ không bao giờ chia cho 0 khi chuẩn hóa. */
+/** band_max = `rubric.scale.max` (v2) → `rubric.band_scale[1]` (v1) → 3 (BR-02/BR-06). Ép về số
+ * dương, không bao giờ 0 ⇒ không bao giờ chia cho 0 khi chuẩn hóa.
+ *
+ * F9 GIỮ NGUYÊN hàm này và vẫn cho nó đọc rubric THÔ (AC-12.4): `normalizeRubric` lọc bỏ
+ * `band_scale` khỏi 12 khóa được giữ, nên một rubric v1 chỉ có `band_scale` sẽ MẤT thang điểm
+ * nếu ta chỉ nhìn bản đã chuẩn hóa. Giá trị ở đây được VÁ ngược vào `scale.max` khi bản chuẩn
+ * hóa cho ra `<= 0` (xem `resolveRubric`). Hai consumer còn dùng trực tiếp `bandMax` là
+ * `avgPronunciation` và `dimensionBreakdown` — chúng chuẩn hóa MỘT dimension nên cố ý KHÔNG đi
+ * qua `computeTotal` (AC-12.8): nhân trọng số cho một tiêu chí đơn lẻ là vô nghĩa. */
 function bandMaxFromRubric(rubric: unknown): number {
   if (rubric && typeof rubric === 'object') {
-    const scale = (rubric as Record<string, unknown>).band_scale;
-    if (Array.isArray(scale) && scale.length >= 2) {
-      const max = Number(scale[1]);
+    const scaleV2 = (rubric as Record<string, unknown>).scale;
+    if (scaleV2 && typeof scaleV2 === 'object' && !Array.isArray(scaleV2)) {
+      const max = Number((scaleV2 as Record<string, unknown>).max);
+      if (Number.isFinite(max) && max > 0) return max;
+    }
+    const scaleV1 = (rubric as Record<string, unknown>).band_scale;
+    if (Array.isArray(scaleV1) && scaleV1.length >= 2) {
+      const max = Number(scaleV1[1]);
       if (Number.isFinite(max) && max > 0) return max;
     }
   }
@@ -238,41 +254,79 @@ export class ReportsService {
 
   // ─── F7 analytics ────────────────────────────────────────────────────────────────
 
-  /** Điểm chuẩn hóa của một grading: trung bình `.score` qua MỌI dimension hiện có, chia band_max,
-   * ×100, làm tròn 1 chữ số. `null` nếu scores không phải object hoặc không có dimension hợp lệ
-   * (blob rỗng/hỏng bị bỏ qua, không tính, không throw — NFR-01 AC-01.8). */
-  private scorePctForGrading(scores: unknown, bandMax: number): number | null {
-    if (!scores || typeof scores !== 'object') return null;
-    let sum = 0;
-    let n = 0;
-    for (const dim of Object.keys(scores as object)) {
-      const v = dimensionScore(scores, dim);
-      if (v !== null) {
-        sum += v;
-        n += 1;
-      }
-    }
-    if (n === 0) return null;
-    return round1((sum / n / bandMax) * 100);
+  /**
+   * Điểm chuẩn hóa của một grading = `computeTotal(rubric, scores).total / .max × 100`, làm tròn
+   * 1 chữ số. `null` khi không có điểm dùng được (`counted === 0`) hoặc `max <= 0` — blob
+   * rỗng/hỏng bị BỎ QUA chứ không tính là 0 % (giữ nguyên hành vi cũ, AC-01.8).
+   *
+   * F9 SỬA BUG ĐỨNG LÂU: biểu thức cũ `sum / n / bandMax` cộng trung bình KHÔNG trọng số rồi
+   * chia thang điểm — `weight` chưa bao giờ được đọc. Nay mọi con số đi qua `computeTotal`, nên
+   * `weighted_average` thật sự ảnh hưởng tới báo cáo (US3).
+   *
+   * BR-06 — BÁO CÁO TÍNH LẠI, KHÔNG ĐỌC `Grading.totalScore`. Cột đó NULL với mọi grading có
+   * trước F9 (không backfill), đọc nó sẽ làm cả lịch sử biến mất khỏi avgScore/trends/
+   * classPerformance ngay ngày deploy, và sẽ trộn lẫn "số cũ" với "số mới" trong cùng một trung
+   * bình. `Grading.criteriaId` ghim một bản criteria BẤT BIẾN + `computeTotal` tất định từng bit
+   * ⇒ tính lại cho ra ĐÚNG con số đã lưu (AC-12.10).
+   *
+   * `rubric` truyền vào đây ĐÃ được chuẩn hóa và đã vá `scale.max` một lần duy nhất cho mỗi
+   * `criteriaId` trong `fetchGradingsInRange` (AC-12.2/AC-12.4) — đừng chuẩn hóa lại theo dòng.
+   */
+  private scorePctForGrading(scores: unknown, rubric: RubricV2): number | null {
+    const result = computeTotal(rubric, scores);
+    if (result.counted === 0 || result.max <= 0) return null;
+    return round1((result.total / result.max) * 100);
   }
 
-  /** Lấy MỌI grading có submission.receivedAt trong khoảng, kèm band_max của khóa (một query duy nhất
-   * với include — tránh N+1, NFR-03). Dùng chung cho kpis/trends/class-performance/dimension-breakdown. */
+  /** Lấy MỌI grading có submission.receivedAt trong khoảng, kèm rubric đã ghim + band_max của khóa
+   * (một query duy nhất với include — tránh N+1, NFR-03). Dùng chung cho
+   * kpis/trends/class-performance/dimension-breakdown. */
   private async fetchGradingsInRange(from: Date, to: Date): Promise<GradingInRange[]> {
     const gradings = await this.prisma.grading.findMany({
       where: { submission: { receivedAt: { gte: from, lte: to } } },
       select: {
         scores: true,
+        criteriaId: true,
         criteria: { select: { rubric: true } },
         submission: { select: { receivedAt: true, student: { select: { className: true } } } },
       },
     });
-    return gradings.map((g) => ({
-      scores: g.scores,
-      bandMax: bandMaxFromRubric(g.criteria?.rubric),
-      receivedAt: g.submission.receivedAt,
-      className: g.submission.student?.className ?? UNASSIGNED_CLASS,
-    }));
+
+    // AC-12.2: `normalizeRubric` chạy TỐI ĐA MỘT LẦN cho mỗi `criteriaId` trong một lần gọi báo
+    // cáo. criteria là bản bất biến (một lần sửa rubric = một version mới) nên memo theo id là an
+    // toàn. Dòng không có criteriaId (test/dữ liệu lạ) thì tính riêng, không dùng memo — nếu memo
+    // theo khóa `undefined` thì hai rubric khác nhau sẽ dùng chung một kết quả.
+    const memo = new Map<number, { rubric: RubricV2; bandMax: number }>();
+    const resolveRubric = (criteriaId: unknown, raw: unknown): { rubric: RubricV2; bandMax: number } => {
+      const key = typeof criteriaId === 'number' && Number.isFinite(criteriaId) ? criteriaId : null;
+      if (key !== null) {
+        const hit = memo.get(key);
+        if (hit) return hit;
+      }
+      const bandMax = bandMaxFromRubric(raw);
+      const normalized = normalizeRubric(raw);
+      // AC-12.4: vá thang điểm v1 (`band_scale`) vào `scale.max` khi bản chuẩn hóa không dùng được.
+      const entry = {
+        bandMax,
+        rubric:
+          normalized.scale.max > 0
+            ? normalized
+            : { ...normalized, scale: { ...normalized.scale, max: bandMax } },
+      };
+      if (key !== null) memo.set(key, entry);
+      return entry;
+    };
+
+    return gradings.map((g) => {
+      const { rubric, bandMax } = resolveRubric(g.criteriaId, g.criteria?.rubric);
+      return {
+        scores: g.scores,
+        bandMax,
+        rubric,
+        receivedAt: g.submission.receivedAt,
+        className: g.submission.student?.className ?? UNASSIGNED_CLASS,
+      };
+    });
   }
 
   /** FR-01 (US1): 6 KPI card cho khoảng thời gian. pendingReview là snapshot hiện tại (BR-03),
@@ -301,7 +355,7 @@ export class ReportsService {
     let scoreSum = 0;
     let scoreN = 0;
     for (const g of gradings) {
-      const p = this.scorePctForGrading(g.scores, g.bandMax);
+      const p = this.scorePctForGrading(g.scores, g.rubric);
       if (p !== null) {
         scoreSum += p;
         scoreN += 1;
@@ -360,7 +414,7 @@ export class ReportsService {
 
     const scoreByBucket = new Map<string, { sum: number; n: number }>();
     for (const g of gradings) {
-      const p = this.scorePctForGrading(g.scores, g.bandMax);
+      const p = this.scorePctForGrading(g.scores, g.rubric);
       if (p === null) continue;
       const k = bucketLabelFor(g.receivedAt, effBucket);
       const e = scoreByBucket.get(k) ?? { sum: 0, n: 0 };
@@ -396,7 +450,7 @@ export class ReportsService {
 
     const byClass = new Map<string, { sum: number; n: number }>();
     for (const g of gradings) {
-      const p = this.scorePctForGrading(g.scores, g.bandMax);
+      const p = this.scorePctForGrading(g.scores, g.rubric);
       if (p === null) continue;
       const e = byClass.get(g.className) ?? { sum: 0, n: 0 };
       e.sum += p;

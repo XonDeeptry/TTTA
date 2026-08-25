@@ -15,8 +15,17 @@ interface UserView {
   email: string;
   role: 'admin' | 'staff';
   mustChangePassword: boolean;
+  /** F10 — giá trị ĐÃ LƯU trên hàng. Với admin nó có thể rỗng mà vẫn có mọi quyền (BR-01),
+   * nên cột hiển thị và ô tick đều xử lý riêng cho admin. */
+  privileges: string[];
   createdAt: string;
 }
+
+/** F10 §5.5 — đúng hai quyền, khớp `auth/privileges.ts` phía core-api. */
+const PRIVILEGES = [
+  { value: 'rubric_template', labelKey: 'users.privRubricTemplate' },
+  { value: 'criteria_author', labelKey: 'users.privCriteriaAuthor' },
+] as const;
 
 interface Feedback {
   variant: 'default' | 'destructive';
@@ -70,6 +79,7 @@ export function Users() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editEmail, setEditEmail] = useState('');
   const [editRole, setEditRole] = useState<'admin' | 'staff'>('staff');
+  const [editPrivileges, setEditPrivileges] = useState<string[]>([]);
   const [savingEdit, setSavingEdit] = useState(false);
 
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -135,6 +145,13 @@ export function Users() {
     setEditingId(u.id);
     setEditEmail(u.email);
     setEditRole(u.role);
+    setEditPrivileges(u.privileges ?? []);
+  }
+
+  function togglePrivilege(value: string, checked: boolean): void {
+    setEditPrivileges((prev) =>
+      checked ? (prev.includes(value) ? prev : [...prev, value]) : prev.filter((p) => p !== value),
+    );
   }
 
   function cancelEdit(id: number): void {
@@ -146,7 +163,13 @@ export function Users() {
     e.preventDefault();
     setSavingEdit(true);
     try {
-      await api.patch<UserView>(`/users/${id}`, { email: editEmail, role: editRole });
+      // F10 AC-21.5: KHÔNG có endpoint mới — quyền đi kèm ngay trên PATCH /users/:id đã có.
+      // Mảng gửi lên là THAY THẾ TOÀN BỘ; gửi [] nghĩa là thu hồi hết (AC-10.3).
+      await api.patch<UserView>(`/users/${id}`, {
+        email: editEmail,
+        role: editRole,
+        privileges: editPrivileges,
+      });
       setEditingId(null);
       setFeedback({ variant: 'default', role: 'status', text: t('users.editSaved') });
       load();
@@ -229,6 +252,7 @@ export function Users() {
               <TableRow>
                 <TableHead scope="col">{t('users.email')}</TableHead>
                 <TableHead scope="col">{t('users.role')}</TableHead>
+                <TableHead scope="col">{t('users.privileges')}</TableHead>
                 <TableHead scope="col">{t('users.mustChangePassword')}</TableHead>
                 <TableHead scope="col">{t('users.createdAt')}</TableHead>
                 <TableHead scope="col" />
@@ -237,13 +261,22 @@ export function Users() {
             <TableBody>
               {data?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5}>{t('users.empty')}</TableCell>
+                  <TableCell colSpan={6}>{t('users.empty')}</TableCell>
                 </TableRow>
               )}
               {data?.map((u) => (
                 <TableRow key={u.id}>
                   <TableCell>{u.email}</TableCell>
                   <TableCell>{u.role === 'admin' ? t('users.roleAdmin') : t('users.roleStaff')}</TableCell>
+                  <TableCell className="text-body">
+                    {u.role === 'admin'
+                      ? t('users.privAdminAll')
+                      : (u.privileges ?? []).length === 0
+                        ? t('users.privNone')
+                        : PRIVILEGES.filter((p) => (u.privileges ?? []).includes(p.value))
+                            .map((p) => t(p.labelKey))
+                            .join(', ')}
+                  </TableCell>
                   <TableCell>{u.mustChangePassword ? t('common.yes') : t('common.no')}</TableCell>
                   <TableCell>{new Date(u.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell>
@@ -270,7 +303,7 @@ export function Users() {
                         </Button>
                       </form>
                     ) : editingId === u.id ? (
-                      <form onSubmit={(e) => confirmEdit(e, u.id)} className="flex items-center gap-2">
+                      <form onSubmit={(e) => confirmEdit(e, u.id)} className="flex flex-wrap items-center gap-2">
                         <Input
                           type="email"
                           required
@@ -288,6 +321,28 @@ export function Users() {
                           <option value="admin">{t('users.roleAdmin')}</option>
                           <option value="staff">{t('users.roleStaff')}</option>
                         </SelectNative>
+                        {/* F10 FR-21 — hai ô tick quyền, dùng lại đúng khuôn form của F5, không
+                            thêm component/thư viện nào. Với admin: tick sẵn + KHÓA + title giải
+                            thích, vì một ô bỏ trống trên tài khoản admin là một lời nói dối
+                            (admin mặc nhiên có mọi quyền). Giá trị đã lưu vẫn được gửi nguyên
+                            văn khi bấm Lưu, để sau này hạ role về staff thì tập quyền đúng như
+                            admin đã đặt chứ không rỗng (AC-10.7). */}
+                        {PRIVILEGES.map((p) => (
+                          <Label
+                            key={p.value}
+                            className="flex items-center gap-1 text-body font-normal"
+                            title={editRole === 'admin' ? t('users.privAdminAll') : undefined}
+                          >
+                            <input
+                              type="checkbox"
+                              className="size-4"
+                              disabled={editRole === 'admin'}
+                              checked={editRole === 'admin' || editPrivileges.includes(p.value)}
+                              onChange={(e) => togglePrivilege(p.value, e.target.checked)}
+                            />
+                            <span>{t(p.labelKey)}</span>
+                          </Label>
+                        ))}
                         <Button type="submit" size="sm" disabled={savingEdit}>
                           {t('users.editSave')}
                         </Button>

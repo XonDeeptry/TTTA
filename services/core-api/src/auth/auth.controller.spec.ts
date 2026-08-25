@@ -14,11 +14,11 @@ function requestWithSession(user?: SessionUser): Request {
 }
 
 describe('AuthController', () => {
-  let auth: { validate: jest.Mock; changePassword: jest.Mock };
+  let auth: { validate: jest.Mock; changePassword: jest.Mock; effectivePrivileges: jest.Mock };
   let controller: AuthController;
 
   beforeEach(() => {
-    auth = { validate: jest.fn(), changePassword: jest.fn() };
+    auth = { validate: jest.fn(), changePassword: jest.fn(), effectivePrivileges: jest.fn().mockResolvedValue([]) };
     controller = new AuthController(auth as unknown as AuthService);
   });
 
@@ -79,14 +79,39 @@ describe('AuthController', () => {
 
   // AC-9
   describe('me', () => {
-    it('surfaces mustChangePassword from the session', () => {
+    /**
+     * F10 AC-11.3 — assertion này BUỘC phải đổi vì `/auth/me` mọc thêm `privileges` (FR-11) và
+     * `toEqual` so khớp CHÍNH XÁC tập khóa. Nó được LÀM CHẶT chứ không nới: bốn trường cũ vẫn bị
+     * ghim từng giá trị y như trước, cộng thêm một trường mới. Đây là spec DUY NHẤT ngoài
+     * `rubric-scoring.spec.ts`/`users.service.spec.ts` mà F10 sửa assertion.
+     */
+    it('surfaces mustChangePassword from the session', async () => {
       const user: SessionUser = {
         id: 7,
         email: 'admin@ilm.edu.vn',
         role: 'admin',
         mustChangePassword: true,
       };
-      expect(controller.me(requestWithSession(user))).toEqual(user);
+      await expect(controller.me(requestWithSession(user))).resolves.toEqual({ ...user, privileges: [] });
+    });
+
+    // F10 AC-11.1/11.2: tập quyền đọc TƯƠI từ service (DB), không lấy từ session.
+    it('returns the effective privileges resolved for the session user id', async () => {
+      auth.effectivePrivileges.mockResolvedValue(['rubric_template', 'criteria_author']);
+      const user: SessionUser = { id: 7, email: 'a@b.c', role: 'admin', mustChangePassword: false };
+
+      await expect(controller.me(requestWithSession(user))).resolves.toEqual({
+        ...user,
+        privileges: ['rubric_template', 'criteria_author'],
+      });
+      expect(auth.effectivePrivileges).toHaveBeenCalledWith(7);
+    });
+
+    // F10 AC-11.4: hàng đã bị xóa nhưng session còn sống ⇒ [] chứ không 500.
+    it('returns privileges: [] when the row is gone', async () => {
+      auth.effectivePrivileges.mockResolvedValue([]);
+      const user: SessionUser = { id: 99, email: 'gone@b.c', role: 'staff', mustChangePassword: false };
+      await expect(controller.me(requestWithSession(user))).resolves.toEqual({ ...user, privileges: [] });
     });
   });
 

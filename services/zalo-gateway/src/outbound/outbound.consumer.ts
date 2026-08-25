@@ -43,6 +43,6 @@ export class OutboundConsumer implements OnApplicationBootstrap {
         return; // gửi muộn hơn cũng không giúp — không retry
       }
     }
-    await this.zaloApi.sendText(msg.zaloUserId, msg.text); // lỗi → RabbitService retry/DLQ
+    await this.zaloApi.sendText(msg.zaloUserId, msg.text, msg.buttons); // lỗi → RabbitService retry/DLQ
   }
 }

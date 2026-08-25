@@ -108,6 +108,9 @@
       "Bash(MSYS_NO_PATHCONV=1 docker run --rm -v \"d:/Docs/Project/TTTA/services/dashboard:/app\" -w /app node:24-alpine sh -c \"npm ci --silent && npx tsc --noEmit\")",
       "Bash(git -C \"d:/Docs/Project/TTTA\" diff --stat)",
       "Bash(MSYS_NO_PATHCONV=1 docker run --rm -v \"d:/Docs/Project/TTTA/services/dashboard:/app\" -w /app node:24-alpine sh -c \"npx tsc --noEmit\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\XONDEE~1\\AppData\\Local\\Temp"
     ]
   }
 }

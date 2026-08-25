@@ -30,17 +30,44 @@ const SETTING_GROUPS: SettingGroupDef[] = [
   { prefix: 'internal.', titleKey: 'settings.group.internal' },
 ];
 
+// Ô chọn model của từng provider. Gợi ý lấy TRỰC TIẾP từ provider chứ không phải danh sách cứng:
+// ngày 2026-08-25 `gemini-2.5-flash` bị Google ngừng cấp và mọi lượt chấm trả 404 — một danh sách
+// cứng trong code sẽ lỗi thời đúng theo cách đó. Đây là <datalist> (GỢI Ý) chứ không phải <select>,
+// nên vẫn gõ tay được nếu danh sách thiếu hoặc không gọi được provider.
+const MODEL_FIELDS: Record<string, string> = {
+  'llm.gemini_model': 'gemini',
+  'llm.openai_model': 'openai',
+};
+
+interface LlmModelList {
+  provider: string;
+  models: string[];
+  error?: string;
+}
+
 export function Settings() {
   const { t } = useTranslation();
   const [settings, setSettings] = useState<SettingView[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savedKey, setSavedKey] = useState<string | null>(null);
+  const [modelHints, setModelHints] = useState<Record<string, LlmModelList>>({});
 
   function load(): void {
     void api.get<SettingView[]>('/settings').then(setSettings);
   }
 
   useEffect(load, []);
+
+  // Endpoint không bao giờ ném lỗi (trả `error` trong body), nhưng vẫn bọc catch để một provider
+  // chết không làm hỏng cả màn Cấu hình.
+  useEffect(() => {
+    for (const provider of new Set(Object.values(MODEL_FIELDS))) {
+      void api
+        .get<LlmModelList>(`/settings/llm-models/${provider}`)
+        .then((r) => setModelHints((m) => ({ ...m, [provider]: r })))
+        .catch(() => setModelHints((m) => ({ ...m, [provider]: { provider, models: [], error: 'unreachable' } })));
+    }
+  }, []);
 
   async function save(setting: SettingView): Promise<void> {
     const raw = drafts[setting.key] ?? '';
@@ -94,13 +121,32 @@ export function Settings() {
                           <option value="false">false</option>
                         </SelectNative>
                       ) : (
-                        <Input
-                          type={s.masked ? 'password' : s.kind === 'number' ? 'number' : 'text'}
-                          placeholder={s.masked && s.value ? String(s.value) : ''}
-                          defaultValue={s.masked ? '' : String(s.value ?? '')}
-                          onChange={(e) => setDrafts((d) => ({ ...d, [s.key]: e.target.value }))}
-                          className="max-w-sm"
-                        />
+                        <>
+                          <Input
+                            type={s.masked ? 'password' : s.kind === 'number' ? 'number' : 'text'}
+                            placeholder={s.masked && s.value ? String(s.value) : ''}
+                            defaultValue={s.masked ? '' : String(s.value ?? '')}
+                            onChange={(e) => setDrafts((d) => ({ ...d, [s.key]: e.target.value }))}
+                            className="max-w-sm"
+                            list={MODEL_FIELDS[s.key] ? `models-${MODEL_FIELDS[s.key]}` : undefined}
+                          />
+                          {MODEL_FIELDS[s.key] && (
+                            <>
+                              <datalist id={`models-${MODEL_FIELDS[s.key]}`}>
+                                {(modelHints[MODEL_FIELDS[s.key]]?.models ?? []).map((m) => (
+                                  <option key={m} value={m} />
+                                ))}
+                              </datalist>
+                              <p className="mt-1 text-caption text-foreground/50">
+                                {modelHints[MODEL_FIELDS[s.key]]?.error
+                                  ? t('settings.modelsUnavailable')
+                                  : t('settings.modelsHint', {
+                                      count: modelHints[MODEL_FIELDS[s.key]]?.models.length ?? 0,
+                                    })}
+                              </p>
+                            </>
+                          )}
+                        </>
                       )}
                     </TableCell>
                     <TableCell>

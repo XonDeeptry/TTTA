@@ -13,11 +13,18 @@ import { Textarea } from '../components/ui/textarea';
 
 interface Grading {
   id: number;
-  scores: Record<string, { score: number; comment: string }>;
+  // `fix` chỉ có với rubric khai báo output_fields ["comment","fix"] (F8) — thường vắng mặt.
+  scores: Record<string, { score: number; comment: string; fix?: string }>;
   llmFeedback: string;
   reviewedFeedback: string | null;
   autoSent: boolean;
   sentAt: string | null;
+  // F9: điểm tổng/cấp độ do core-api tính (`computeTotal`). `null` với bài chấm trước F9.
+  // `totalMax` là giá trị DẪN XUẤT do server trả về — KHÔNG tính lại số học chấm điểm ở đây.
+  totalScore: number | null;
+  levelCode: string | null;
+  levelLabel: string | null;
+  totalMax: number | null;
 }
 
 interface Flag {
@@ -122,14 +129,30 @@ export function SubmissionDetail() {
             <CardContent className="space-y-4">
               <div>
                 <h2 className="text-h2">{t('submissions.scores')}</h2>
+                {data.grading.totalScore !== null && data.grading.totalMax !== null ? (
+                  <p className="mt-1">
+                    {t('submissions.total')}:{' '}
+                    <span className="font-medium tabular-nums">
+                      {data.grading.totalScore}/{data.grading.totalMax}
+                    </span>
+                    {data.grading.levelLabel ? ` — ${data.grading.levelLabel}` : ''}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-muted-foreground">{t('submissions.totalUnavailable')}</p>
+                )}
                 <ul className="mt-2 space-y-2">
-                  {Object.entries(data.grading.scores).map(([dimension, { score, comment }]) => (
-                    <li key={dimension} className="flex items-start gap-2">
+                  {Object.entries(data.grading.scores).map(([dimension, { score, comment, fix }]) => (
+                    <li key={dimension} className="flex flex-wrap items-start gap-2">
                       <span className="font-medium">{dimension}</span>
                       <Badge variant="outline" className="shrink-0">
                         {score}
                       </Badge>
                       <span className="text-muted-foreground">{comment}</span>
+                      {fix ? (
+                        <span className="w-full text-muted-foreground">
+                          {t('submissions.scoreFix')}: {fix}
+                        </span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>

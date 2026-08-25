@@ -33,6 +33,15 @@ export function IconGauge(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function IconGuide(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M3.5 4.5A1.5 1.5 0 0 1 5 3h4.5v13H5a1.5 1.5 0 0 0-1.5 1.5z" />
+      <path d="M16.5 4.5A1.5 1.5 0 0 0 15 3h-4.5v13H15a1.5 1.5 0 0 1 1.5 1.5z" />
+    </IconBase>
+  );
+}
+
 export function IconSettings(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
@@ -170,6 +179,113 @@ export function IconTestUpload(props: SVGProps<SVGSVGElement>) {
     <IconBase {...props}>
       <path d="M8 3h4M8.5 3v4.2L5 14a1.5 1.5 0 0 0 1.3 2.2h7.4A1.5 1.5 0 0 0 15 14l-3.5-6.8V3" />
       <path d="M7 13h6" />
+    </IconBase>
+  );
+}
+
+// ─── F12 — drawer / template / authoring icons ─────────────────────────────────────
+
+export function IconClose(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M5 5l10 10M15 5L5 15" />
+    </IconBase>
+  );
+}
+
+export function IconPlus(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M10 4v12M4 10h12" />
+    </IconBase>
+  );
+}
+
+export function IconCopy(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <rect x="7" y="7" width="9" height="9" rx="1" />
+      <path d="M4 13V5a1 1 0 0 1 1-1h8" />
+    </IconBase>
+  );
+}
+
+export function IconTrash(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 6h12" />
+      <path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6" />
+      <path d="M5.5 6l.6 9.2A1.5 1.5 0 0 0 7.6 16.5h4.8a1.5 1.5 0 0 0 1.5-1.3L14.5 6" />
+    </IconBase>
+  );
+}
+
+export function IconEye(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10Z" />
+      <circle cx="10" cy="10" r="2.2" />
+    </IconBase>
+  );
+}
+
+export function IconEyeOff(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M2 10s3-5.5 8-5.5c1.6 0 2.9.5 4 1.2M18 10s-1.2 2.2-3.4 3.8M8.3 8.3a2.2 2.2 0 0 0 3.1 3.1" />
+      <path d="M3 3l14 14" />
+    </IconBase>
+  );
+}
+
+export function IconRestore(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 10a6 6 0 1 0 2-4.5" />
+      <path d="M4 3v3.5H7.5" />
+    </IconBase>
+  );
+}
+
+export function IconLock(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <rect x="4.5" y="9" width="11" height="8" rx="1.5" />
+      <path d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9" />
+    </IconBase>
+  );
+}
+
+export function IconPin(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M10 2.5c-2.2 0-4 1.7-4 4 0 3 4 8.5 4 8.5s4-5.5 4-8.5c0-2.3-1.8-4-4-4Z" />
+      <circle cx="10" cy="6.5" r="1.5" />
+    </IconBase>
+  );
+}
+
+export function IconChevronUp(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M5 12l5-5 5 5" />
+    </IconBase>
+  );
+}
+
+export function IconChevronDown(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M5 8l5 5 5-5" />
+    </IconBase>
+  );
+}
+
+export function IconAlertTriangle(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M10 3.5 17.5 16h-15L10 3.5Z" />
+      <path d="M10 8.5v3.2M10 14h.01" />
     </IconBase>
   );
 }

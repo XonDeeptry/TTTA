@@ -97,4 +97,85 @@ describe('GradingsService', () => {
       expect(rabbit.publish).toHaveBeenCalledWith(Q_OUTBOUND, expect.objectContaining({ text: 'Bản gốc AI' }));
     });
   });
+
+  /**
+   * F11 FR-08 — `send()` là đường gửi CHÍNH (autoSend mặc định false), nên nút phải gắn ở đây.
+   * Mọi ca hỏng đều phải hạ cấp về tin text thuần y như trước F11, không bao giờ 500.
+   */
+  describe('F11 — send() attaches student_reply buttons', () => {
+    const rubric = {
+      schema_version: 2,
+      course_key: 'basic',
+      student_reply: {
+        show_total: true,
+        show_level: true,
+        template: '{{feedback}}',
+        buttons: [
+          { title: 'Em đã xem', action: 'ack' },
+          { title: 'Nhờ cô giải thích thêm', action: 'request_advisor' },
+        ],
+      },
+    };
+
+    function mockGrading(criteria: unknown): void {
+      prisma.grading.findUnique.mockResolvedValue({
+        id: 7,
+        submissionId: 10,
+        llmFeedback: 'Bản gốc AI',
+        reviewedFeedback: null,
+        submission: { zaloUserId: 'zalo-1' },
+        criteria,
+      });
+      prisma.submission.update.mockResolvedValue({ id: 10, status: 'sent' });
+      prisma.grading.update.mockResolvedValue({ id: 7, sentAt: new Date() });
+    }
+
+    it('AC-08.1 — payloads carry the GRADING id and the message keeps every pre-F11 field', async () => {
+      mockGrading({ rubric });
+      await service.send(7);
+
+      expect(rabbit.publish).toHaveBeenCalledWith(Q_OUTBOUND, {
+        v: 1,
+        zaloUserId: 'zalo-1',
+        submissionId: '10',
+        text: 'Bản gốc AI',
+        buttons: [
+          { title: 'Em đã xem', action: 'ack', payload: '#ilm:ack:7' },
+          { title: 'Nhờ cô giải thích thêm', action: 'request_advisor', payload: '#ilm:request_advisor:7' },
+        ],
+      });
+    });
+
+    it('AC-08.3 — status/sentAt/events still happen in the same order', async () => {
+      mockGrading({ rubric });
+      await service.send(7);
+
+      expect(prisma.submission.update).toHaveBeenCalledWith({ where: { id: 10 }, data: { status: 'sent' } });
+      expect(events.publishStatus).toHaveBeenCalledWith(10, 'sent');
+      expect(prisma.grading.update).toHaveBeenCalledWith({ where: { id: 7 }, data: { sentAt: expect.any(Date) } });
+      expect(rabbit.publish.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.submission.update.mock.invocationCallOrder[0],
+      );
+    });
+
+    it.each([
+      ['criteria row missing', null],
+      ['rubric unparseable', { rubric: 'not-a-rubric' }],
+      ['student_reply absent', { rubric: { schema_version: 2 } }],
+      ['buttons empty', { rubric: { schema_version: 2, student_reply: { buttons: [] } } }],
+    ])('AC-08.4 — %s ⇒ plain-text message with NO buttons key, no 500', async (_label, criteria) => {
+      mockGrading(criteria);
+      await expect(service.send(7)).resolves.toBeDefined();
+
+      const published = rabbit.publish.mock.calls[0][1] as Record<string, unknown>;
+      expect(published).not.toHaveProperty('buttons');
+      expect(published).toEqual({ v: 1, zaloUserId: 'zalo-1', submissionId: '10', text: 'Bản gốc AI' });
+    });
+
+    it('NFR-04 — send() publishes exactly once (no extra outbound introduced by F11)', async () => {
+      mockGrading({ rubric });
+      await service.send(7);
+      expect(rabbit.publish).toHaveBeenCalledTimes(1);
+    });
+  });
 });
