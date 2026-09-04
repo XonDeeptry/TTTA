@@ -47,6 +47,30 @@ curl -u ilm:change-me -X POST http://localhost:15672/api/exchanges/%2f/ilm.direc
 
 - When going with plan mode > do not develop just create plan and save it to \Idea\YYYYMMDD-<name>.md format
 
+## Branching (ILM platform expansion — planned, not yet started)
+
+The repo has historically been committed straight to `main`. That stops for the platform expansion
+designed in `Idea/20260903-NenTangILM.md` (SuiteCRM 8 + Moodle + the existing grading stack). Two
+branches off `main`, never one long-lived branch:
+
+- **`feature/ilm-platform`** — all new services (MariaDB, SuiteCRM, Moodle, `moodle-sync`, the Zalo
+  Login auth plugin, the two new Caddy site blocks). Purely additive; touches no existing service.
+- **`feature/crm-student-sync`** — **only** the CRM→core-api student sync: `SuiteCrmStudentClient`,
+  the one-line provider swap at `sheets-sync/sheets-sync.module.ts:10`, `crm.*` in `setting-defs.ts`,
+  and making the dashboard Students screen read-only. Kept separate because it is the **only** change
+  that can break the running bot — if it has to be reverted, it should be one small commit, not
+  something to unpick from months of platform work.
+
+**A git branch protects the source, not the running system.** `infra/docker-compose.yml` declares
+`name: ilm-bot`, so `docker compose up -d` against it recreates the live containers regardless of
+which branch is checked out. During development use a separate compose file and project name; note
+Caddy holds ports 80/443, so two stacks cannot both bind them on one machine. Deploying a phase to
+the VPS is a deliberate act with a known rollback (new services: `docker compose stop <service>`;
+the sync change: revert one commit and rebuild core-api).
+
+Never commit `.env`, MariaDB passwords, Moodle web-service tokens, `crm.client_secret`, or Zalo app
+credentials (App ID / App Secret / OA Secret). Update `.env.example` with variable names only.
+
 ## Monorepo layout
 
 `services/zalo-gateway` (TS/NestJS — implemented, M1) · `services/core-api` (TS/NestJS — implemented, M2-M4) · `services/grading-worker` (Python — implemented, M3; **the full audio grading path was accepted against a real Gemini key on 2026-08-25** — see the v1.6 changelog) · `services/dashboard` (React — implemented, M2 + M4; all 5 subsystems, containerized) · `infra/` (docker-compose, Caddyfile, .env). Message contracts and RabbitMQ topology constants are duplicated three times now — no shared package mechanism exists across services, let alone across languages — in `services/zalo-gateway/src/contracts.ts`, `services/core-api/src/contracts.ts`, and `services/grading-worker/src/grading_worker/contracts.py`. Keep all three identical when the topology changes.
@@ -147,7 +171,9 @@ A **Zalo OA homework-grading bot** for the ILM English Center, currently mid-bui
 - `Idea/UpdateFoundation.md` — 2026-07-19 update proposing a **microservices design**: RabbitMQ (message broker + Dead Letter Queue), Redis (Zalo token cache, rate limiting), PostgreSQL (users, grading history, criteria), plus services: Zalo Bot Gateway, User Management (syncs from Google Sheets), Criteria Management (.docx rubric ingestion), LLM Grading Worker, Web Dashboard.
 - `Idea/20260719-KienTrucMicroservices.md` — **current authoritative architecture** (v1.5): systematic evaluation of the two docs above, debate verdicts, and the final detailed design. "Microservices-lite": exactly 4 services (`zalo-gateway` TS/NestJS, `core-api` TS/NestJS, `grading-worker` Python, `dashboard` React) in one monorepo/docker-compose on a single VPS, with PostgreSQL as source of truth, RabbitMQ (+DLQ), Redis, Caddy, and **local-only media storage** on the VPS disk (no cloud storage services — owner's cost constraint; retention lifecycle defined in the doc). No gRPC/K8s. Google Sheets is a one-way input channel synced into Postgres. v1.1 decisions: grading criteria are authored as teacher .docx templates parsed into structured rubric JSON; an LLM provider abstraction covers both Gemini and ChatGPT; pronunciation scoring is a **mandatory** rubric dimension graded by the LLM itself (no local AI models ever — all AI inference goes through Gemini/ChatGPT APIs; the VPS only orchestrates and stores); the dashboard and system messages are vi/en bilingual. v1.2: ALL application configuration (Zalo app credentials/tokens, LLM API keys, operational thresholds) is administered via the dashboard UI — stored in the Postgres `settings` table (owned by core-api), mirrored to Redis `config:*` keys with pub/sub hot reload for gateway/worker; `.env` holds only infrastructure secrets (Postgres/Redis/RabbitMQ/domain), with ZALO_*/API-key env vars serving as dev-only fallbacks. Includes the target Postgres schema, queue topology, and build roadmap. v1.3 (added during M2 implementation): DB layer is Prisma; a `dashboard_users` table was added for real session auth built in M2 (not deferred to M4); a minimal 3-screen dashboard slice (login/settings/onboarding) was pulled forward from M4 for the same reason. v1.4 (added during M3 implementation): grading-worker uses `aio-pika` over `pika`; the Gemini SDK call shape (`google-genai`'s `client.interactions.create`) was re-verified against live docs since it had changed since pre-cutoff training knowledge; `POST /internal/submissions` became an upsert-by-`messageId` instead of a plain create (RabbitMQ redelivery would otherwise hit the unique constraint); two more `/internal/*` endpoints were added for the worker. v1.5 (added during M4 implementation): report export supports both CSV and real `.xlsx` (via `exceljs`) per the project owner's decision; the rubric `.docx` parser uses `mammoth.convertToHtml` plus a hand-written heading-splitter with a small fixed mini-format per section, verified against a real generated sample file; `classes_config` (present in the schema since M2) got its first API; the dashboard was containerized for the first time.
 
-Architecture precedence: `20260719-KienTrucMicroservices.md` > `UpdateFoundation.md` > `Foundation.md`. `Foundation.md` remains authoritative for product scope, business rules, and data semantics.
+- `Idea/20260903-NenTangILM.md` — **platform expansion design (v0.3, DRAFT — approved by nobody yet, nothing built)**. Turns this repo from one bot into a platform: SuiteCRM 8 (staff, teachers, students, classes, course contracts — becomes the **system of record**), Moodle (student-facing study materials + quizzes; students log in with Zalo Login), and the existing grading stack unchanged as a subsystem. Key resolution: "student data lives in the CRM" and "don't change the running app" conflict, because students/courses are read in 8 places in core-api — so the CRM **owns** the record while core-api keeps a **read replica**, fed by swapping the client behind the existing `SHEETS_CLIENT_FACTORY` seam. That makes the entire change to running software one line. The current "CRM" is spreadsheets, so there is no migration — SuiteCRM is built fresh and imported once. Speaking clips **stay on Zalo**; Moodle never touches the grading path. Phases P0–P5, branch strategy in §14 (see Branching above).
+
+Architecture precedence: `20260719-KienTrucMicroservices.md` > `UpdateFoundation.md` > `Foundation.md`. `Foundation.md` remains authoritative for product scope, business rules, and data semantics. `20260903-NenTangILM.md` is a **forward-looking draft** and does not yet override anything.
 
 ## Product boundaries (hard rules from the spec)
 
