@@ -1,8 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Grading } from '@prisma/client';
 import { OutboundMessage, Q_OUTBOUND } from '../contracts';
+import { normalizeRubric } from '../criteria/rubric-schema';
 import { EventsService } from '../events/events.service';
 import { buildReplyButtons } from '../lib/outbound-buttons';
+import { computeTotal } from '../lib/rubric-scoring';
+import { renderStudentMessage } from '../lib/student-message';
 import { PrismaService } from '../prisma.service';
 import { RabbitService } from '../rabbit.service';
 
@@ -31,7 +34,16 @@ export class GradingsService {
     });
     if (!grading) throw new NotFoundException('grading not found');
 
-    const text = grading.reviewedFeedback ?? grading.llmFeedback;
+    // Giáo viên sửa tay thì lời họ viết là NGUỒN CHÍNH, nhưng phần bằng chứng (từ phát âm sai,
+    // mốc giây, hướng sửa) vẫn được dựng từ `scores` như thường — người duyệt sửa văn phong,
+    // không phải gõ lại dữ liệu.
+    const text = renderStudentMessage(normalizeRubric(grading.criteria?.rubric), {
+      feedback: grading.reviewedFeedback ?? grading.llmFeedback,
+      scores: grading.scores,
+      totalScore: grading.totalScore,
+      totalMax: computeTotal(normalizeRubric(grading.criteria?.rubric), grading.scores).max || null,
+      levelLabel: grading.levelLabel,
+    });
     const buttons = buildReplyButtons(grading.criteria?.rubric, grading.id);
     const message: OutboundMessage = {
       v: 1,
