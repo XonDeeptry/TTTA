@@ -21,6 +21,15 @@ export function normalizeVnPhone(raw: string | number | null | undefined): strin
   return `0${digits}`;
 }
 
+/** Khoảng cách tối thiểu giữa hai lần CHỦ ĐỘNG mời cùng một người chia sẻ SĐT. */
+const PHONE_SHARE_ASK_TTL_SEC = 24 * 3600;
+/** Không lặp lại thông báo cho CÙNG một số đã bị từ chối — nhưng số khác thì báo ngay. */
+const PHONE_REJECTED_TTL_SEC = 30 * 24 * 3600;
+
+const DEFAULT_SHARE_SUBTITLE =
+  'Em bấm chia sẻ số điện thoại đã đăng ký với trung tâm để hệ thống ghép đúng tài khoản ' +
+  'và bắt đầu gửi nhận xét bài nói cho em nhé.';
+
 /** Hồ sơ Zalo kèm theo mỗi dòng chờ kích hoạt; mọi trường có thể vắng khi Zalo không trả lời. */
 export interface ZaloProfile {
   zaloDisplayName?: string | null;
@@ -71,18 +80,33 @@ export class OnboardingService implements OnModuleInit {
   /** Upsert-if-absent — hỗ trợ một Zalo nhiều học viên (trả về mọi binding của user đó). */
   async ensureBinding(zaloUserId: string, displayName?: string): Promise<ZaloBinding[]> {
     const existing = await this.prisma.zaloBinding.findMany({ where: { zaloUserId } });
-    if (existing.length > 0) return existing;
+    if (existing.length > 0) {
+      // CHƯA xác thực ⇒ hỏi lại mỗi lần họ tương tác (tự chặn ở mức 1 lần/ngày bên trong).
+      // ĐÃ có binding active ⇒ KHÔNG BAO GIỜ hỏi nữa: họ đã ghép đúng học viên rồi, hỏi thêm
+      // chỉ là làm phiền.
+      //
+      // Vì sao không chỉ hỏi lúc TẠO binding (bản trước làm vậy): một lần gửi hỏng — hết token,
+      // Zalo từ chối, mạng lỗi — sẽ khiến học viên mắc kẹt VĨNH VIỄN ở trạng thái chờ mà không
+      // ai biết. Gặp thật 2026-09-06 với lỗi `image_url is not valid`.
+      if (existing.every((b) => b.status !== 'active')) {
+        this.tryRequestPhoneShare(zaloUserId);
+      }
+      return existing;
+    }
     const created = await this.prisma.zaloBinding.create({
       data: { zaloUserId, displayName, status: 'pending' },
     });
-    // Chỉ hỏi ĐÚNG MỘT LẦN, tại thời điểm binding vừa sinh ra (kể cả khi sự kiện là `follow` —
-    // học viên không cần nhắn gì cả). KHÔNG await: grading-worker đang chờ lời gọi này trên
-    // đường nóng, và một lượt gọi Zalo chậm không được phép giữ chân nó. Lỗi thì ghi log, binding
-    // vẫn tồn tại và tư vấn vẫn kích hoạt tay được như trước.
+    this.tryRequestPhoneShare(zaloUserId);
+    return [created];
+  }
+
+  /** KHÔNG await: grading-worker đang chờ `ensureBinding` trên đường nóng, một lượt gọi Zalo
+   * chậm không được phép giữ chân nó. Lỗi chỉ ghi log — binding vẫn tồn tại và tư vấn vẫn kích
+   * hoạt tay được như trước. */
+  private tryRequestPhoneShare(zaloUserId: string): void {
     void this.requestPhoneShare(zaloUserId).catch((err: Error) => {
       this.logger.warn(`Không gửi được lời mời chia sẻ SĐT tới ${zaloUserId}: ${err.message}`);
     });
-    return [created];
   }
 
   /**
@@ -93,6 +117,28 @@ export class OnboardingService implements OnModuleInit {
    * chắn hợp lệ, và tự đúng với mọi OA mà không cần ai cấu hình. Cache trong tiến trình vì nó
    * gần như không đổi; hỏng thì thôi không gửi, chứ KHÔNG gửi một tin biết trước sẽ lỗi.
    */
+  /**
+   * Báo học viên biết số họ vừa chia sẻ không có trong danh sách, kèm LỜI MỜI MỚI để sửa ngay.
+   *
+   * Chốt chặn chống lặp là theo TỪNG SỐ, không theo người: chia sẻ nhầm số khác thì được báo
+   * tiếp, nhưng chia sẻ đi chia sẻ lại CÙNG một số sai thì không bị nhắc mãi. Nếu chốt theo
+   * người thì lượt sửa thứ hai lại rơi vào im lặng — đúng cái bẫy vừa gỡ.
+   */
+  private async notifyPhoneNotFound(zaloUserId: string, phone: string): Promise<void> {
+    const claimed = await this.redis.client
+      .set(`phone_share_rejected:${zaloUserId}:${phone}`, '1', 'EX', PHONE_REJECTED_TTL_SEC, 'NX')
+      .catch(() => 'OK');
+    if (claimed !== 'OK') return;
+
+    this.logger.warn(`SĐT ${phone} (Zalo ${zaloUserId}) không có trong danh sách học viên — đã báo lại để sửa`);
+    await this.requestPhoneShare(
+      zaloUserId,
+      `Số ${phone} chưa có trong danh sách học viên của trung tâm. Em kiểm tra và chia sẻ lại ` +
+        'số đã đăng ký giúp cô nhé, hoặc nhắn cho tư vấn để được hỗ trợ.',
+      true, // bỏ qua hạn mức ngày: đây là lượt SỬA SAI, không phải lời mời lặp lại
+    );
+  }
+
   private async resolveRequestInfoImage(accessToken: string): Promise<string | null> {
     if (this.oaAvatarCache !== undefined) return this.oaAvatarCache;
     try {
@@ -109,7 +155,26 @@ export class OnboardingService implements OnModuleInit {
     }
   }
 
-  private async requestPhoneShare(zaloUserId: string): Promise<void> {
+  /**
+   * @param subtitle  Nội dung hiển thị; mặc định là lời mời lần đầu.
+   * @param bypassThrottle  Bỏ qua hạn mức ngày. Dùng cho lượt SỬA SAI — hạn mức sinh ra để
+   *   chống spam người nhắn liên tục, KHÔNG phải để khóa một học viên chia sẻ nhầm số suốt 24
+   *   giờ. Hai chuyện khác nhau; gộp chúng lại là biến một lỗi gõ nhầm thành một ngày mắc kẹt.
+   */
+  private async requestPhoneShare(
+    zaloUserId: string,
+    subtitle = DEFAULT_SHARE_SUBTITLE,
+    bypassThrottle = false,
+  ): Promise<void> {
+    if (!bypassThrottle) {
+      // TỐI ĐA 1 LẦN/NGÀY mỗi người. `SET NX EX` — cùng khuôn `claimMessage` của gateway.
+      // Redis hỏng ⇒ vẫn gửi: thà trùng một tin còn hơn để họ mắc kẹt im lặng.
+      const claimed = await this.redis.client
+        .set(`phone_share_asked:${zaloUserId}`, '1', 'EX', PHONE_SHARE_ASK_TTL_SEC, 'NX')
+        .catch(() => 'OK');
+      if (claimed !== 'OK') return;
+    }
+
     const accessToken = await this.redis.client.get('zalo:access_token').catch(() => null);
     if (!accessToken) return;
     const imageUrl = await this.resolveRequestInfoImage(accessToken);
@@ -124,13 +189,7 @@ export class OnboardingService implements OnModuleInit {
       zaloUserId,
       // `text` là bản dự phòng đọc được nếu client không dựng nổi template.
       text: 'Em bấm chia sẻ số điện thoại để trung tâm ghép đúng tài khoản học viên nhé.',
-      requestUserInfo: {
-        title: 'Xác thực học viên ILM',
-        subtitle:
-          'Em bấm chia sẻ số điện thoại đã đăng ký với trung tâm để hệ thống ghép đúng tài khoản ' +
-          'và bắt đầu gửi nhận xét bài nói cho em nhé.',
-        imageUrl,
-      },
+      requestUserInfo: { title: 'Xác thực học viên ILM', subtitle, imageUrl },
     };
     this.rabbit.publish(Q_OUTBOUND, message);
   }
@@ -156,9 +215,18 @@ export class OnboardingService implements OnModuleInit {
       if (!zaloSharedPhone) continue;
 
       const matches = await this.prisma.student.findMany({ where: { phone: zaloSharedPhone } });
-      if (matches.length !== 1) {
+      if (matches.length === 0) {
+        // Học viên chia sẻ NHẦM số (hoặc số chưa được nhập vào CRM). Trước đây chỉ ghi log rồi
+        // im lặng — học viên không biết mình sai, cũng không được hỏi lại trong 24h, tức là mắc
+        // kẹt vì một lỗi gõ nhầm. Báo lại NGAY kèm một lời mời mới để họ sửa được liền.
+        await this.notifyPhoneNotFound(row.zaloUserId, zaloSharedPhone);
+        continue;
+      }
+      if (matches.length > 1) {
+        // Anh chị em dùng chung SĐT phụ huynh — máy KHÔNG được chọn hộ. Im lặng với học viên,
+        // để tư vấn quyết định trên dashboard.
         this.logger.warn(
-          `Zalo ${row.zaloUserId} chia sẻ SĐT ${zaloSharedPhone} nhưng khớp ${matches.length} học viên — để tư vấn xử lý tay`,
+          `Zalo ${row.zaloUserId} chia sẻ SĐT ${zaloSharedPhone} khớp ${matches.length} học viên — để tư vấn xử lý tay`,
         );
         continue;
       }

@@ -28,7 +28,7 @@ describe('OnboardingService', () => {
   let redis: {
     addKnownUser: jest.Mock;
     replaceKnownUsers: jest.Mock;
-    client: { get: jest.Mock };
+    client: { get: jest.Mock; set: jest.Mock };
   };
   let service: OnboardingService;
 
@@ -48,7 +48,7 @@ describe('OnboardingService', () => {
       addKnownUser: jest.fn().mockResolvedValue(undefined),
       replaceKnownUsers: jest.fn().mockResolvedValue(undefined),
       // Mặc định KHÔNG có token ⇒ listPending bỏ qua bước gọi Zalo, trả danh sách thô như cũ.
-      client: { get: jest.fn().mockResolvedValue(null) },
+      client: { get: jest.fn().mockResolvedValue(null), set: jest.fn().mockResolvedValue('OK') },
     };
     service = new OnboardingService(prisma as never, rabbit as never, templates as never, redis as never);
   });
@@ -189,14 +189,52 @@ describe('OnboardingService', () => {
       expect(call).toBeUndefined();
     });
 
-    it('binding ĐÃ TỒN TẠI ⇒ không hỏi lại (chỉ hỏi đúng một lần)', async () => {
-      redis.client.get.mockResolvedValue('tok');
-      prisma.zaloBinding.findMany.mockResolvedValue([{ id: 1, zaloUserId: 'u-cu', status: 'pending' }]);
+    /**
+     * Bản trước chỉ hỏi lúc TẠO binding, nên một lần gửi hỏng là học viên mắc kẹt VĨNH VIỄN ở
+     * trạng thái chờ mà không ai biết — đã xảy ra thật với lỗi `image_url is not valid`.
+     */
+    it('binding còn PENDING ⇒ hỏi LẠI khi họ tương tác tiếp', async () => {
+      zaloReturnsAvatar('https://zalo.example/oa.jpg');
+      prisma.zaloBinding.findMany.mockResolvedValue([{ id: 1, zaloUserId: 'u-cho', status: 'pending' }]);
 
-      await service.ensureBinding('u-cu');
+      await service.ensureBinding('u-cho');
       await new Promise((r) => setImmediate(r));
 
       expect(prisma.zaloBinding.create).not.toHaveBeenCalled();
+      expect(rabbit.publish.mock.calls.some((c) => (c[1] as { requestUserInfo?: unknown }).requestUserInfo)).toBe(true);
+    });
+
+    it('binding đã ACTIVE ⇒ KHÔNG BAO GIỜ hỏi nữa (đã ghép đúng học viên rồi)', async () => {
+      zaloReturnsAvatar('https://zalo.example/oa.jpg');
+      prisma.zaloBinding.findMany.mockResolvedValue([{ id: 1, zaloUserId: 'u-xong', status: 'active' }]);
+
+      await service.ensureBinding('u-xong');
+      await new Promise((r) => setImmediate(r));
+
+      expect(rabbit.publish).not.toHaveBeenCalled();
+    });
+
+    it('một Zalo nhiều học viên, CHỈ MỘT active ⇒ vẫn không hỏi', async () => {
+      zaloReturnsAvatar('https://zalo.example/oa.jpg');
+      prisma.zaloBinding.findMany.mockResolvedValue([
+        { id: 1, zaloUserId: 'u', status: 'pending' },
+        { id: 2, zaloUserId: 'u', status: 'active' },
+      ]);
+
+      await service.ensureBinding('u');
+      await new Promise((r) => setImmediate(r));
+
+      expect(rabbit.publish).not.toHaveBeenCalled();
+    });
+
+    it('đã hỏi trong 24h ⇒ KHÔNG hỏi lại (chống spam đúng người mình muốn giữ)', async () => {
+      zaloReturnsAvatar('https://zalo.example/oa.jpg');
+      redis.client.set.mockResolvedValue(null); // SET NX thất bại = đã tồn tại
+      prisma.zaloBinding.findMany.mockResolvedValue([{ id: 1, zaloUserId: 'u-cho', status: 'pending' }]);
+
+      await service.ensureBinding('u-cho');
+      await new Promise((r) => setImmediate(r));
+
       expect(rabbit.publish).not.toHaveBeenCalled();
     });
 
@@ -214,8 +252,14 @@ describe('OnboardingService', () => {
     function withSharedPhone(phone: unknown): void {
       redis.client.get.mockResolvedValue('tok');
       prisma.zaloBinding.findMany.mockResolvedValue([{ id: 7, zaloUserId: 'u1', status: 'pending' }]);
+      // `fetchFn` phục vụ CẢ HAI endpoint: `oa/user/detail` (đọc shared_info) và `oa/getoa`
+      // (lấy ảnh OA cho template). Thiếu `avatar` thì lời mời sẽ bị bỏ qua — đúng thiết kế,
+      // nhưng làm test hiểu nhầm là lỗi logic.
       service.fetchFn = jest.fn().mockResolvedValue({
-        json: async () => ({ error: 0, data: { display_name: 'A', shared_info: { phone } } }),
+        json: async () => ({
+          error: 0,
+          data: { display_name: 'A', avatar: 'https://zalo.example/oa.jpg', shared_info: { phone } },
+        }),
       }) as never;
     }
 
@@ -241,13 +285,49 @@ describe('OnboardingService', () => {
       expect(prisma.zaloBinding.update).not.toHaveBeenCalled();
     });
 
-    it('SĐT không có trong CRM ⇒ để nguyên chờ', async () => {
+    /**
+     * Trước bản vá: chia sẻ nhầm số ⇒ chỉ ghi log rồi IM LẶNG, học viên không biết mình sai và
+     * cũng không được hỏi lại trong 24h — mắc kẹt cả ngày vì một lỗi gõ nhầm.
+     */
+    it('SĐT không có trong CRM ⇒ BÁO LẠI kèm lời mời mới để sửa ngay', async () => {
       withSharedPhone(84900000000);
       prisma.student.findMany.mockResolvedValue([]);
 
       await service.autoActivateFromSharedPhone();
 
       expect(prisma.zaloBinding.update).not.toHaveBeenCalled();
+      const call = rabbit.publish.mock.calls.find((c) => (c[1] as { requestUserInfo?: unknown }).requestUserInfo);
+      expect(call).toBeDefined();
+      expect((call![1] as { requestUserInfo: { subtitle: string } }).requestUserInfo.subtitle).toContain(
+        '0900000000',
+      );
+    });
+
+    it('lượt SỬA SAI bỏ qua hạn mức ngày (không để lỗi gõ nhầm thành một ngày mắc kẹt)', async () => {
+      withSharedPhone(84900000000);
+      prisma.student.findMany.mockResolvedValue([]);
+      // Đã hỏi trong ngày rồi — SET NX cho `phone_share_asked` sẽ thất bại nếu code còn dùng nó.
+      redis.client.set.mockImplementation((key: string) =>
+        Promise.resolve(String(key).startsWith('phone_share_asked') ? null : 'OK'),
+      );
+
+      await service.autoActivateFromSharedPhone();
+
+      expect(rabbit.publish.mock.calls.some((c) => (c[1] as { requestUserInfo?: unknown }).requestUserInfo)).toBe(
+        true,
+      );
+    });
+
+    it('CÙNG một số sai chia sẻ lại ⇒ không nhắc lại lần nữa', async () => {
+      withSharedPhone(84900000000);
+      prisma.student.findMany.mockResolvedValue([]);
+      redis.client.set.mockImplementation((key: string) =>
+        Promise.resolve(String(key).startsWith('phone_share_rejected') ? null : 'OK'),
+      );
+
+      await service.autoActivateFromSharedPhone();
+
+      expect(rabbit.publish).not.toHaveBeenCalled();
     });
 
     it('chưa chia sẻ (phone = 0) ⇒ không tra học viên, không kích hoạt', async () => {
