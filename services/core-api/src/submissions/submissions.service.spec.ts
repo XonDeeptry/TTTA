@@ -23,10 +23,15 @@ describe('SubmissionsService', () => {
   });
 
   it('filters list by status when given', async () => {
-    await service.list('awaiting_review', 1);
+    await service.list({ status: 'awaiting_review' }, 1);
     expect(prisma.submission.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { status: 'awaiting_review' } }),
+      expect.objectContaining({ where: { AND: [{ status: 'awaiting_review' }] } }),
     );
+  });
+
+  it('không có bộ lọc nào ⇒ where undefined, truy vấn y hệt trước khi có bộ lọc', async () => {
+    await service.list({}, 1);
+    expect(prisma.submission.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: undefined }));
   });
 
   it('detail throws NotFoundException when submission does not exist', async () => {

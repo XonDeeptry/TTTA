@@ -53,8 +53,13 @@ export class TestUploadService {
 
     const messageId = `test-${randomUUID()}`;
     const ext = this.detectExtension(file.originalname, kind);
-    const relativePath = `${TEST_UPLOAD_DIR}/${messageId}.${ext}`;
-    await fs.mkdir(join(MEDIA_ROOT, TEST_UPLOAD_DIR), { recursive: true });
+    // MỘT THƯ MỤC RIÊNG cho mỗi lần tải lên — giống quy ước `{yyyy}/{mm}/{submissionId}/` của
+    // luồng Zalo (mục 3.8). Trước đây mọi file nằm chung `test-uploads/`, mà grading-worker ghi
+    // `audio.mp3` CẠNH file nguồn (`extract_audio` dùng `dirname`), nên hai lần tải lên đồng
+    // thời sẽ ghi đè `audio.mp3` của nhau và bài này bị chấm bằng tiếng của bài kia.
+    const relativeDir = `${TEST_UPLOAD_DIR}/${messageId}`;
+    const relativePath = `${relativeDir}/original.${ext}`;
+    await fs.mkdir(join(MEDIA_ROOT, relativeDir), { recursive: true });
     await fs.writeFile(join(MEDIA_ROOT, relativePath), file.buffer);
 
     const message: SubmissionMessage = {

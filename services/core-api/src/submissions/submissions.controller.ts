@@ -11,9 +11,18 @@ import { SubmissionPage, SubmissionsService } from './submissions.service';
 export class SubmissionsController {
   constructor(private readonly submissions: SubmissionsService) {}
 
+  /** Mọi tham số lọc đều TÙY CHỌN — không truyền gì thì hành vi y hệt trước khi có bộ lọc. */
   @Get()
-  list(@Query('status') status?: string, @Query('page') page = '1'): Promise<SubmissionPage> {
-    return this.submissions.list(status, Number(page) || 1);
+  list(
+    @Query('status') status?: string,
+    @Query('q') q?: string,
+    @Query('className') className?: string,
+    @Query('kind') kind?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('page') page = '1',
+  ): Promise<SubmissionPage> {
+    return this.submissions.list({ status, q, className, kind, from, to }, Number(page) || 1);
   }
 
   @Get(':id')
