@@ -150,6 +150,66 @@ describe('OnboardingService', () => {
    * động khi khớp ĐÚNG MỘT học viên. Ghép sai còn tệ hơn để chờ — nhận xét sẽ bay sang nhầm
    * người, và một Zalo dùng chung cho anh chị em là mô hình CÓ THẬT ở đây.
    */
+  /**
+   * Gặp thật 2026-09-06: `image_url` VẮNG MẶT ⇒ Zalo trả `-201 image_url is not valid`, tin đi
+   * hết 3 lần retry rồi vào DLQ, và học viên KHÔNG BAO GIỜ thấy lời mời chia sẻ SĐT. Không có
+   * lỗi nào nổi lên tới người vận hành — chỉ là "sao không thấy gì".
+   */
+  describe('lời mời chia sẻ SĐT', () => {
+    function zaloReturnsAvatar(avatar: unknown): void {
+      redis.client.get.mockResolvedValue('tok');
+      service.fetchFn = jest.fn().mockResolvedValue({
+        json: async () => ({ error: 0, data: { avatar } }),
+      }) as never;
+    }
+
+    async function ensureNewBinding(): Promise<void> {
+      prisma.zaloBinding.findMany.mockResolvedValue([]);
+      prisma.zaloBinding.create.mockResolvedValue({ id: 9, zaloUserId: 'u-moi', status: 'pending' });
+      await service.ensureBinding('u-moi');
+      await new Promise((r) => setImmediate(r)); // lời mời gửi KHÔNG await — đợi microtask
+    }
+
+    it('binding MỚI ⇒ gửi lời mời KÈM image_url (Zalo bắt buộc)', async () => {
+      zaloReturnsAvatar('https://zalo.example/oa-avatar.jpg');
+      await ensureNewBinding();
+
+      const call = rabbit.publish.mock.calls.find((c) => (c[1] as { requestUserInfo?: unknown }).requestUserInfo);
+      expect(call).toBeDefined();
+      expect((call![1] as { requestUserInfo: { imageUrl: string } }).requestUserInfo.imageUrl).toBe(
+        'https://zalo.example/oa-avatar.jpg',
+      );
+    });
+
+    it('KHÔNG lấy được ảnh OA ⇒ KHÔNG gửi tin biết trước sẽ lỗi', async () => {
+      zaloReturnsAvatar(null);
+      await ensureNewBinding();
+
+      const call = rabbit.publish.mock.calls.find((c) => (c[1] as { requestUserInfo?: unknown }).requestUserInfo);
+      expect(call).toBeUndefined();
+    });
+
+    it('binding ĐÃ TỒN TẠI ⇒ không hỏi lại (chỉ hỏi đúng một lần)', async () => {
+      redis.client.get.mockResolvedValue('tok');
+      prisma.zaloBinding.findMany.mockResolvedValue([{ id: 1, zaloUserId: 'u-cu', status: 'pending' }]);
+
+      await service.ensureBinding('u-cu');
+      await new Promise((r) => setImmediate(r));
+
+      expect(prisma.zaloBinding.create).not.toHaveBeenCalled();
+      expect(rabbit.publish).not.toHaveBeenCalled();
+    });
+
+    it('lỗi khi gửi lời mời KHÔNG được làm hỏng ensureBinding (worker đang chờ)', async () => {
+      redis.client.get.mockRejectedValue(new Error('redis down'));
+      prisma.zaloBinding.findMany.mockResolvedValue([]);
+      const created = { id: 9, zaloUserId: 'u-moi', status: 'pending' };
+      prisma.zaloBinding.create.mockResolvedValue(created);
+
+      await expect(service.ensureBinding('u-moi')).resolves.toEqual([created]);
+    });
+  });
+
   describe('autoActivateFromSharedPhone', () => {
     function withSharedPhone(phone: unknown): void {
       redis.client.get.mockResolvedValue('tok');

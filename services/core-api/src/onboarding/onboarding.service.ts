@@ -40,6 +40,8 @@ export class OnboardingService implements OnModuleInit {
   private readonly logger = new Logger(OnboardingService.name);
   /** injectable để test — mặc định fetch toàn cục của Node (cùng khuôn TokenService của gateway) */
   fetchFn: typeof fetch = fetch;
+  /** `undefined` = chưa hỏi lần nào; `null` = đã hỏi và Zalo không trả (đừng hỏi lại liên tục). */
+  private oaAvatarCache: string | null | undefined;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -73,18 +75,50 @@ export class OnboardingService implements OnModuleInit {
     const created = await this.prisma.zaloBinding.create({
       data: { zaloUserId, displayName, status: 'pending' },
     });
-    // Chỉ hỏi ĐÚNG MỘT LẦN, tại thời điểm binding vừa sinh ra. Best-effort: hàng đợi lỗi thì
-    // binding vẫn tồn tại và tư vấn vẫn kích hoạt tay được như trước — không được để một tin
-    // nhắn hỏng làm hỏng lời gọi mà grading-worker đang chờ.
-    try {
-      this.requestPhoneShare(zaloUserId);
-    } catch (err) {
-      this.logger.warn(`Không gửi được lời mời chia sẻ SĐT tới ${zaloUserId}: ${(err as Error).message}`);
-    }
+    // Chỉ hỏi ĐÚNG MỘT LẦN, tại thời điểm binding vừa sinh ra (kể cả khi sự kiện là `follow` —
+    // học viên không cần nhắn gì cả). KHÔNG await: grading-worker đang chờ lời gọi này trên
+    // đường nóng, và một lượt gọi Zalo chậm không được phép giữ chân nó. Lỗi thì ghi log, binding
+    // vẫn tồn tại và tư vấn vẫn kích hoạt tay được như trước.
+    void this.requestPhoneShare(zaloUserId).catch((err: Error) => {
+      this.logger.warn(`Không gửi được lời mời chia sẻ SĐT tới ${zaloUserId}: ${err.message}`);
+    });
     return [created];
   }
 
-  private requestPhoneShare(zaloUserId: string): void {
+  /**
+   * `image_url` là BẮT BUỘC với template `request_user_info` — thiếu nó Zalo trả
+   * `-201 image_url is not valid` và tin đi hết 3 lần retry rồi vào DLQ (đã gặp thật 2026-09-06).
+   *
+   * Không hardcode: lấy ảnh đại diện của chính OA qua `oa/getoa`. Ảnh đó do Zalo host nên chắc
+   * chắn hợp lệ, và tự đúng với mọi OA mà không cần ai cấu hình. Cache trong tiến trình vì nó
+   * gần như không đổi; hỏng thì thôi không gửi, chứ KHÔNG gửi một tin biết trước sẽ lỗi.
+   */
+  private async resolveRequestInfoImage(accessToken: string): Promise<string | null> {
+    if (this.oaAvatarCache !== undefined) return this.oaAvatarCache;
+    try {
+      const res = await this.fetchFn('https://openapi.zalo.me/v2.0/oa/getoa', {
+        headers: { access_token: accessToken },
+      });
+      const body = (await res.json()) as { error?: number; data?: { avatar?: unknown } };
+      const avatar = body.error === 0 && typeof body.data?.avatar === 'string' ? body.data.avatar : null;
+      this.oaAvatarCache = avatar;
+      return avatar;
+    } catch (err) {
+      this.logger.warn(`Không lấy được ảnh đại diện OA: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  private async requestPhoneShare(zaloUserId: string): Promise<void> {
+    const accessToken = await this.redis.client.get('zalo:access_token').catch(() => null);
+    if (!accessToken) return;
+    const imageUrl = await this.resolveRequestInfoImage(accessToken);
+    if (!imageUrl) {
+      this.logger.warn(
+        `Bỏ qua lời mời chia sẻ SĐT cho ${zaloUserId}: chưa có ảnh đại diện OA mà Zalo lại bắt buộc image_url`,
+      );
+      return;
+    }
     const message: OutboundMessage = {
       v: 1,
       zaloUserId,
@@ -95,6 +129,7 @@ export class OnboardingService implements OnModuleInit {
         subtitle:
           'Em bấm chia sẻ số điện thoại đã đăng ký với trung tâm để hệ thống ghép đúng tài khoản ' +
           'và bắt đầu gửi nhận xét bài nói cho em nhé.',
+        imageUrl,
       },
     };
     this.rabbit.publish(Q_OUTBOUND, message);
