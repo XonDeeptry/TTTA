@@ -1,11 +1,27 @@
 import { NotFoundException } from '@nestjs/common';
 import { Q_OUTBOUND } from '../contracts';
-import { OnboardingService } from './onboarding.service';
+import { OnboardingService, normalizeVnPhone } from './onboarding.service';
+
+describe('normalizeVnPhone', () => {
+  it.each([
+    ['84987654321', '0987654321', 'Zalo trả kèm mã quốc gia'],
+    [84987654321, '0987654321', 'Zalo trả kiểu SỐ, không phải chuỗi'],
+    ['0987654321', '0987654321', 'đã là dạng nội địa'],
+    ['+84 987 654 321', '0987654321', 'có dấu cộng và khoảng trắng'],
+    ['987654321', '0987654321', 'thiếu số 0 đầu'],
+    [0, null, 'chưa chia sẻ ⇒ Zalo trả 0'],
+    ['', null, 'rỗng'],
+    [null, null, 'không có trường'],
+    [undefined, null, 'không có trường'],
+  ])('%p ⇒ %p (%s)', (input, expected, _note) => {
+    expect(normalizeVnPhone(input as never)).toBe(expected);
+  });
+});
 
 describe('OnboardingService', () => {
   let prisma: {
     zaloBinding: { findMany: jest.Mock; create: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
-    student: { findFirst: jest.Mock };
+    student: { findFirst: jest.Mock; findMany: jest.Mock };
   };
   let rabbit: { publish: jest.Mock };
   let templates: { render: jest.Mock };
@@ -24,7 +40,7 @@ describe('OnboardingService', () => {
         findUnique: jest.fn(),
         update: jest.fn(),
       },
-      student: { findFirst: jest.fn() },
+      student: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     };
     rabbit = { publish: jest.fn() };
     templates = { render: jest.fn().mockResolvedValue('Tài khoản của Nam đã được kích hoạt.') };
@@ -92,7 +108,8 @@ describe('OnboardingService', () => {
 
       expect(row.zaloDisplayName).toBe('Sơn Bùi');
       expect(row.zaloAvatar).toBe('https://a/x.jpg');
-      expect(row.zaloSharedPhone).toBe('84900000000');
+      // Đã chuẩn hóa về dạng nội địa — đúng dạng `students.phone` để tư vấn đối chiếu được ngay.
+      expect(row.zaloSharedPhone).toBe('0900000000');
     });
 
     it('phone = 0 (chưa chia sẻ) ⇒ null, KHÔNG in ra số 0 cho tư vấn', async () => {
@@ -124,9 +141,75 @@ describe('OnboardingService', () => {
       redis.addKnownUser.mockRejectedValue(new Error('redis down'));
 
       await expect(service.activate(1, '0900000000')).resolves.toBe(updated);
-      expect(rabbit.publish).toHaveBeenCalled(); // tin kích hoạt vẫn phải đi
+      expect(rabbit.publish).toHaveBeenCalled();
     });
   });
+
+  /**
+   * Tự kích hoạt từ SĐT học viên CHỦ ĐỘNG chia sẻ qua Zalo. Bất biến quan trọng nhất: chỉ tự
+   * động khi khớp ĐÚNG MỘT học viên. Ghép sai còn tệ hơn để chờ — nhận xét sẽ bay sang nhầm
+   * người, và một Zalo dùng chung cho anh chị em là mô hình CÓ THẬT ở đây.
+   */
+  describe('autoActivateFromSharedPhone', () => {
+    function withSharedPhone(phone: unknown): void {
+      redis.client.get.mockResolvedValue('tok');
+      prisma.zaloBinding.findMany.mockResolvedValue([{ id: 7, zaloUserId: 'u1', status: 'pending' }]);
+      service.fetchFn = jest.fn().mockResolvedValue({
+        json: async () => ({ error: 0, data: { display_name: 'A', shared_info: { phone } } }),
+      }) as never;
+    }
+
+    it('khớp ĐÚNG MỘT học viên ⇒ tự kích hoạt', async () => {
+      withSharedPhone(84900000000);
+      prisma.student.findMany.mockResolvedValue([{ id: 5, code: 'HS1' }]);
+      prisma.zaloBinding.findUnique.mockResolvedValue({ id: 7, zaloUserId: 'u1' });
+      prisma.student.findFirst.mockResolvedValue({ id: 5, fullName: 'Nam' });
+      prisma.zaloBinding.update.mockResolvedValue({ id: 7, status: 'active' });
+
+      await service.autoActivateFromSharedPhone();
+
+      expect(prisma.student.findMany).toHaveBeenCalledWith({ where: { phone: '0900000000' } });
+      expect(prisma.zaloBinding.update).toHaveBeenCalled();
+    });
+
+    it('khớp NHIỀU học viên (anh chị em chung SĐT) ⇒ KHÔNG tự chọn, để tư vấn xử lý', async () => {
+      withSharedPhone(84900000000);
+      prisma.student.findMany.mockResolvedValue([{ id: 5 }, { id: 6 }]);
+
+      await service.autoActivateFromSharedPhone();
+
+      expect(prisma.zaloBinding.update).not.toHaveBeenCalled();
+    });
+
+    it('SĐT không có trong CRM ⇒ để nguyên chờ', async () => {
+      withSharedPhone(84900000000);
+      prisma.student.findMany.mockResolvedValue([]);
+
+      await service.autoActivateFromSharedPhone();
+
+      expect(prisma.zaloBinding.update).not.toHaveBeenCalled();
+    });
+
+    it('chưa chia sẻ (phone = 0) ⇒ không tra học viên, không kích hoạt', async () => {
+      withSharedPhone(0);
+
+      await service.autoActivateFromSharedPhone();
+
+      expect(prisma.student.findMany).not.toHaveBeenCalled();
+      expect(prisma.zaloBinding.update).not.toHaveBeenCalled();
+    });
+
+    it('chưa có token Zalo ⇒ thoát sớm, không gọi ra ngoài', async () => {
+      redis.client.get.mockResolvedValue(null);
+      const fetchFn = jest.fn();
+      service.fetchFn = fetchFn as never;
+
+      await service.autoActivateFromSharedPhone();
+
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
+  });
+
 
   describe('ensureBinding', () => {
     it('creates a pending binding when the zalo user has none yet', async () => {

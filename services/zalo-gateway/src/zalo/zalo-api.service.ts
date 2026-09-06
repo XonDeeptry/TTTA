@@ -7,12 +7,18 @@ import {
   MAX_BUTTON_TITLE_LEN,
   MAX_OUTBOUND_TEXT_LEN,
   OutboundButton,
+  RequestUserInfo,
 } from '../contracts';
 import { RedisService } from '../redis.service';
 import { TokenService } from './token.service';
 
 const SEND_URL = 'https://openapi.zalo.me/v3.0/oa/message/cs';
 const ERR_TOKEN_EXPIRED = -216;
+
+/** Giới hạn của template `request_user_info` (tài liệu Zalo). Cắt chứ không từ chối gửi:
+ * một tiêu đề dài hơn không đáng làm hỏng cả luồng onboarding của học viên. */
+const MAX_REQUEST_INFO_TITLE_LEN = 100;
+const MAX_REQUEST_INFO_SUBTITLE_LEN = 500;
 
 /** F11: kiểu nút tư vấn — cú bấm quay lại dưới dạng `user_send_text` mang đúng chuỗi payload. */
 const BUTTON_TYPE = 'oa.query.show';
@@ -66,6 +72,38 @@ export class ZaloApiService {
     }
     if (data.error !== 0) {
       throw new Error(`Zalo send failed: ${data.error} ${data.message ?? ''}`);
+    }
+  }
+
+  /**
+   * Gửi template xin số điện thoại. Dùng CHUNG `trySend`/nhánh refresh-token với `sendText` —
+   * mọi tin ra Zalo phải đi qua đúng một đường, nếu không nhánh `-216` sẽ chỉ được vá ở một chỗ.
+   *
+   * `text` vẫn gửi kèm để tin có nội dung đọc được nếu client không dựng được template.
+   */
+  async sendRequestUserInfo(zaloUserId: string, text: string, info: RequestUserInfo): Promise<void> {
+    const attachment: ZaloAttachment = {
+      type: 'template',
+      payload: {
+        template_type: 'request_user_info',
+        elements: [
+          {
+            title: info.title.slice(0, MAX_REQUEST_INFO_TITLE_LEN),
+            subtitle: info.subtitle.slice(0, MAX_REQUEST_INFO_SUBTITLE_LEN),
+            ...(info.imageUrl ? { image_url: info.imageUrl } : {}),
+          },
+        ],
+      },
+    };
+    let data = await this.trySend(zaloUserId, text, attachment);
+    if (data.error === ERR_TOKEN_EXPIRED) {
+      this.logger.warn('Access token hết hạn giữa chừng — refresh và gửi lại một lần');
+      const refreshed = await this.tokenService.refreshNow();
+      if (!refreshed) throw new Error('Token expired and refresh failed');
+      data = await this.trySend(zaloUserId, text, attachment);
+    }
+    if (data.error !== 0) {
+      throw new Error(`Zalo request_user_info failed: ${data.error} ${data.message ?? ''}`);
     }
   }
 

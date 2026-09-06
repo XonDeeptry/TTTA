@@ -1,10 +1,25 @@
 import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { ZaloBinding } from '@prisma/client';
 import { OutboundMessage, Q_OUTBOUND } from '../contracts';
 import { MessageTemplatesService } from '../message-templates/message-templates.service';
 import { PrismaService } from '../prisma.service';
 import { RabbitService } from '../rabbit.service';
 import { KNOWN_USERS_KEY, RedisService } from '../redis.service';
+
+/**
+ * Zalo trả SĐT ở dạng có mã quốc gia (`84987654321`), còn `students.phone` lưu dạng nội địa
+ * (`0987654321`). Không chuẩn hóa thì phép so khớp KHÔNG BAO GIỜ đúng — và nó sẽ hỏng một cách
+ * im lặng: học viên bấm chia sẻ, hệ thống nhận số, rồi vẫn để họ nằm chờ mãi.
+ */
+export function normalizeVnPhone(raw: string | number | null | undefined): string | null {
+  if (raw === null || raw === undefined) return null;
+  const digits = String(raw).replace(/\D/g, '');
+  if (digits === '' || Number(digits) === 0) return null;
+  if (digits.startsWith('84')) return `0${digits.slice(2)}`;
+  if (digits.startsWith('0')) return digits;
+  return `0${digits}`;
+}
 
 /** Hồ sơ Zalo kèm theo mỗi dòng chờ kích hoạt; mọi trường có thể vắng khi Zalo không trả lời. */
 export interface ZaloProfile {
@@ -58,7 +73,63 @@ export class OnboardingService implements OnModuleInit {
     const created = await this.prisma.zaloBinding.create({
       data: { zaloUserId, displayName, status: 'pending' },
     });
+    // Chỉ hỏi ĐÚNG MỘT LẦN, tại thời điểm binding vừa sinh ra. Best-effort: hàng đợi lỗi thì
+    // binding vẫn tồn tại và tư vấn vẫn kích hoạt tay được như trước — không được để một tin
+    // nhắn hỏng làm hỏng lời gọi mà grading-worker đang chờ.
+    try {
+      this.requestPhoneShare(zaloUserId);
+    } catch (err) {
+      this.logger.warn(`Không gửi được lời mời chia sẻ SĐT tới ${zaloUserId}: ${(err as Error).message}`);
+    }
     return [created];
+  }
+
+  private requestPhoneShare(zaloUserId: string): void {
+    const message: OutboundMessage = {
+      v: 1,
+      zaloUserId,
+      // `text` là bản dự phòng đọc được nếu client không dựng nổi template.
+      text: 'Em bấm chia sẻ số điện thoại để trung tâm ghép đúng tài khoản học viên nhé.',
+      requestUserInfo: {
+        title: 'Xác thực học viên ILM',
+        subtitle:
+          'Em bấm chia sẻ số điện thoại đã đăng ký với trung tâm để hệ thống ghép đúng tài khoản ' +
+          'và bắt đầu gửi nhận xét bài nói cho em nhé.',
+      },
+    };
+    this.rabbit.publish(Q_OUTBOUND, message);
+  }
+
+  /**
+   * Tự kích hoạt binding khi học viên ĐÃ chia sẻ SĐT qua Zalo.
+   *
+   * Ranh giới an toàn — chỉ tự động khi khớp ĐÚNG MỘT học viên:
+   *  - 0 học viên  ⇒ để nguyên chờ tư vấn (số chia sẻ không có trong CRM)
+   *  - >1 học viên ⇒ để nguyên chờ tư vấn (anh chị em dùng chung SĐT phụ huynh — mô hình một
+   *    Zalo nhiều học viên là CÓ THẬT ở đây, máy không được tự chọn hộ)
+   * Tự ghép sai còn tệ hơn để chờ: nhận xét sẽ bay sang nhầm người.
+   */
+  @Cron('0 */2 * * * *')
+  async autoActivateFromSharedPhone(): Promise<void> {
+    const accessToken = await this.redis.client.get('zalo:access_token').catch(() => null);
+    if (!accessToken) return;
+    const rows = await this.prisma.zaloBinding.findMany({ where: { status: 'pending' } });
+    if (rows.length === 0) return;
+
+    for (const row of rows) {
+      const { zaloSharedPhone } = await this.fetchZaloProfile(accessToken, row.zaloUserId);
+      if (!zaloSharedPhone) continue;
+
+      const matches = await this.prisma.student.findMany({ where: { phone: zaloSharedPhone } });
+      if (matches.length !== 1) {
+        this.logger.warn(
+          `Zalo ${row.zaloUserId} chia sẻ SĐT ${zaloSharedPhone} nhưng khớp ${matches.length} học viên — để tư vấn xử lý tay`,
+        );
+        continue;
+      }
+      await this.activate(row.id, zaloSharedPhone);
+      this.logger.log(`Tự kích hoạt ${row.zaloUserId} → học viên ${matches[0].code} qua SĐT đã chia sẻ`);
+    }
   }
 
   /**
@@ -98,7 +169,7 @@ export class OnboardingService implements OnModuleInit {
       const shared = body.data.shared_info as { phone?: unknown; name?: unknown } | undefined;
       // `shared_info.phone` chỉ khác 0 khi học viên đã CHỦ ĐỘNG chia sẻ qua Zalo. Có thì coi như
       // gợi ý điền sẵn cho tư vấn, KHÔNG tự kích hoạt: khớp SĐT vẫn phải do người quyết định.
-      const sharedPhone = typeof shared?.phone === 'number' && shared.phone > 0 ? String(shared.phone) : null;
+      const sharedPhone = normalizeVnPhone(shared?.phone as string | number | undefined);
       return {
         zaloDisplayName: typeof body.data.display_name === 'string' ? body.data.display_name : null,
         zaloAvatar: typeof body.data.avatar === 'string' ? body.data.avatar : null,

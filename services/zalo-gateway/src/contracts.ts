@@ -33,6 +33,20 @@ export interface OutboundButton {
   payload: string;
 }
 
+/**
+ * Yêu cầu học viên CHIA SẺ SỐ ĐIỆN THOẠI qua Zalo (`template_type: request_user_info`).
+ * Học viên bấm đồng ý một lần, số về `oa/user/detail → shared_info.phone`, core-api tự đối
+ * chiếu với `students.phone`. Đây là cách duy nhất lấy được SĐT hợp lệ: webhook Zalo chỉ đưa
+ * một mã ẩn danh, không kèm thông tin cá nhân nào.
+ */
+export interface RequestUserInfo {
+  /** Zalo giới hạn 100 ký tự. */
+  title: string;
+  /** Zalo giới hạn 500 ký tự. */
+  subtitle: string;
+  imageUrl?: string;
+}
+
 export interface OutboundMessage {
   v: 1;
   zaloUserId: string;
@@ -42,6 +56,9 @@ export interface OutboundMessage {
   submissionId?: string;
   /** F11: vắng mặt hoặc rỗng = tin text thuần đúng như trước F11. */
   buttons?: OutboundButton[];
+  /** Có mặt ⇒ gateway gửi template xin SĐT THAY CHO tin text thuần. Loại trừ lẫn nhau với
+   * `buttons`: Zalo chỉ nhận MỘT `attachment` mỗi tin. */
+  requestUserInfo?: RequestUserInfo;
 }
 
 export const ILM_PAYLOAD_PREFIX = '#ilm:';

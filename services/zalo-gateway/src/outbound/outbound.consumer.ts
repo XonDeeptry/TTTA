@@ -43,6 +43,12 @@ export class OutboundConsumer implements OnApplicationBootstrap {
         return; // gửi muộn hơn cũng không giúp — không retry
       }
     }
+    // Tin xin SĐT là template khác hẳn, nhưng vẫn đi qua ĐÚNG guard 48h ở trên — nó cũng là
+    // một tin gửi ra và cũng phát sinh phí y như mọi tin khác.
+    if (msg.requestUserInfo) {
+      await this.zaloApi.sendRequestUserInfo(msg.zaloUserId, msg.text, msg.requestUserInfo);
+      return;
+    }
     await this.zaloApi.sendText(msg.zaloUserId, msg.text, msg.buttons); // lỗi → RabbitService retry/DLQ
   }
 }

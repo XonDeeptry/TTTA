@@ -61,6 +61,29 @@ class OutboundButton:
 
 
 @dataclass
+class RequestUserInfo:
+    """Yêu cầu học viên CHIA SẺ SỐ ĐIỆN THOẠI qua Zalo (`template_type: request_user_info`).
+
+    Học viên bấm đồng ý một lần, số về `oa/user/detail → shared_info.phone`, core-api tự đối
+    chiếu với `students.phone`. Đây là cách duy nhất lấy được SĐT hợp lệ: webhook Zalo chỉ đưa
+    một mã ẩn danh, không kèm thông tin cá nhân nào.
+
+    Hiện CHỈ core-api phát loại tin này (nó sở hữu luồng onboarding); worker giữ định nghĩa
+    để ba bản contracts không lệch nhau — đúng kỷ luật đã ghi ở CLAUDE.md.
+    """
+
+    title: str  # Zalo giới hạn 100 ký tự
+    subtitle: str  # Zalo giới hạn 500 ký tự
+    imageUrl: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        payload = {"title": self.title, "subtitle": self.subtitle}
+        if self.imageUrl is not None:
+            payload["imageUrl"] = self.imageUrl
+        return payload
+
+
+@dataclass
 class OutboundMessage:
     zaloUserId: str
     text: str
@@ -68,6 +91,9 @@ class OutboundMessage:
     submissionId: Optional[str] = None
     # F11: vắng mặt hoặc rỗng = tin text thuần đúng như trước F11.
     buttons: Optional[list[OutboundButton]] = None
+    # Có mặt => gateway gửi template xin SĐT THAY CHO tin text thuần. Loại trừ lẫn nhau với
+    # `buttons`: Zalo chỉ nhận MỘT `attachment` mỗi tin.
+    requestUserInfo: Optional[RequestUserInfo] = None
     v: int = 1
 
     def to_dict(self) -> dict:
@@ -78,6 +104,8 @@ class OutboundMessage:
             payload["submissionId"] = self.submissionId
         if self.buttons:  # rỗng/None => KHÔNG có khóa `buttons` trên wire
             payload["buttons"] = [b.to_dict() for b in self.buttons]
+        if self.requestUserInfo is not None:
+            payload["requestUserInfo"] = self.requestUserInfo.to_dict()
         return payload
 
 
