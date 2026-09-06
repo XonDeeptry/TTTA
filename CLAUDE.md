@@ -68,8 +68,93 @@ Caddy holds ports 80/443, so two stacks cannot both bind them on one machine. De
 the VPS is a deliberate act with a known rollback (new services: `docker compose stop <service>`;
 the sync change: revert one commit and rebuild core-api).
 
-Never commit `.env`, MariaDB passwords, Moodle web-service tokens, `crm.client_secret`, or Zalo app
-credentials (App ID / App Secret / OA Secret). Update `.env.example` with variable names only.
+Never commit `.env`, MariaDB passwords, Moodle web-service tokens, `crm.client_secret`, Zalo App
+Secret / OA Secret, or any access/refresh token. Update `.env.example` with variable names only.
+
+## Dev/test environment (VPS)
+
+A dedicated **test** VPS exercises the real Zalo OA path end to end. Not production.
+
+| | |
+|---|---|
+| Test domain | `ilm-ttta.duckdns.org` (DuckDNS) |
+| Public IP | `45.120.228.67` — **only ports 80/443 face the internet** |
+| VPN address | `10.0.6.250` — SSH and all admin access go through here |
+| SSH user | `sonbui` |
+| Webhook to register | `https://ilm-ttta.duckdns.org/webhook` |
+
+**Network shape.** Only 80 and 443 are published to the internet (Caddy). Port 22 is **not** exposed —
+the owner reaches the box over VPN at `10.0.6.250`. Three things follow:
+
+1. Internet-facing SSH hardening is not a concern here, and the internet-facing attack surface is
+   Caddy alone.
+2. `docker-compose.yml` binds Postgres (`127.0.0.1:5432`) and the RabbitMQ management UI
+   (`127.0.0.1:15672`) **loopback-only**. On this VPS that means reaching them needs an SSH tunnel
+   over the VPN — e.g. `ssh -L 15672:localhost:15672 sonbui@10.0.6.250`.
+3. **This is a disposable test box — experiment freely.** Restarting containers, wiping volumes,
+   re-seeding data and re-running migrations are all fair game without production-grade caution. Only
+   the *Zalo OA behind it is real*, so the one thing to stay careful about is sending messages to real
+   followers (see the 48h-guard trap below).
+
+The SSH password is not recorded in this file, since it is tracked and pushed to GitHub — ask the
+owner, or install a key.
+
+Set `DOMAIN=ilm-ttta.duckdns.org` in `infra/.env`. Caddy requests the Let's Encrypt certificate at
+boot, so the A record must have propagated **before** `docker compose up`, and ports 80/443 must be
+open for the HTTP-01 challenge. `infra/.env` is gitignored — create it by hand on the VPS, never
+through git. Nothing hardcodes the domain (`Caddyfile` uses `{$DOMAIN:localhost}`), so moving to the
+production domain later is a `.env` change plus re-registering the webhook with Zalo.
+
+### Zalo OA (test) — state as of 2026-09-06
+
+OA `ILM-QC`, `oa_id` 439081102177382393, verified, package "Tăng trưởng" valid through 02/09/2027,
+App ID `4255256627133570208`.
+
+**Proven working against the live OA on 2026-09-06 — the VPS deployment closed TASKS.md M1.8 / M4.9,
+blocked since M1 for want of a real OA:**
+
+- OAuth refresh (`TokenService` logs `Zalo token refreshed`), `oa/getoa`, `oa/user/getlist`
+- **Outbound**: RabbitMQ `outbound` → `OutboundConsumer` → `ZaloApiService.sendText` → user's phone
+- **Inbound**: Zalo → Caddy → `WebhookController` → **HMAC signature verified** → Redis dedup →
+  `submissions` queue → `grading-worker` → core-api `/internal/*`, with `zalo:lastin:{userId}` now
+  populated by real traffic so the 48h guard has genuine data (`OUTBOUND_48H_GUARD=true`)
+- Worker's text branch behaves per spec: `text ngoài luồng -> flag, không trả lời` — a flag row for
+  advisors and **no reply**, which is the "bot does not converse" product boundary holding in production
+- DuckDNS + Let's Encrypt via `tls-alpn-01`, issued automatically by Caddy
+
+**Still unverified**: a real audio/video submission through Zalo into the grading path. Reaching it
+needs a student row plus an active `zalo_bindings` entry, otherwise the pipeline stops at onboarding.
+
+### Operational traps found while doing it
+
+- **Zalo refresh tokens are single-use, and the gateway spends one on every boot** —
+  `TokenService.onApplicationBootstrap` calls `refreshNow()` immediately. So the *live* pair lives in
+  **Redis**, not `.env`; the `.env` values are a one-shot seed consumed at first successful start
+  (`seedTokensIfEmpty` only writes when `zalo:refresh_token` is absent). Re-seeding from a stale
+  `.env` fails with `Zalo OAuth error` and, after 2 consecutive failures, sets `alert:zalo_token_failed`.
+- **Never run two gateways against one OA.** Both refresh every 50 minutes and each refresh
+  invalidates the other's token. Stop the local gateway before the VPS one starts.
+- **`OUTBOUND_48H_GUARD=false` is test-only.** Without a webhook, `zalo:lastin:{userId}` is never
+  written, so `canSendWithin48h` returns false for everyone and every outbound lands unsent on the
+  Redis `blocked_48h` list. Once the webhook works, set it back to `true`.
+- Zalo's 48h free window and the app-side guard are **different mechanisms**: Zalo tracks the user's
+  last inbound message on their own servers whether or not our webhook ever received it. That is why
+  a send can succeed with the app-side guard disabled and no `zalo:lastin` entry present.
+- **`zalo.app_secret` and `zalo.webhook_secret` are two DIFFERENT strings.** The *App Secret Key*
+  authenticates OAuth token refresh (sent as the `secret_key` header to `oauth.zaloapp.com`); the
+  *OA Secret Key* signs webhooks (`sha256(appId + rawBody + timestamp + oaSecret)`,
+  `lib/zalo-signature.ts`). Putting the App Secret into `webhook_secret` makes **every real event 401**
+  while token refresh keeps working perfectly — so the symptom reads as "webhook broken" when the real
+  cause is "wrong key". Both were confirmed distinct against the live OA on 2026-09-06.
+- **Zalo's webhook-registration POST carries no signature; real events do.** Registering the URL
+  therefore fails with 401 whenever `webhook_secret` is set — even when it is set *correctly*. Blank
+  `ZALO_WEBHOOK_SECRET`, register the URL, then restore the OA Secret Key. `webhook.controller.ts`
+  skips verification entirely when the secret is empty (`if (secret && appId)`), which is what makes
+  this two-step possible — and also means an empty secret leaves the endpoint open to forged events,
+  so never leave it blank longer than the registration itself.
+- **Scripting the VPS over SSH: `docker compose exec -T` reads stdin.** When the script is piped in
+  via `ssh ... 'bash -s' <<'EOF'`, an `exec -T` swallows the remaining script lines and everything
+  after it silently vanishes. Always append `< /dev/null` to `docker compose exec` in such scripts.
 
 ## Monorepo layout
 

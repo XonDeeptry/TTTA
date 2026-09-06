@@ -24,8 +24,13 @@ export class CriteriaService {
     return { ...row, rubric: normalizeRubric(row.rubric) as never };
   }
 
-  async list(courseId: number): Promise<Criteria[]> {
-    const rows = await this.prisma.criteria.findMany({ where: { courseId }, orderBy: { version: 'desc' } });
+  /** `courseId` bỏ trống = liệt kê MỌI khóa — màn Tiêu chí cần danh sách đầy đủ để gán
+   * "tiêu chí theo lớp". Truyền courseId thì hành vi y hệt trước đây. */
+  async list(courseId?: number): Promise<Criteria[]> {
+    const rows = await this.prisma.criteria.findMany({
+      where: courseId === undefined ? {} : { courseId },
+      orderBy: { version: 'desc' },
+    });
     return rows.map((row) => this.toV2(row));
   }
 

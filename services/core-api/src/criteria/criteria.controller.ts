@@ -60,7 +60,9 @@ export class CriteriaController {
   ) {}
 
   @Get()
-  list(@Query('courseId', ParseIntPipe) courseId: number): Promise<Criteria[]> {
+  list(
+    @Query('courseId', new ParseIntPipe({ optional: true })) courseId?: number,
+  ): Promise<Criteria[]> {
     return this.criteria.list(courseId);
   }
 

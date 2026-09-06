@@ -25,6 +25,8 @@ interface ClassConfig {
   className: string;
   advisorZaloId: string;
   autoSend: boolean;
+  /** null = lớp dùng bản tiêu chí mới nhất của khóa (mặc định). */
+  criteriaId: number | null;
 }
 
 interface CourseOption {
@@ -42,6 +44,9 @@ export function Criteria() {
   const [classes, setClasses] = useState<ClassConfig[]>([]);
   const [classDrafts, setClassDrafts] = useState<Record<string, Partial<ClassConfig>>>({});
   const [courses, setCourses] = useState<CourseOption[]>([]);
+  // Toàn bộ tiêu chí của MỌI khóa — ô chọn "tiêu chí theo lớp" cần danh sách đầy đủ, độc lập
+  // với khóa đang xem ở phần trên trang.
+  const [allCriteria, setAllCriteria] = useState<CriteriaItem[]>([]);
 
   // F12 — privilege-driven drawer entry points (AC-10.1: `privileges.includes(...)` only, never
   // a client-side "admin has everything" rule — the server already expands that, F10 AC-11.2).
@@ -63,6 +68,7 @@ export function Criteria() {
   useEffect(loadClasses, []);
   useEffect(() => {
     void api.get<CourseOption[]>('/courses').then(setCourses);
+    void api.get<CriteriaItem[]>('/criteria').then(setAllCriteria);
   }, []);
 
   async function upload(e: FormEvent<HTMLFormElement>): Promise<void> {
@@ -86,8 +92,17 @@ export function Criteria() {
     await api.put(`/classes-config/${className}`, {
       advisorZaloId: draft.advisorZaloId ?? existing?.advisorZaloId ?? '',
       autoSend: draft.autoSend ?? existing?.autoSend ?? false,
+      // `null` là giá trị CÓ NGHĨA ở đây (gỡ ghim, quay về bản mới nhất của khóa), nên dùng
+      // `??` chứ không phải `||` — `|| null` sẽ nuốt mất id hợp lệ nếu nó là 0.
+      criteriaId: draft.criteriaId ?? existing?.criteriaId ?? null,
     });
     loadClasses();
+  }
+
+  /** Nhãn ô chọn: khóa · tiêu đề (vN) — cần khóa vì ghim chỉ có hiệu lực trong đúng khóa đó. */
+  function criteriaLabel(c: CriteriaItem): string {
+    const courseKey = courses.find((o) => o.id === c.courseId)?.key ?? `#${c.courseId}`;
+    return `${courseKey} · ${c.title} (v${c.version})`;
   }
 
   return (
@@ -223,6 +238,7 @@ export function Criteria() {
                 <TableRow>
                   <TableHead scope="col">{t('criteria.className')}</TableHead>
                   <TableHead scope="col">{t('criteria.advisorZaloId')}</TableHead>
+                  <TableHead scope="col">{t('criteria.classCriteria')}</TableHead>
                   <TableHead scope="col">{t('criteria.autoSend')}</TableHead>
                   <TableHead scope="col" />
                 </TableRow>
@@ -238,6 +254,29 @@ export function Criteria() {
                           setClassDrafts((d) => ({ ...d, [c.className]: { ...d[c.className], advisorZaloId: e.target.value } }))
                         }
                       />
+                    </TableCell>
+                    <TableCell>
+                      <SelectNative
+                        defaultValue={c.criteriaId == null ? '' : String(c.criteriaId)}
+                        aria-label={t('criteria.classCriteria')}
+                        className="max-w-[16rem]"
+                        onChange={(e) =>
+                          setClassDrafts((d) => ({
+                            ...d,
+                            [c.className]: {
+                              ...d[c.className],
+                              criteriaId: e.target.value === '' ? null : Number(e.target.value),
+                            },
+                          }))
+                        }
+                      >
+                        <option value="">{t('criteria.classCriteriaDefault')}</option>
+                        {allCriteria.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {criteriaLabel(item)}
+                          </option>
+                        ))}
+                      </SelectNative>
                     </TableCell>
                     <TableCell>
                       <input

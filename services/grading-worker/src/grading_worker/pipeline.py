@@ -11,6 +11,7 @@ import logging
 import os
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
+from urllib.parse import urlparse
 
 import httpx
 
@@ -23,13 +24,35 @@ from .grading.providers.factory import grade_with_fallback
 from .grading.rubric_schema import normalize_rubric
 from .grading.schema import build_output_schema, validate_output
 from .media.downloader import download_original
-from .media.ffmpeg import extract_audio, probe_duration_sec
+from .media.ffmpeg import FfmpegError, extract_audio, probe_duration_sec
 from .pricing import estimate_cost_usd, parse_pricing_overrides
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_CLIP_SEC = 7 * 60  # van chi phí mặc định (mục 3.5) nếu chưa cấu hình
 _GRADABLE_KINDS = {"audio", "video"}
+
+# Học viên rất thường thu âm bằng app khác rồi GỬI KÈM DẠNG TỆP, không phải tin nhắn thoại —
+# Zalo sinh ra `user_send_file` (kind='file') chứ không phải `user_send_audio`. Trước 2026-09-06
+# những bài đó rơi thẳng vào flag và học viên không nhận được phản hồi nào.
+#
+# Danh sách này chỉ là LỌC RẺ ở vòng ngoài để khỏi tải về một file .pdf/.zip vô ích. Trọng tài
+# THẬT vẫn là `ffprobe` sau khi tải (xem `_probe_or_reject`): đuôi file do người dùng đặt nên
+# không đáng tin theo cả hai chiều — .pdf đổi tên thành .mp3 vẫn bị ffprobe loại, còn file media
+# không có đuôi vẫn được nhận nhờ ffprobe đọc được nội dung.
+_MEDIA_FILE_EXTS = {
+    "m4a", "mp3", "wav", "aac", "ogg", "oga", "opus", "amr", "flac", "wma", "3gp", "3gpp",
+    "mp4", "mov", "mkv", "webm", "avi", "m4v", "mpeg", "mpg",
+}
+
+
+def _file_may_be_media(url: str | None) -> bool:
+    """True khi tệp ĐÁNG để tải về rồi cho ffprobe phán. Không có đuôi => vẫn thử, vì URL của
+    Zalo không phải lúc nào cũng mang tên tệp; chỉ loại khi đuôi rõ ràng KHÔNG phải media."""
+    if not url:
+        return False
+    ext = os.path.splitext(urlparse(url).path)[1].lstrip(".").lower()
+    return ext in _MEDIA_FILE_EXTS if ext else True
 
 Publisher = Callable[[dict[str, Any]], Awaitable[None]]
 
@@ -113,7 +136,11 @@ class SubmissionPipeline:
                 return
             student_id = active_bindings[0]["studentId"]
 
-        if msg.kind not in _GRADABLE_KINDS:
+        # `file` được chấp nhận CÓ ĐIỀU KIỆN: học viên thu âm bằng app khác rồi gửi kèm tệp là
+        # trường hợp dùng thật, không phải ngoại lệ hiếm. Đuôi tệp chỉ dùng để loại sớm; quyết
+        # định cuối thuộc về ffprobe sau khi tải (mục `_probe_or_reject`).
+        is_gradable = msg.kind in _GRADABLE_KINDS or (msg.kind == "file" and _file_may_be_media(msg.mediaUrl))
+        if not is_gradable:
             await self._core_api.create_flag(submission_id, f"kind='{msg.kind}' không phải audio/video — không tự động chấm")
             return
 
@@ -134,7 +161,9 @@ class SubmissionPipeline:
         )
         await self._core_api.update_submission(submission_id, {"mediaPath": media_path})
 
-        duration_sec = await probe_duration_sec(_abs_media_path(media_path))
+        duration_sec = await self._probe_or_reject(submission_id, media_path, msg.kind)
+        if duration_sec is None:
+            return
         max_clip_sec = await self._config.get_int("limits.max_clip_duration_sec", DEFAULT_MAX_CLIP_SEC)
         if duration_sec > max_clip_sec:
             # Van chi phí chính (mục 3.5): đọc duration TRƯỚC KHI gọi LLM, từ chối chấm nếu quá dài.
@@ -157,7 +186,7 @@ class SubmissionPipeline:
             {"durationSec": int(duration_sec), "audioExtractedAt": datetime.now(timezone.utc).isoformat()},
         )
 
-        criteria = await self._core_api.get_criteria(student["courseId"])
+        criteria = await self._core_api.get_criteria(student["courseId"], student.get("className"))
         if criteria is None:
             await self._core_api.create_flag(submission_id, "chưa có tiêu chí (criteria) cho khóa này")
             await self._core_api.update_submission(submission_id, {"status": "failed"})
@@ -229,6 +258,29 @@ class SubmissionPipeline:
             # Kiểm duyệt (Tranh luận 4): giáo viên duyệt trên dashboard (M4) rồi core-api mới publish outbound.
             await self._core_api.update_submission(submission_id, {"status": "awaiting_review"})
             logger.info("submission %s: awaiting_review (grading %s)", submission_id, grading.get("id"))
+
+    async def _probe_or_reject(self, submission_id: int, media_path: str, kind: str) -> float | None:
+        """Đo độ dài clip. Trả None = đã xử lý xong nhánh từ chối, caller phải `return`.
+
+        Phân biệt QUAN TRỌNG giữa hai loại thất bại của ffprobe:
+          - `kind` là audio/video: Zalo đã khẳng định đây là media, nên ffprobe hỏng nghĩa là
+            có sự cố thật (tải thiếu byte, đĩa lỗi, ffmpeg hỏng). GIỮ NGUYÊN hành vi cũ — ném
+            exception để `rabbit_consumer` retry rồi đẩy DLQ, vì thử lại có thể thành công.
+          - `kind='file'`: người dùng gửi tệp bất kỳ, ffprobe hỏng chỉ có nghĩa "đây không phải
+            file âm thanh". Thử lại 3 lần rồi vào DLQ là vô nghĩa và làm nhiễu hàng đợi lỗi —
+            ghi flag cho tư vấn rồi dừng, đúng như mọi nhánh nghiệp vụ hợp lệ khác.
+        """
+        try:
+            return await probe_duration_sec(_abs_media_path(media_path))
+        except FfmpegError:
+            if kind != "file":
+                raise
+            await self._core_api.create_flag(
+                submission_id, "tệp đính kèm không đọc được như audio/video — không tự động chấm"
+            )
+            await self._core_api.update_submission(submission_id, {"status": "failed"})
+            logger.info("submission %s: file không phải media (ffprobe từ chối) -> flag, dừng", submission_id)
+            return None
 
     # ─── F11: nhánh nút bấm ──────────────────────────────────────────────────────────────
 

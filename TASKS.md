@@ -2,8 +2,8 @@
 
 Bảng theo dõi tiến độ theo lộ trình 5 milestone của [Idea/20260719-KienTrucMicroservices.md](Idea/20260719-KienTrucMicroservices.md) (Phần 4). Cập nhật file này mỗi khi hoàn thành một hạng mục/phase.
 
-**Trạng thái tổng:** M1 + M2 + M3 + M4 hoàn thành ✅ · **M3.7 đã nghiệm thu 2026-08-25** — key Gemini thật đã cấu hình qua dashboard, chấm bài từ audio chạy thật đầu-cuối (chưa có key OpenAI nên provider dự phòng vẫn chưa dùng được) · Còn chờ chủ dự án: app Zalo thật (M1.8) · Đang chờ bắt đầu M5 (pilot)
-**Cập nhật lần cuối:** 2026-08-25
+**Trạng thái tổng:** M1 + M2 + M3 + M4 hoàn thành ✅ · **M3.7 đã nghiệm thu 2026-08-25** — key Gemini thật đã cấu hình qua dashboard, chấm bài từ audio chạy thật đầu-cuối (chưa có key OpenAI nên provider dự phòng vẫn chưa dùng được) · **M1.8 gần xong 2026-09-06** — OA thật + VPS test `ilm-ttta.duckdns.org` đã chạy, luồng vào/ra qua Zalo thật đã kiểm chứng (xem M1.8) · Còn lại: nghiệm thu clip nói thật qua Zalo (M4.9) → rồi M5 (pilot)
+**Cập nhật lần cuối:** 2026-09-06
 
 > ⚠️ **Trước khi bật `classes_config.autoSend` cho bất kỳ lớp nào:** điểm chấm HIỆN CHƯA LẶP LẠI ĐƯỢC — cùng một clip có thể lệch 1 band giữa hai lần chấm ngay cả ở `llm.temperature = 0` (Gemini 3.x là model có bước suy luận, trace thay đổi giữa các lần gọi). Phải đo lại độ ổn định với rubric ĐÚNG lứa tuổi/kỳ thi trước khi giáo viên dựa vào điểm số. Giữ bước kiểm duyệt của người ở giữa model và học viên.
 
@@ -18,7 +18,8 @@ Bảng theo dõi tiến độ theo lộ trình 5 milestone của [Idea/20260719-
 - [x] M1.5 zalo-gateway: job refresh token mỗi 50 phút (ghi cặp token atomic), cảnh báo sau 2 lần lỗi liên tiếp
 - [x] M1.6 Kiểm chứng: **26/26 unit tests pass**; build tsc sạch; docker compose dựng đủ stack; smoke test e2e: POST webhook → `published`, POST lại → `duplicate`, message nằm trong queue `submissions`, healthz OK
 - [x] M1.7 Cập nhật CLAUDE.md: dev commands + layout monorepo
-- [ ] M1.8 **(cần chủ dự án)** Tạo app Zalo Developers + liên kết OA, trỏ subdomain về server, lấy cặp token ban đầu → test với OA thật (tiêu chí nghiệm thu M1: nhắn OA → bot phản hồi; token tự làm mới qua đêm)
+- [~] M1.8 **(phần cần chủ dự án ĐÃ XONG 2026-09-06)** App Zalo `4255256627133570208` + OA `ILM-QC` (`439081102177382393`) đã liên kết; VPS test `ilm-ttta.duckdns.org` (45.120.228.67) chạy đủ 7 container, Caddy tự lấy chứng chỉ Let's Encrypt qua `tls-alpn-01`; cặp token ban đầu đã seed và `TokenService` log `Zalo token refreshed`. **Đã kiểm chứng đầu-cuối:** gửi tin ra tới máy thật (queue `outbound` → `OutboundConsumer` → `sendText`) và nhận webhook thật **có xác thực chữ ký HMAC** → dedup → queue `submissions` → worker → core-api; `zalo:lastin` đã có dữ liệu thật nên guard 48h hoạt động đúng (`OUTBOUND_48H_GUARD=true`). Nhánh text chạy đúng ranh giới sản phẩm: `text ngoài luồng -> flag, không trả lời`.
+  **Còn lại 2 việc quan sát, không phải việc code:** (1) xác nhận token tự làm mới qua đêm (chu kỳ 50 phút — xem log sau ~12h); (2) nhánh "bot phản hồi" hữu cơ, tức gửi clip từ tài khoản chưa có binding để nhận tin onboarding — cần tạo học sinh + khóa học + tiêu chí trước.
 
 ## Milestone 2 — core-api + dữ liệu ✅ (xong 2026-07-20)
 

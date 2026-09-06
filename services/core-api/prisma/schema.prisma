@@ -66,6 +66,7 @@ model Criteria {
   templateKey    String?    @map("template_key")
   createdAt      DateTime   @default(now()) @map("created_at")
   gradings       Grading[]
+  classConfigs   ClassConfig[]
 
   @@map("criteria")
 }
@@ -176,9 +177,15 @@ model Flag {
 }
 
 model ClassConfig {
-  className      String  @id @map("class_name")
-  advisorZaloId  String  @map("advisor_zalo_id")
-  autoSend       Boolean @default(false) @map("auto_send")
+  className      String    @id @map("class_name")
+  advisorZaloId  String    @map("advisor_zalo_id")
+  autoSend       Boolean   @default(false) @map("auto_send")
+  // Tiêu chí RIÊNG của lớp — "cấp độ theo lớp" trong cùng một khóa học. NULL (mặc định) =
+  // lớp dùng bản criteria mới nhất của khóa, tức hành vi y hệt trước khi có cột này.
+  // `onDelete: SetNull` thay vì Cascade/Restrict: nếu criteria bị xóa dưới DB thì lớp phải
+  // TỰ RƠI VỀ fallback theo khóa, chứ không được làm hỏng cấu hình lớp hay chặn việc xóa.
+  criteriaId     Int?      @map("criteria_id")
+  criteria       Criteria? @relation(fields: [criteriaId], references: [id], onDelete: SetNull)
 
   @@map("classes_config")
 }

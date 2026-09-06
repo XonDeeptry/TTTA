@@ -35,8 +35,15 @@ class CoreApiClient:
         res.raise_for_status()
         return res.json()
 
-    async def get_criteria(self, course_id: int) -> Optional[dict[str, Any]]:
-        res = await self._client.get(f"/internal/criteria/{course_id}")
+    async def get_criteria(
+        self, course_id: int, class_name: Optional[str] = None
+    ) -> Optional[dict[str, Any]]:
+        """`class_name` bật nhánh "cấp độ theo lớp": core-api ưu tiên criteria mà lớp đã ghim,
+        và chỉ khi ghim đó thuộc đúng khóa này. Bỏ trống => bản mới nhất của khóa, y như cũ.
+        Việc CHỌN nằm hoàn toàn ở core-api — worker không được tự suy luận rubric nào (BR-01).
+        """
+        params = {"className": class_name} if class_name else None
+        res = await self._client.get(f"/internal/criteria/{course_id}", params=params)
         if res.status_code == 404:
             return None
         res.raise_for_status()

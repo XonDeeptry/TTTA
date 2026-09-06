@@ -17,6 +17,6 @@ export class ClassesConfigController {
 
   @Put(':className')
   upsert(@Param('className') className: string, @Body() body: UpsertClassConfigDto): Promise<ClassConfig> {
-    return this.classesConfig.upsert(className, body.advisorZaloId, body.autoSend);
+    return this.classesConfig.upsert(className, body.advisorZaloId, body.autoSend, body.criteriaId);
   }
 }

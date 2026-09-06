@@ -7,8 +7,10 @@ import {
   NotFoundException,
   Param,
   ParseIntPipe,
+  Logger,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { CostLog, Criteria, Flag, Grading, Submission, ZaloBinding } from '@prisma/client';
@@ -70,6 +72,8 @@ function levelText(value: unknown): string | null {
 @Controller('internal')
 @UseGuards(InternalTokenGuard)
 export class WorkerApiController {
+  private readonly logger = new Logger(WorkerApiController.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
@@ -87,7 +91,23 @@ export class WorkerApiController {
    * bản TS. Đừng "tối ưu" chỗ này — ai đổi phải nêu rõ lý do và cập nhật FR-15.
    */
   @Get('criteria/:courseId')
-  async criteria(@Param('courseId', ParseIntPipe) courseId: number): Promise<Criteria> {
+  async criteria(
+    @Param('courseId', ParseIntPipe) courseId: number,
+    @Query('className') className?: string,
+  ): Promise<Criteria> {
+    // "Cấp độ theo lớp": lớp có thể ghim MỘT criteria cụ thể của khóa. Ghim chỉ có hiệu lực khi
+    // nó thuộc ĐÚNG khóa của học viên — nếu lệch khóa thì bỏ qua và rơi về fallback, vì chấm
+    // bằng rubric của khóa khác là sai âm thầm, tệ hơn hẳn việc dùng bản mặc định.
+    if (className) {
+      const cfg = await this.prisma.classConfig.findUnique({ where: { className } });
+      if (cfg?.criteriaId != null) {
+        const pinned = await this.prisma.criteria.findUnique({ where: { id: cfg.criteriaId } });
+        if (pinned && pinned.courseId === courseId) return pinned;
+        this.logger.warn(
+          `Lớp "${className}" ghim criteria ${cfg.criteriaId} không thuộc khóa ${courseId} — bỏ qua ghim, dùng bản mới nhất của khóa`,
+        );
+      }
+    }
     const latest = await this.prisma.criteria.findFirst({
       where: { courseId },
       orderBy: { version: 'desc' },
