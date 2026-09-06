@@ -38,6 +38,12 @@ export const SETTING_DEFS: SettingDef[] = [
   // (mục 3.12) im lặng — đây là chỗ điền đơn giá thật mà không cần sửa code.
   { key: 'llm.pricing_json', kind: 'string', masked: false },
   { key: 'limits.outbound_48h_guard', kind: 'boolean', masked: false },
+  // Số sự kiện tối đa MỘT NGÀY từ một Zalo user CHƯA có binding `active`. Vượt ngưỡng thì
+  // gateway bỏ tin ngay tại cửa: không vào queue, không sinh `submissions`/`flags`, không có
+  // tin onboarding gửi ra. Học viên đã kích hoạt KHÔNG bao giờ bị đếm — đây là van chống phá
+  // hoại, không phải hạn mức học tập. Để trống = 10. Đặt 0 = chặn hoàn toàn người lạ (dùng khi
+  // đang bị spam; hệ quả là học viên mới cũng không onboarding được cho tới khi bật lại).
+  { key: 'limits.stranger_daily_max', kind: 'number', masked: false },
   { key: 'limits.max_clip_duration_sec', kind: 'number', masked: false },
   { key: 'limits.media_retention_days', kind: 'number', masked: false },
   { key: 'sheets.service_account_json', kind: 'string', masked: true },

@@ -5,9 +5,12 @@ từng giá trị cấu hình, chỉ dùng core-api cho các thao tác ghi/đọ
 
 from __future__ import annotations
 
+import logging
 import os
 
 from redis.asyncio import Redis
+
+logger = logging.getLogger(__name__)
 
 RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://localhost:5672")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
@@ -34,6 +37,19 @@ class ConfigStore:
         if value is None:
             return _ENV_FALLBACKS.get(key)
         return value.decode("utf-8") if isinstance(value, bytes) else value
+
+    async def claim_once_per_day(self, key: str) -> bool:
+        """True nếu ĐÂY là lần đầu trong 24h claim được `key` (khuôn giống `claimMessage` của
+        gateway: `SET ... NX EX`). Dùng để một sự kiện lặp lại chỉ sinh ra MỘT tin nhắn ra.
+
+        Redis hỏng ⇒ trả True: thà gửi trùng một tin còn hơn im lặng nuốt mất tin onboarding
+        của một học viên mới thật.
+        """
+        try:
+            return bool(await self._redis.set(key, "1", nx=True, ex=24 * 3600))
+        except Exception:  # noqa: BLE001 — hạ tầng hỏng không được chặn đường nghiệp vụ
+            logger.warning("Redis lỗi khi claim %s — cho phép gửi", key)
+            return True
 
     async def get_int(self, key: str, default: int) -> int:
         value = await self.get(key)

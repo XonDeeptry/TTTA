@@ -11,12 +11,21 @@ const LASTIN_TTL_SEC = 7 * 24 * 3600;
  */
 export const CONFIG_CHANNEL = 'config:changed';
 
+/**
+ * Set các `zalo_user_id` đã có binding `active`. **core-api ghi, gateway CHỈ ĐỌC** — tên key
+ * phải khớp từng ký tự với hằng cùng tên ở `core-api/src/redis.service.ts`.
+ */
+export const KNOWN_USERS_KEY = 'zalo:known_users';
+
+const STRANGER_QUOTA_TTL_SEC = 24 * 3600;
+
 const ENV_FALLBACKS: Record<string, string | undefined> = {
   'zalo.app_id': process.env.ZALO_APP_ID,
   'zalo.app_secret': process.env.ZALO_APP_SECRET,
   'zalo.oa_id': process.env.ZALO_OA_ID,
   'zalo.webhook_secret': process.env.ZALO_WEBHOOK_SECRET,
   'limits.outbound_48h_guard': process.env.OUTBOUND_48H_GUARD,
+  'limits.stranger_daily_max': process.env.STRANGER_DAILY_MAX,
 };
 
 @Injectable()
@@ -59,6 +68,17 @@ export class RedisService implements OnModuleDestroy {
     return v === 'true' || v === '1';
   }
 
+  /**
+   * Số nguyên không âm. Giá trị rác hoặc âm ⇒ dùng mặc định: một hạn mức cấu hình sai KHÔNG
+   * được phép biến thành "chặn tất cả" và làm câm cả bot.
+   */
+  async getConfigInt(key: string, defaultValue: number): Promise<number> {
+    const v = await this.getConfig(key);
+    if (v === null || v === '') return defaultValue;
+    const n = Number(v);
+    return Number.isInteger(n) && n >= 0 ? n : defaultValue;
+  }
+
   // ---- Chống trùng (idempotency) ----
 
   /** true nếu đây là lần đầu thấy message_id (đã claim thành công) */
@@ -71,6 +91,26 @@ export class RedisService implements OnModuleDestroy {
 
   async recordInbound(zaloUserId: string, atMs: number): Promise<void> {
     await this.client.set(`zalo:lastin:${zaloUserId}`, String(atMs), 'EX', LASTIN_TTL_SEC);
+  }
+
+  /** Đã có binding `active` (core-api mirror sang) ⇒ là học viên, KHÔNG bị hạn mức người lạ. */
+  async isKnownUser(zaloUserId: string): Promise<boolean> {
+    return (await this.client.sismember(KNOWN_USERS_KEY, zaloUserId)) === 1;
+  }
+
+  /**
+   * Đếm sự kiện trong ngày của MỘT người lạ. Trả về số thứ tự sau khi tăng.
+   *
+   * Key có ngày UTC bên trong nên tự hết hạn theo ngày mà không cần job dọn; TTL chỉ đặt ở lần
+   * INCR đầu tiên (khi trả về 1) để cửa sổ không bị đẩy lùi vô hạn bởi chính kẻ đang spam —
+   * đặt EXPIRE mỗi lượt là biến hạn mức ngày thành hạn mức trượt không bao giờ hết.
+   */
+  async bumpStrangerCount(zaloUserId: string, nowMs: number): Promise<number> {
+    const day = new Date(nowMs).toISOString().slice(0, 10);
+    const key = `stranger:${day}:${zaloUserId}`;
+    const count = await this.client.incr(key);
+    if (count === 1) await this.client.expire(key, STRANGER_QUOTA_TTL_SEC);
+    return count;
   }
 
   async getLastInbound(zaloUserId: string): Promise<number | null> {

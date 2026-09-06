@@ -9,6 +9,7 @@ describe('OnboardingService', () => {
   };
   let rabbit: { publish: jest.Mock };
   let templates: { render: jest.Mock };
+  let redis: { addKnownUser: jest.Mock; replaceKnownUsers: jest.Mock };
   let service: OnboardingService;
 
   beforeEach(() => {
@@ -23,7 +24,53 @@ describe('OnboardingService', () => {
     };
     rabbit = { publish: jest.fn() };
     templates = { render: jest.fn().mockResolvedValue('Tài khoản của Nam đã được kích hoạt.') };
-    service = new OnboardingService(prisma as never, rabbit as never, templates as never);
+    redis = {
+      addKnownUser: jest.fn().mockResolvedValue(undefined),
+      replaceKnownUsers: jest.fn().mockResolvedValue(undefined),
+    };
+    service = new OnboardingService(prisma as never, rabbit as never, templates as never, redis as never);
+  });
+
+  /**
+   * Danh sách "người đã biết" cho gateway phân biệt học viên với người lạ (hạn mức chống spam).
+   * Postgres là nguồn sự thật; Redis chỉ là bản sao đọc và được DỰNG LẠI mỗi lần khởi động,
+   * nên không bao giờ trôi khỏi DB.
+   */
+  describe('mirror danh sách người đã kích hoạt', () => {
+    it('khởi động ⇒ dựng lại từ MỌI binding active, đã khử trùng lặp', async () => {
+      prisma.zaloBinding.findMany.mockResolvedValue([
+        { zaloUserId: 'u1' },
+        { zaloUserId: 'u2' },
+        { zaloUserId: 'u1' }, // một Zalo nhiều học viên ⇒ trùng id là chuyện BÌNH THƯỜNG
+      ]);
+      await service.onModuleInit();
+      expect(prisma.zaloBinding.findMany).toHaveBeenCalledWith({
+        where: { status: 'active' },
+        select: { zaloUserId: true },
+      });
+      expect(redis.replaceKnownUsers).toHaveBeenCalledWith(['u1', 'u2']);
+    });
+
+    it('kích hoạt ⇒ thêm user vào danh sách ngay', async () => {
+      prisma.zaloBinding.findUnique.mockResolvedValue({ id: 1, zaloUserId: 'user-9' });
+      prisma.student.findFirst.mockResolvedValue({ id: 5, fullName: 'Nam' });
+      prisma.zaloBinding.update.mockResolvedValue({ id: 1, status: 'active' });
+
+      await service.activate(1, '0900000000');
+
+      expect(redis.addKnownUser).toHaveBeenCalledWith('user-9');
+    });
+
+    it('Redis hỏng KHÔNG được làm hỏng việc kích hoạt (binding đã ghi Postgres xong)', async () => {
+      prisma.zaloBinding.findUnique.mockResolvedValue({ id: 1, zaloUserId: 'user-9' });
+      prisma.student.findFirst.mockResolvedValue({ id: 5, fullName: 'Nam' });
+      const updated = { id: 1, status: 'active' };
+      prisma.zaloBinding.update.mockResolvedValue(updated);
+      redis.addKnownUser.mockRejectedValue(new Error('redis down'));
+
+      await expect(service.activate(1, '0900000000')).resolves.toBe(updated);
+      expect(rabbit.publish).toHaveBeenCalled(); // tin kích hoạt vẫn phải đi
+    });
   });
 
   describe('ensureBinding', () => {

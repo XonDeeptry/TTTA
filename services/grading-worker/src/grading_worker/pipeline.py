@@ -120,8 +120,16 @@ class SubmissionPipeline:
         student_id = _as_student_id(submission.get("studentId"))
         if student_id is None:
             if not active_bindings:
-                await self._publish_outbound(msg.zaloUserId, "Tài khoản của em đang chờ kích hoạt, tư vấn sẽ liên hệ sớm nhé.")
-                logger.info("submission %s: binding pending -> outbound onboarding, dừng", submission_id)
+                # MỘT tin onboarding mỗi 24h cho mỗi người, không phải mỗi bài nộp. Người gửi 5
+                # clip liên tiếp lúc chưa được kích hoạt sẽ nhận 5 tin giống hệt — vừa phiền học
+                # viên thật, vừa là 5 lượt gọi API Zalo miễn phí cho kẻ phá hoại.
+                if await self._config.claim_once_per_day(f"onboarding_sent:{msg.zaloUserId}"):
+                    await self._publish_outbound(
+                        msg.zaloUserId, "Tài khoản của em đang chờ kích hoạt, tư vấn sẽ liên hệ sớm nhé."
+                    )
+                    logger.info("submission %s: binding pending -> outbound onboarding, dừng", submission_id)
+                else:
+                    logger.info("submission %s: binding pending, đã gửi onboarding trong 24h -> chỉ dừng", submission_id)
                 return
             if len(active_bindings) > 1:
                 names = ", ".join(b.get("displayName") or b["zaloUserId"] for b in active_bindings)
