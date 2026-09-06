@@ -4,7 +4,7 @@ import { InternalTokenGuard } from '../auth/internal-token.guard';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
 import { ActivateBindingDto } from './dto/activate-binding.dto';
 import { EnsureBindingDto } from './dto/ensure-binding.dto';
-import { OnboardingService } from './onboarding.service';
+import { OnboardingService, PendingBinding } from './onboarding.service';
 
 @Controller()
 export class OnboardingController {
@@ -19,7 +19,7 @@ export class OnboardingController {
 
   @Get('onboarding/pending')
   @UseGuards(SessionAuthGuard)
-  pending(): Promise<ZaloBinding[]> {
+  pending(): Promise<PendingBinding[]> {
     return this.onboarding.listPending();
   }
 

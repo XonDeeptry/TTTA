@@ -9,7 +9,11 @@ describe('OnboardingService', () => {
   };
   let rabbit: { publish: jest.Mock };
   let templates: { render: jest.Mock };
-  let redis: { addKnownUser: jest.Mock; replaceKnownUsers: jest.Mock };
+  let redis: {
+    addKnownUser: jest.Mock;
+    replaceKnownUsers: jest.Mock;
+    client: { get: jest.Mock };
+  };
   let service: OnboardingService;
 
   beforeEach(() => {
@@ -27,6 +31,8 @@ describe('OnboardingService', () => {
     redis = {
       addKnownUser: jest.fn().mockResolvedValue(undefined),
       replaceKnownUsers: jest.fn().mockResolvedValue(undefined),
+      // Mặc định KHÔNG có token ⇒ listPending bỏ qua bước gọi Zalo, trả danh sách thô như cũ.
+      client: { get: jest.fn().mockResolvedValue(null) },
     };
     service = new OnboardingService(prisma as never, rabbit as never, templates as never, redis as never);
   });
@@ -59,6 +65,55 @@ describe('OnboardingService', () => {
       await service.activate(1, '0900000000');
 
       expect(redis.addKnownUser).toHaveBeenCalledWith('user-9');
+    });
+
+    it('không có token Zalo ⇒ trả danh sách thô, KHÔNG gọi ra ngoài', async () => {
+      prisma.zaloBinding.findMany.mockResolvedValue([{ id: 1, zaloUserId: 'u1', status: 'pending' }]);
+      const fetchFn = jest.fn();
+      service.fetchFn = fetchFn as never;
+
+      const rows = await service.listPending();
+
+      expect(rows).toEqual([{ id: 1, zaloUserId: 'u1', status: 'pending' }]);
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
+
+    it('có token ⇒ làm giàu tên + ảnh + SĐT đã chia sẻ từ hồ sơ Zalo', async () => {
+      prisma.zaloBinding.findMany.mockResolvedValue([{ id: 1, zaloUserId: 'u1', status: 'pending' }]);
+      redis.client.get.mockResolvedValue('tok');
+      service.fetchFn = jest.fn().mockResolvedValue({
+        json: async () => ({
+          error: 0,
+          data: { display_name: 'Sơn Bùi', avatar: 'https://a/x.jpg', shared_info: { phone: 84900000000 } },
+        }),
+      }) as never;
+
+      const [row] = await service.listPending();
+
+      expect(row.zaloDisplayName).toBe('Sơn Bùi');
+      expect(row.zaloAvatar).toBe('https://a/x.jpg');
+      expect(row.zaloSharedPhone).toBe('84900000000');
+    });
+
+    it('phone = 0 (chưa chia sẻ) ⇒ null, KHÔNG in ra số 0 cho tư vấn', async () => {
+      prisma.zaloBinding.findMany.mockResolvedValue([{ id: 1, zaloUserId: 'u1', status: 'pending' }]);
+      redis.client.get.mockResolvedValue('tok');
+      service.fetchFn = jest.fn().mockResolvedValue({
+        json: async () => ({ error: 0, data: { display_name: 'A', shared_info: { phone: 0 } } }),
+      }) as never;
+
+      const [row] = await service.listPending();
+      expect(row.zaloSharedPhone).toBeNull();
+    });
+
+    it('Zalo lỗi ⇒ vẫn trả danh sách, chỉ thiếu tên (không làm chết màn hình vận hành)', async () => {
+      prisma.zaloBinding.findMany.mockResolvedValue([{ id: 1, zaloUserId: 'u1', status: 'pending' }]);
+      redis.client.get.mockResolvedValue('tok');
+      service.fetchFn = jest.fn().mockRejectedValue(new Error('mạng hỏng')) as never;
+
+      const [row] = await service.listPending();
+      expect(row.id).toBe(1);
+      expect(row.zaloDisplayName).toBeUndefined();
     });
 
     it('Redis hỏng KHÔNG được làm hỏng việc kích hoạt (binding đã ghi Postgres xong)', async () => {

@@ -12,6 +12,11 @@ interface ZaloBinding {
   zaloUserId: string;
   displayName: string | null;
   status: string;
+  /** Lấy trực tiếp từ hồ sơ Zalo (`oa/user/detail`) — có thể vắng khi Zalo không trả lời. */
+  zaloDisplayName?: string | null;
+  zaloAvatar?: string | null;
+  /** Chỉ có khi học viên đã chủ động chia sẻ SĐT qua Zalo — là GỢI Ý, tư vấn vẫn phải xác nhận. */
+  zaloSharedPhone?: string | null;
 }
 
 export function Onboarding() {
@@ -43,9 +48,19 @@ export function Onboarding() {
         {pending.map((b) => (
           <li key={b.id}>
             <Card className="flex flex-wrap items-center justify-between gap-4 p-4">
-              <div>
-                <strong className="text-body">{b.displayName ?? b.zaloUserId}</strong>{' '}
-                <span className="text-muted-foreground">({b.zaloUserId})</span>
+              <div className="flex items-center gap-3">
+                {b.zaloAvatar ? (
+                  <img src={b.zaloAvatar} alt="" className="h-10 w-10 shrink-0 rounded-full" />
+                ) : null}
+                <div>
+                  <strong className="text-body">{b.zaloDisplayName ?? b.displayName ?? b.zaloUserId}</strong>{' '}
+                  <span className="text-muted-foreground">({b.zaloUserId})</span>
+                  {b.zaloSharedPhone ? (
+                    <p className="text-muted-foreground">
+                      {t('onboarding.sharedPhone')}: <strong>{b.zaloSharedPhone}</strong>
+                    </p>
+                  ) : null}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <form onSubmit={(e) => activate(e, b.id)} className="flex items-center gap-2">

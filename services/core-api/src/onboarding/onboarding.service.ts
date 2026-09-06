@@ -6,6 +6,16 @@ import { PrismaService } from '../prisma.service';
 import { RabbitService } from '../rabbit.service';
 import { KNOWN_USERS_KEY, RedisService } from '../redis.service';
 
+/** Hồ sơ Zalo kèm theo mỗi dòng chờ kích hoạt; mọi trường có thể vắng khi Zalo không trả lời. */
+export interface ZaloProfile {
+  zaloDisplayName?: string | null;
+  zaloAvatar?: string | null;
+  /** Chỉ có khi học viên đã CHỦ ĐỘNG chia sẻ SĐT qua Zalo. Là gợi ý, không phải căn cứ tự động. */
+  zaloSharedPhone?: string | null;
+}
+
+export type PendingBinding = ZaloBinding & ZaloProfile;
+
 /**
  * ChoGan (mục 3.6): worker (M3) gọi ensureBinding khi thấy zalo_user_id chưa có binding;
  * tư vấn xem danh sách pending trên dashboard rồi điền SĐT để kích hoạt.
@@ -13,6 +23,8 @@ import { KNOWN_USERS_KEY, RedisService } from '../redis.service';
 @Injectable()
 export class OnboardingService implements OnModuleInit {
   private readonly logger = new Logger(OnboardingService.name);
+  /** injectable để test — mặc định fetch toàn cục của Node (cùng khuôn TokenService của gateway) */
+  fetchFn: typeof fetch = fetch;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -49,8 +61,53 @@ export class OnboardingService implements OnModuleInit {
     return [created];
   }
 
-  listPending(): Promise<ZaloBinding[]> {
-    return this.prisma.zaloBinding.findMany({ where: { status: 'pending' }, orderBy: { createdAt: 'asc' } });
+  /**
+   * Danh sách chờ kích hoạt, LÀM GIÀU bằng hồ sơ Zalo (tên hiển thị + ảnh).
+   *
+   * Vì sao cần: webhook Zalo chỉ cho một mã ẩn danh kiểu `622991356594920384`. Tư vấn nhìn vào
+   * đó thì không thể biết đây là học viên nào để nhập đúng số điện thoại — luồng ChoGan trên
+   * giấy thì chạy, nhưng trên màn hình thì bế tắc. `oa/user/detail` trả về `display_name` và
+   * `avatar`, đủ để đối chiếu với danh sách lớp.
+   *
+   * BEST-EFFORT: Zalo lỗi/hết token thì vẫn trả danh sách như cũ, chỉ thiếu tên. Không bao giờ
+   * để một lượt gọi ra ngoài làm chết màn hình vận hành.
+   */
+  async listPending(): Promise<PendingBinding[]> {
+    const rows = await this.prisma.zaloBinding.findMany({
+      where: { status: 'pending' },
+      orderBy: { createdAt: 'asc' },
+    });
+    const accessToken = await this.redis.client.get('zalo:access_token').catch(() => null);
+    if (!accessToken || rows.length === 0) return rows;
+
+    return Promise.all(
+      rows.map(async (row) => {
+        const profile = await this.fetchZaloProfile(accessToken, row.zaloUserId);
+        return { ...row, ...profile };
+      }),
+    );
+  }
+
+  private async fetchZaloProfile(accessToken: string, zaloUserId: string): Promise<ZaloProfile> {
+    try {
+      const url = new URL('https://openapi.zalo.me/v3.0/oa/user/detail');
+      url.searchParams.set('data', JSON.stringify({ user_id: zaloUserId }));
+      const res = await this.fetchFn(url.toString(), { headers: { access_token: accessToken } });
+      const body = (await res.json()) as { error?: number; data?: Record<string, unknown> };
+      if (body.error !== 0 || !body.data) return {};
+      const shared = body.data.shared_info as { phone?: unknown; name?: unknown } | undefined;
+      // `shared_info.phone` chỉ khác 0 khi học viên đã CHỦ ĐỘNG chia sẻ qua Zalo. Có thì coi như
+      // gợi ý điền sẵn cho tư vấn, KHÔNG tự kích hoạt: khớp SĐT vẫn phải do người quyết định.
+      const sharedPhone = typeof shared?.phone === 'number' && shared.phone > 0 ? String(shared.phone) : null;
+      return {
+        zaloDisplayName: typeof body.data.display_name === 'string' ? body.data.display_name : null,
+        zaloAvatar: typeof body.data.avatar === 'string' ? body.data.avatar : null,
+        zaloSharedPhone: sharedPhone,
+      };
+    } catch (err) {
+      this.logger.warn(`Không lấy được hồ sơ Zalo của ${zaloUserId}: ${(err as Error).message}`);
+      return {};
+    }
   }
 
   async activate(id: number, phone: string): Promise<ZaloBinding> {

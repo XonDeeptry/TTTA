@@ -76,6 +76,7 @@ const vi = {
       'onboarding.title': 'Tài khoản chờ kích hoạt',
       'onboarding.empty': 'Không có tài khoản nào đang chờ',
       'onboarding.phone': 'Số điện thoại học viên',
+      'onboarding.sharedPhone': 'SĐT học viên đã chia sẻ qua Zalo',
       'onboarding.activate': 'Kích hoạt',
       'onboarding.activated': 'Đã kích hoạt',
 
@@ -515,6 +516,7 @@ const en: Record<keyof typeof vi, string> = {
       'onboarding.title': 'Pending accounts',
       'onboarding.empty': 'No pending bindings',
       'onboarding.phone': "Student's phone number",
+      'onboarding.sharedPhone': 'Phone shared by the student via Zalo',
       'onboarding.activate': 'Activate',
       'onboarding.activated': 'Activated',
 

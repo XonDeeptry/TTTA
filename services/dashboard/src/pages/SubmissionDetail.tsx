@@ -80,8 +80,19 @@ export function SubmissionDetail() {
   function seekTo(seconds: number): void {
     const el = audioRef.current;
     if (!el) return;
-    el.currentTime = Math.max(0, seconds - SEEK_LEAD_SEC);
-    void el.play().catch(() => undefined); // trình duyệt chặn autoplay ⇒ vẫn đã tua đúng chỗ
+    const target = Math.max(0, seconds - SEEK_LEAD_SEC);
+    const jump = (): void => {
+      el.currentTime = target;
+      void el.play().catch(() => undefined); // trình duyệt chặn autoplay ⇒ vẫn đã tua đúng chỗ
+    };
+    // Gán `currentTime` khi chưa có metadata thì trình duyệt LẶNG LẼ BỎ QUA. Lần bấm đầu tiên
+    // (người dùng chưa từng nhấn play) rơi đúng vào trường hợp đó, nên phải đợi `loadedmetadata`.
+    if (el.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      jump();
+    } else {
+      el.addEventListener('loadedmetadata', jump, { once: true });
+      el.load();
+    }
   }
 
   function formatTimestamp(seconds: number): string {
