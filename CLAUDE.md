@@ -4,42 +4,97 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+> ### ⛔ DO NOT start Docker on the dev machine — build and test on the VPS (`10.0.6.250`)
+>
+> Node/npm are not run directly on the dev box (owner's constraint), and **Docker Desktop there is
+> not reliable for this project**: it stopped mid-session twice on 2026-09-06, and a jest worker has
+> been OOM-killed at full parallelism. The VPS is the build machine — 8 cores / 15GB, always up, and
+> it is the same Linux the images actually run on. Do not `docker compose up` locally either: the
+> local stack and the VPS stack would both refresh the *same* Zalo OA token and invalidate each
+> other (see the token trap below).
+>
+> Exception: **grading-worker's pytest runs locally** in the venv. It is pure Python with everything
+> mocked, needs no Docker, and finishes in ~3s.
+
 ```bash
-# Node/npm are NOT run directly on the dev machine (project owner's constraint) — build/test
-# TS/JS through Docker instead. Reduce jest's --maxWorkers if the box is tight on RAM alongside
-# the running docker-compose stack (a jest worker has been OOM-killed at full parallelism before).
-docker run --rm -v "<abs-path-to-service>:/app" -w /app node:24-alpine sh -c "npm ci && npm test -- --maxWorkers=2"
-# On Windows Git Bash, prefix with MSYS_NO_PATHCONV=1 so `-v`/`-w` paths aren't mangled.
-# `docker compose build <service>` also exercises the tsc/vite compile step (see Dockerfiles).
+# ── Run TS/JS builds and tests ON THE VPS ────────────────────────────────────────────────
+# 1. Copy only the files you changed (tar over ssh — no rsync on the box, and this preserves
+#    new files, which `git diff` patches do not).
+cd /d/Docs/Project/TTTA
+tar czf - services/core-api/src/onboarding services/core-api/src/contracts.ts \
+  | ssh -i "$HOME/.ssh/ttta_vps" -o BatchMode=yes sonbui@10.0.6.250 'cd ~/TTTA && tar xzf -'
 
-# core-api only (services/core-api)
-npm run prisma:migrate  # `prisma migrate dev` — needs Postgres reachable at localhost:5432
-                        # (docker-compose binds it loopback-only for exactly this)
-npm run prisma:generate # regenerate the Prisma client after schema.prisma changes
+# 2. Typecheck + test. `npm ci` only needed the first time (node_modules persists in the mount).
+ssh -i "$HOME/.ssh/ttta_vps" -o BatchMode=yes sonbui@10.0.6.250 \
+  'docker run --rm -v "$HOME/TTTA/services/core-api:/app" -w /app node:24-alpine sh -c \
+   "npx tsc --noEmit 2>&1 | tail -8; echo TSC-DONE; npm test -- --maxWorkers=2 2>&1 | tail -6" < /dev/null'
 
-# dashboard (services/dashboard) — also in docker-compose since M4 (Caddy serves the built SPA)
-npm run dev   # Vite dev server, proxies /api to localhost:3001 — fastest iteration loop
+# `npx tsc --noEmit` FAILS with "This is not the tsc command you are looking for" when node_modules
+# is absent — run `npm ci --silent` first. That message is not a type error; do not read an empty
+# tsc section as "clean" (a `&& echo CLEAN` after it will lie to you).
 
-# grading-worker (services/grading-worker) — Python, venv-based (not containerized for dev)
+# 3. Deploy: rebuild only the affected services. core-api runs `prisma migrate deploy` at startup
+#    (Dockerfile CMD), so migrations apply automatically.
+ssh -i "$HOME/.ssh/ttta_vps" sonbui@10.0.6.250 \
+  'cd ~/TTTA/infra && docker compose up -d --build core-api dashboard < /dev/null'
+
+# The `dashboard` service is a one-shot build container: it compiles the SPA into the shared
+# `dashboarddist` volume and EXITS (`restart: "no"`). "exited (0)" is success, not a failure.
+
+# ── grading-worker: runs locally, no Docker ──────────────────────────────────────────────
 python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"  # Windows; Scripts→bin on Linux/Mac
-.venv/Scripts/pytest                 # all tests mocked — no real Rabbit/Redis/core-api/LLM needed
-.venv/Scripts/pytest tests/test_pipeline.py -v
+.venv/Scripts/python.exe -m pytest -q          # all mocked — no Rabbit/Redis/core-api/LLM needed
+.venv/Scripts/python.exe -m pytest tests/test_pipeline.py -v
 
-# Full stack (from infra/; needs infra/.env — copy from .env.example, set DOMAIN=localhost for dev
-# or Caddy will try to obtain a real Let's Encrypt cert and fail)
-docker compose up -d --build
-docker compose logs core-api --tail 20
-docker compose logs grading-worker --tail 20
-docker compose exec rabbitmq rabbitmqctl list_queues name messages
-docker compose exec postgres psql -U ilm -d ilm -c '\dt'
-docker compose down
+# ── Prisma (services/core-api) ───────────────────────────────────────────────────────────
+npm run prisma:migrate   # `prisma migrate dev` — authoring a new migration; needs Postgres
+npm run prisma:generate  # regenerate the client after schema.prisma changes
 
-# Publish a fixture message straight onto the submissions queue (no real Zalo message needed) —
-# RabbitMQ management API is loopback-only, matches infra/.env RABBITMQ_DEFAULT_USER/PASS:
-curl -u ilm:change-me -X POST http://localhost:15672/api/exchanges/%2f/ilm.direct/publish \
+# ── Inspecting the running stack — ALL of this runs on the VPS, over SSH ─────────────────
+# Every `docker compose exec` needs `< /dev/null`; see the SSH scripting trap below.
+ssh -i "$HOME/.ssh/ttta_vps" sonbui@10.0.6.250 'bash -s' <<'EOF'
+cd ~/TTTA/infra
+docker compose ps --format '{{.Service}} {{.State}}' < /dev/null
+docker compose logs core-api --tail 20 < /dev/null
+docker compose logs grading-worker --tail 20 < /dev/null
+docker compose exec -T rabbitmq rabbitmqctl list_queues name messages < /dev/null
+docker compose exec -T postgres psql -U ilm -d ilm -c '\dt' < /dev/null
+docker compose exec -T redis redis-cli --raw KEYS 'config:*' < /dev/null
+EOF
+
+# Publish a fixture message straight onto a queue (no real Zalo message needed). RabbitMQ's
+# management API is loopback-only, so this must run ON the VPS; credentials come from infra/.env.
+ssh -i "$HOME/.ssh/ttta_vps" sonbui@10.0.6.250 'bash -s' <<'EOF'
+cd ~/TTTA/infra
+RU=$(grep '^RABBITMQ_DEFAULT_USER=' .env | cut -d= -f2)
+RP=$(grep '^RABBITMQ_DEFAULT_PASS=' .env | cut -d= -f2)
+curl -s -u "$RU:$RP" -X POST "http://localhost:15672/api/exchanges/%2f/ilm.direct/publish" \
   -H "Content-Type: application/json" \
   -d '{"routing_key":"submissions","properties":{},"payload_encoding":"string","payload":"{\"v\":1,\"messageId\":\"m1\",\"eventName\":\"user_send_text\",\"kind\":\"text\",\"zaloUserId\":\"u1\",\"receivedAt\":\"2026-01-01T00:00:00Z\"}"}'
+EOF
+
+# Dashboard/API over HTTPS (session cookie auth — log in first, reuse the cookie jar):
+#   curl -s -c cj.txt -X POST https://ilm-ttta.duckdns.org/api/auth/login \
+#     -H 'Content-Type: application/json' -d '{"email":"...","password":"..."}'
+#   curl -s -b cj.txt https://ilm-ttta.duckdns.org/api/submissions
 ```
+
+### Verifying against the live Zalo OA
+
+The most reliable way to check a Zalo integration is to **call the real API from the VPS** — the
+access token lives in Redis, not in `.env`:
+
+```bash
+TOK=$(docker compose exec -T redis redis-cli --raw GET zalo:access_token < /dev/null | tr -d '\r\n')
+curl -s -H "access_token: $TOK" https://openapi.zalo.me/v2.0/oa/getoa            # OA profile + avatar
+curl -s -H "access_token: $TOK" --get --data-urlencode 'data={"user_id":"<id>"}' \
+  https://openapi.zalo.me/v3.0/oa/user/detail   # display_name, avatar, shared_info.phone
+```
+
+`oa/user/detail` is what makes onboarding workable: the webhook only carries an anonymous
+`user_id`, but this endpoint returns the follower's `display_name`, `avatar`, and — once they tap
+the `request_user_info` template — `shared_info.phone`. **Zalo exposes no pricing anywhere** (12
+fields on `models.list`, none about cost), which is why `llm.pricing_json` is a manual setting.
 
 ## Task tracking
 
@@ -96,8 +151,18 @@ the owner reaches the box over VPN at `10.0.6.250`. Three things follow:
    the *Zalo OA behind it is real*, so the one thing to stay careful about is sending messages to real
    followers (see the 48h-guard trap below).
 
-The SSH password is not recorded in this file, since it is tracked and pushed to GitHub — ask the
-owner, or install a key.
+**An SSH key is already installed**: `~/.ssh/ttta_vps` on the owner's dev box, authorized for
+`sonbui@10.0.6.250`. Every command in this file uses it — no password needed:
+
+```bash
+ssh -i "$HOME/.ssh/ttta_vps" -o BatchMode=yes sonbui@10.0.6.250 '<command>'
+```
+
+`sudo` on the box still prompts for a password, which is **not** recorded here since this file is
+tracked and pushed to GitHub. Ask the owner when a command needs root (installing packages, etc.).
+
+**This VPS is also the build machine** — see the ⛔ note at the top of Commands. Do not start
+Docker on the dev box.
 
 Set `DOMAIN=ilm-ttta.duckdns.org` in `infra/.env`. Caddy requests the Let's Encrypt certificate at
 boot, so the A record must have propagated **before** `docker compose up`, and ports 80/443 must be
