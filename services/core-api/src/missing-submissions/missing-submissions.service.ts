@@ -48,7 +48,9 @@ export class MissingSubmissionsService {
 
     for (const [className, list] of byClass) {
       const config = await this.prisma.classConfig.findUnique({ where: { className } });
-      if (!config) {
+      // ID rỗng: lớp đã được cấu hình (vd. ghim tiêu chí) nhưng chưa có tư vấn — gửi tới "" chỉ
+      // tạo một tin hỏng cấu trúc bị gateway vứt bỏ.
+      if (!config?.advisorZaloId) {
         this.logger.warn(`Lớp "${className}" chưa có classes_config.advisor_zalo_id — không gửi được báo cáo`);
         continue;
       }

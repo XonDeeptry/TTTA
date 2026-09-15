@@ -1,6 +1,77 @@
 import { BadRequestException } from '@nestjs/common';
 import { ClassesConfigService } from './classes-config.service';
 
+describe('ClassesConfigService.overview', () => {
+  const COURSES = [
+    { id: 13, key: 'IELTS Basic-6.0' },
+    { id: 21, key: 'Little Fox' },
+    { id: 30, key: 'Empty course' },
+  ];
+  // orderBy version desc — đúng thứ tự service yêu cầu Prisma trả về
+  const CRITERIA = [
+    { id: 103, courseId: 13, title: 'IELTS', version: 3, templateKey: 'ielts_speaking' },
+    { id: 102, courseId: 13, title: 'IELTS', version: 2, templateKey: 'ielts_speaking' },
+    { id: 121, courseId: 21, title: 'YL', version: 1, templateKey: 'cambridge_yl_a0_a2' },
+  ];
+
+  function build(groups: unknown[], configs: unknown[]): ClassesConfigService {
+    const prisma = {
+      student: { groupBy: jest.fn().mockResolvedValue(groups) },
+      classConfig: { findMany: jest.fn().mockResolvedValue(configs) },
+      course: { findMany: jest.fn().mockResolvedValue(COURSES) },
+      criteria: { findMany: jest.fn().mockResolvedValue(CRITERIA) },
+    };
+    return new ClassesConfigService(prisma as never);
+  }
+
+  it('lists a class with NO classes_config row, using the latest criteria of its course', async () => {
+    const [row] = await build([{ className: 'PILOT-TEST', courseId: 13, _count: { _all: 2 } }], []).overview();
+    expect(row).toEqual({
+      className: 'PILOT-TEST',
+      studentCount: 2,
+      courses: [{ id: 13, key: 'IELTS Basic-6.0' }],
+      config: null,
+      effective: { id: 103, title: 'IELTS', version: 3, templateKey: 'ielts_speaking', source: 'course_latest' },
+      warnings: [],
+    });
+  });
+
+  it('a pin inside the same course wins (same rule as worker-api)', async () => {
+    const [row] = await build(
+      [{ className: '10A', courseId: 13, _count: { _all: 1 } }],
+      [{ className: '10A', advisorZaloId: '', autoSend: false, criteriaId: 102 }],
+    ).overview();
+    expect(row.effective).toMatchObject({ id: 102, version: 2, source: 'pinned' });
+  });
+
+  it('a pin to ANOTHER course is ignored and flagged, falling back to the course latest', async () => {
+    const [row] = await build(
+      [{ className: '10A', courseId: 13, _count: { _all: 1 } }],
+      [{ className: '10A', advisorZaloId: 'a', autoSend: false, criteriaId: 121 }],
+    ).overview();
+    expect(row.effective).toMatchObject({ id: 103, source: 'course_latest' });
+    expect(row.warnings).toEqual(['pin_other_course']);
+  });
+
+  it('no single answer ⇒ effective null with a warning (multiple courses / no criteria / no students)', async () => {
+    const rows = await build(
+      [
+        { className: 'MIX', courseId: 13, _count: { _all: 1 } },
+        { className: 'MIX', courseId: 21, _count: { _all: 1 } },
+        { className: 'NEW', courseId: 30, _count: { _all: 4 } },
+        { className: null, courseId: 13, _count: { _all: 9 } },
+      ],
+      [{ className: 'GHOST', advisorZaloId: 'a', autoSend: true, criteriaId: null }],
+    ).overview();
+    expect(rows.map((r) => [r.className, r.effective, r.warnings])).toEqual([
+      ['GHOST', null, ['no_students']],
+      ['MIX', null, ['multiple_courses']],
+      ['NEW', null, ['no_criteria']],
+    ]);
+    expect(rows.find((r) => r.className === 'MIX')?.studentCount).toBe(2);
+  });
+});
+
 describe('ClassesConfigService', () => {
   let prisma: {
     classConfig: { findMany: jest.Mock; upsert: jest.Mock };

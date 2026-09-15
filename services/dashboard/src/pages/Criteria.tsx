@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Alert } from '../components/ui/alert';
+import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -29,6 +30,22 @@ interface ClassConfig {
   criteriaId: number | null;
 }
 
+/** Một hàng của `GET /classes-config/overview`: mọi lớp có học viên, kể cả lớp chưa cấu hình. */
+interface ClassOverview {
+  className: string;
+  studentCount: number;
+  courses: CourseOption[];
+  config: Omit<ClassConfig, 'className'> | null;
+  effective: {
+    id: number;
+    title: string;
+    version: number;
+    templateKey: string | null;
+    source: 'pinned' | 'course_latest';
+  } | null;
+  warnings: string[];
+}
+
 interface CourseOption {
   id: number;
   key: string;
@@ -41,7 +58,7 @@ export function Criteria() {
   const [items, setItems] = useState<CriteriaItem[]>([]);
   const [preview, setPreview] = useState<unknown>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [classes, setClasses] = useState<ClassConfig[]>([]);
+  const [classes, setClasses] = useState<ClassOverview[]>([]);
   const [classDrafts, setClassDrafts] = useState<Record<string, Partial<ClassConfig>>>({});
   const [courses, setCourses] = useState<CourseOption[]>([]);
   // Toàn bộ tiêu chí của MỌI khóa — ô chọn "tiêu chí theo lớp" cần danh sách đầy đủ, độc lập
@@ -62,7 +79,7 @@ export function Criteria() {
   }
 
   function loadClasses(): void {
-    void api.get<ClassConfig[]>('/classes-config').then(setClasses);
+    void api.get<ClassOverview[]>('/classes-config/overview').then(setClasses);
   }
 
   useEffect(loadClasses, []);
@@ -88,7 +105,7 @@ export function Criteria() {
 
   async function saveClassConfig(className: string): Promise<void> {
     const draft = classDrafts[className] ?? {};
-    const existing = classes.find((c) => c.className === className);
+    const existing = classes.find((c) => c.className === className)?.config;
     await api.put(`/classes-config/${className}`, {
       advisorZaloId: draft.advisorZaloId ?? existing?.advisorZaloId ?? '',
       autoSend: draft.autoSend ?? existing?.autoSend ?? false,
@@ -237,8 +254,10 @@ export function Criteria() {
               <TableHeader>
                 <TableRow>
                   <TableHead scope="col">{t('criteria.className')}</TableHead>
+                  <TableHead scope="col">{t('criteria.course')}</TableHead>
+                  <TableHead scope="col">{t('criteria.effectiveCriteria')}</TableHead>
+                  <TableHead scope="col">{t('criteria.pinCriteria')}</TableHead>
                   <TableHead scope="col">{t('criteria.advisorZaloId')}</TableHead>
-                  <TableHead scope="col">{t('criteria.classCriteria')}</TableHead>
                   <TableHead scope="col">{t('criteria.autoSend')}</TableHead>
                   <TableHead scope="col" />
                 </TableRow>
@@ -246,19 +265,46 @@ export function Criteria() {
               <TableBody>
                 {classes.map((c) => (
                   <TableRow key={c.className}>
-                    <TableCell>{c.className}</TableCell>
                     <TableCell>
-                      <Input
-                        defaultValue={c.advisorZaloId}
-                        onChange={(e) =>
-                          setClassDrafts((d) => ({ ...d, [c.className]: { ...d[c.className], advisorZaloId: e.target.value } }))
-                        }
-                      />
+                      <div>{c.className}</div>
+                      <div className="text-caption text-muted-foreground">
+                        {t('criteria.studentCount', { count: c.studentCount })}
+                      </div>
+                    </TableCell>
+                    <TableCell>{c.courses.map((course) => course.key).join(', ')}</TableCell>
+                    <TableCell>
+                      {/* Bộ tiêu chí grading-worker thật sự dùng — đội học thuật kiểm thử cần thấy ngay (pilot 09-15). */}
+                      <div className="space-y-1">
+                        {c.effective ? (
+                          <>
+                            <div>
+                              {c.effective.title} · v{c.effective.version}
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              <Badge variant={c.effective.source === 'pinned' ? 'default' : 'secondary'}>
+                                {t(c.effective.source === 'pinned' ? 'criteria.sourcePinned' : 'criteria.sourceCourseLatest')}
+                              </Badge>
+                              {c.effective.templateKey && <Badge variant="outline">{c.effective.templateKey}</Badge>}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-muted-foreground">{t('criteria.noEffective')}</div>
+                        )}
+                        {c.warnings.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {c.warnings.map((w) => (
+                              <Badge key={w} variant="warning">
+                                {t(`criteria.warning.${w}`)}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <SelectNative
-                        defaultValue={c.criteriaId == null ? '' : String(c.criteriaId)}
-                        aria-label={t('criteria.classCriteria')}
+                        defaultValue={c.config?.criteriaId == null ? '' : String(c.config.criteriaId)}
+                        aria-label={t('criteria.pinCriteria')}
                         className="max-w-[16rem]"
                         onChange={(e) =>
                           setClassDrafts((d) => ({
@@ -271,17 +317,28 @@ export function Criteria() {
                         }
                       >
                         <option value="">{t('criteria.classCriteriaDefault')}</option>
-                        {allCriteria.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {criteriaLabel(item)}
-                          </option>
-                        ))}
+                        {/* Chỉ tiêu chí của đúng khóa: ghim khác khóa bị worker bỏ qua, nên không cho chọn. */}
+                        {allCriteria
+                          .filter((item) => c.courses.some((course) => course.id === item.courseId))
+                          .map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {criteriaLabel(item)}
+                            </option>
+                          ))}
                       </SelectNative>
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        defaultValue={c.config?.advisorZaloId ?? ''}
+                        onChange={(e) =>
+                          setClassDrafts((d) => ({ ...d, [c.className]: { ...d[c.className], advisorZaloId: e.target.value } }))
+                        }
+                      />
                     </TableCell>
                     <TableCell>
                       <input
                         type="checkbox"
-                        defaultChecked={c.autoSend}
+                        defaultChecked={c.config?.autoSend ?? false}
                         onChange={(e) =>
                           setClassDrafts((d) => ({ ...d, [c.className]: { ...d[c.className], autoSend: e.target.checked } }))
                         }

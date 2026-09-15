@@ -1,8 +1,11 @@
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
 
 export class UpsertClassConfigDto {
+  /**
+   * Rỗng được phép (pilot 09-15): đội học thuật cần ghim tiêu chí cho lớp trước khi có Zalo ID
+   * tư vấn. Báo cáo thiếu bài bỏ qua lớp có ID rỗng (missing-submissions.service.ts).
+   */
   @IsString()
-  @IsNotEmpty()
   advisorZaloId!: string;
 
   @IsOptional()

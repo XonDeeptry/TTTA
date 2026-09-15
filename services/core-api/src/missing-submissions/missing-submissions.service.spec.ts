@@ -75,4 +75,14 @@ describe('MissingSubmissionsService.reportNow', () => {
 
     expect(rabbit.publish).not.toHaveBeenCalled();
   });
+
+  it('skips a class whose config exists but has an EMPTY advisor id (pin-only config)', async () => {
+    prisma.assignmentCalendar.findUnique.mockResolvedValue({ date: new Date(), note: null });
+    prisma.student.findMany.mockResolvedValue([{ id: 1, fullName: 'A', className: '10A' }]);
+    prisma.classConfig.findUnique.mockResolvedValue({ className: '10A', advisorZaloId: '', criteriaId: 7 });
+
+    await service.reportNow();
+
+    expect(rabbit.publish).not.toHaveBeenCalled();
+  });
 });
