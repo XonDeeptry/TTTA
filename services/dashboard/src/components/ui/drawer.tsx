@@ -19,15 +19,28 @@ export interface DrawerProps {
   open: boolean;
   onRequestClose: (reason: 'esc' | 'backdrop' | 'close-button') => void;
   title: string;
-  size?: 'md' | 'lg';
+  size?: 'md' | 'lg' | 'xl';
+  /**
+   * `side` (mặc định) = khung trượt từ cạnh phải như trước. `center` = cửa sổ nổi giữa màn hình —
+   * pilot 09-15: đội học thuật soạn đoạn văn dài (bài đọc, mô tả mức điểm) thấy khung trượt 56rem
+   * chia 3/5–2/5 quá chật. Cùng một hợp đồng a11y/đóng/dirty-guard, chỉ khác bố cục.
+   */
+  placement?: 'side' | 'center';
   children: ReactNode;
   footer?: ReactNode;
   closeLabel: string;
 }
 
-const SIZE_CLASS: Record<'md' | 'lg', string> = {
+const SIZE_CLASS: Record<'md' | 'lg' | 'xl', string> = {
   md: 'md:w-[36rem]',
   lg: 'md:w-[56rem]',
+  xl: 'md:w-[80rem]',
+};
+
+const CENTER_SIZE_CLASS: Record<'md' | 'lg' | 'xl', string> = {
+  md: 'max-w-3xl',
+  lg: 'max-w-6xl',
+  xl: 'max-w-[min(110rem,96vw)]',
 };
 
 function getFocusable(container: HTMLElement): HTMLElement[] {
@@ -38,7 +51,16 @@ function getFocusable(container: HTMLElement): HTMLElement[] {
   ).filter((el) => el.offsetParent !== null || el === document.activeElement);
 }
 
-export function Drawer({ open, onRequestClose, title, size = 'md', children, footer, closeLabel }: DrawerProps) {
+export function Drawer({
+  open,
+  onRequestClose,
+  title,
+  size = 'md',
+  placement = 'side',
+  children,
+  footer,
+  closeLabel,
+}: DrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
   const stackId = useRef(Symbol('drawer')).current;
@@ -101,13 +123,61 @@ export function Drawer({ open, onRequestClose, title, size = 'md', children, foo
 
   if (!open) return null;
 
+  const header = (
+    <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-6">
+      <h2 id={titleId} className="text-h2">
+        {title}
+      </h2>
+      <button
+        type="button"
+        aria-label={closeLabel}
+        onClick={() => onRequestClose('close-button')}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <IconClose />
+      </button>
+    </div>
+  );
+  const body = <div className="flex-1 overflow-y-auto p-6">{children}</div>;
+  const foot = footer && <div className="flex shrink-0 justify-end gap-2 border-t border-border px-6 py-4">{footer}</div>;
+  const backdrop = (
+    <div
+      className="absolute inset-0 bg-foreground/40 motion-reduce:transition-none"
+      onClick={() => onRequestClose('backdrop')}
+      aria-hidden="true"
+    />
+  );
+
+  if (placement === 'center') {
+    return createPortal(
+      <div className="fixed inset-0 z-40">
+        {backdrop}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-2 md:p-6">
+          <div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            tabIndex={-1}
+            className={cn(
+              'pointer-events-auto flex max-h-[94vh] w-full flex-col rounded-md border border-border bg-card shadow-md',
+              CENTER_SIZE_CLASS[size],
+              size === 'xl' && 'h-[94vh]',
+            )}
+          >
+            {header}
+            {body}
+            {foot}
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
+
   return createPortal(
     <div className="fixed inset-0 z-40">
-      <div
-        className="absolute inset-0 bg-foreground/40 motion-reduce:transition-none"
-        onClick={() => onRequestClose('backdrop')}
-        aria-hidden="true"
-      />
+      {backdrop}
       <div
         ref={panelRef}
         role="dialog"
@@ -120,21 +190,9 @@ export function Drawer({ open, onRequestClose, title, size = 'md', children, foo
           SIZE_CLASS[size],
         )}
       >
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-6">
-          <h2 id={titleId} className="text-h2">
-            {title}
-          </h2>
-          <button
-            type="button"
-            aria-label={closeLabel}
-            onClick={() => onRequestClose('close-button')}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <IconClose />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-6">{children}</div>
-        {footer && <div className="flex shrink-0 justify-end gap-2 border-t border-border px-6 py-4">{footer}</div>}
+        {header}
+        {body}
+        {foot}
       </div>
     </div>,
     document.body,

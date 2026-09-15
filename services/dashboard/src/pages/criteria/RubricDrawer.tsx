@@ -307,7 +307,9 @@ export function RubricDrawer({
         open={open}
         onRequestClose={requestClose}
         title={t('authoring.title')}
-        size="lg"
+        // Pilot 09-15: cửa sổ nổi gần toàn màn hình — khung trượt 56rem làm ô mô tả mức điểm quá chật.
+        size="xl"
+        placement="center"
         closeLabel={t('drawer.close')}
         footer={
           step === 'form' && draft ? (

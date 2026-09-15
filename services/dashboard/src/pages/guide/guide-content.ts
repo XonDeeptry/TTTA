@@ -202,10 +202,18 @@ export const guideVi: GuideContent = {
         {
           title: 'Lớp thiếu nhi: nhập bài đọc hiện tại',
           body: [
-            'Ngay dưới ô "Ghim tiêu chí" có ô "Bài đọc hiện tại". Dán đúng đoạn văn học viên đang đọc ở nhà rồi bấm Lưu trên hàng đó. Đổi bài thì dán bài mới; xóa trắng khi lớp chuyển sang nói tự do.',
-            'Có bài đọc, Azure đối chiếu từng từ học viên nói với văn bản nên chấm phát âm chính xác. Không có, Azure phải tự đoán trẻ nói gì — với giọng trẻ em nó hay đoán sai, bài sẽ bị gắn nhãn vàng để giáo viên nghe kỹ.',
+            'Vì sao cần: có bài đọc, Azure đối chiếu từng từ học viên nói với văn bản nên chấm phát âm chính xác, và biết học viên có đọc đủ bài không. Không có, Azure phải tự đoán trẻ nói gì — với giọng trẻ em nó hay đoán sai (đã đo: nghe "the ladder" thành "tornado"), bài bị gắn nhãn vàng để giáo viên nghe kỹ.',
+            'Cách làm: trong bảng Cấu hình theo lớp, ở cột "Ghim tiêu chí" của lớp cần nhập, bấm nút "Nhập bài đọc". Một cửa sổ lớn mở ra.',
+            'Dán đoạn văn học viên phải đọc trong bài tập hiện tại vào ô soạn. Bên dưới hiện số từ để bạn soát nhanh đã dán đủ chưa. Bấm Lưu — bài đọc được lưu ngay, không cần bấm thêm nút Lưu trên hàng.',
+            'Sau khi lưu, trên hàng lớp hiện 2 dòng đầu của bài đọc và nút đổi thành "Sửa bài đọc (… từ)". Sang bài mới thì bấm nút đó, xóa đoạn cũ, dán đoạn mới, Lưu. Lớp chuyển sang nói tự do thì bấm "Xóa bài đọc".',
+            'Dán ĐÚNG những gì học viên đọc thành tiếng: giữ tiêu đề nếu học viên đọc cả tiêu đề; bỏ phần hướng dẫn, số trang, chú thích hình mà học viên không đọc. Mỗi lớp chỉ có MỘT bài đọc hiện tại — nhiều lớp đọc cùng bài thì nhập cho từng lớp.',
+            'Lớp IELTS nói tự do theo chủ đề thì KHÔNG cần bài đọc.',
           ],
-          uiKeys: ['criteria.readingText', 'criteria.save'],
+          uiKeys: ['criteria.readingTextAdd', 'criteria.save', 'criteria.readingTextClear'],
+          callout: {
+            kind: 'warn',
+            text: 'Bài đọc áp dụng cho bài nộp TỪ LÚC LƯU trở đi. Nhớ đổi bài đọc TRƯỚC khi giao bài mới — nếu quên, bài nộp mới sẽ bị chấm theo văn bản cũ và điểm "đọc đủ bài" sẽ thấp bất thường.',
+          },
           example: {
             title: 'Ví dụ — bài đọc của lớp Tiny Rabbit',
             text: 'Playground. Written by Elizabeth Jane Pustilnik. What can you do at the playground? The gate. The swing. The slide. The sandbox. The ladder. The bridge.',
@@ -583,6 +591,24 @@ export const guideEn: GuideContent = {
           uiKeys: ['criteria.effectiveCriteria', 'criteria.sourceCourseLatest', 'criteria.sourcePinned'],
         },
         { title: 'Pin another version (optional)', body: ['Pick a version under "Pin criteria" and click Save on that row. The advisor Zalo ID may stay empty.'], uiKeys: ['criteria.pinCriteria', 'criteria.save'] },
+        {
+          title: 'Kids classes: add the current reading text',
+          body: [
+            'Why: with the text, Azure aligns every spoken word to it — accurate pronunciation scores and a completeness check. Without it Azure guesses what the child said, often wrongly (measured: "the ladder" heard as "tornado"), and the submission gets a yellow flag.',
+            'How: in the per-class table, click "Add reading text" under "Pin criteria". A large window opens; paste the passage the students read, check the word count, click Save — it is saved immediately.',
+            'Afterwards the row shows the first two lines and the button becomes "Edit reading text (… words)". New assignment: edit, replace, Save. Free speech again: "Clear reading text".',
+            'Paste exactly what is read aloud — keep the title if they read it, drop instructions and page numbers. One current text per class. IELTS free-speech classes do not need one.',
+          ],
+          uiKeys: ['criteria.readingTextAdd', 'criteria.save', 'criteria.readingTextClear'],
+          callout: {
+            kind: 'warn',
+            text: 'The text applies to submissions from the moment it is saved. Change it BEFORE setting a new assignment, or new work is scored against the old passage.',
+          },
+          example: {
+            title: 'Example — Tiny Rabbit reading text',
+            text: 'Playground. Written by Elizabeth Jane Pustilnik. What can you do at the playground? The gate. The swing. The slide. The sandbox. The ladder. The bridge.',
+          },
+        },
       ],
       callout: { kind: 'warn', text: 'Missing authoring buttons means a missing permission: ask an admin for "criteria_author" or "rubric_template" in Users.' },
     },

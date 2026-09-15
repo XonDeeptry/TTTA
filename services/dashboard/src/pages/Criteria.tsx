@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { IconCriteria } from '../components/icons';
 import { TemplateDrawer } from './criteria/TemplateDrawer';
 import { RubricDrawer } from './criteria/RubricDrawer';
+import { ReadingTextCell } from './criteria/ReadingTextCell';
 
 interface CriteriaItem {
   id: number;
@@ -331,19 +332,7 @@ export function Criteria() {
                           ))}
                       </SelectNative>
                       {/* D151: có bài đọc ⇒ Azure chấm theo văn bản; bắt buộc để điểm phát âm của trẻ đáng tin (spec §13A). */}
-                      <label className="mt-2 block text-caption text-muted-foreground">
-                        {t('criteria.readingText')}
-                        <textarea
-                          rows={2}
-                          defaultValue={c.config?.readingText ?? ''}
-                          title={t('criteria.readingTextHint')}
-                          placeholder={t('criteria.readingTextHint')}
-                          className="mt-0.5 block w-full min-w-[14rem] rounded-md border border-input bg-background px-2 py-1 text-body text-foreground"
-                          onChange={(e) =>
-                            setClassDrafts((d) => ({ ...d, [c.className]: { ...d[c.className], readingText: e.target.value } }))
-                          }
-                        />
-                      </label>
+                      <ReadingTextCell className={c.className} config={c.config} onSaved={loadClasses} />
                     </TableCell>
                     <TableCell>
                       <Input

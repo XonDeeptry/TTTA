@@ -446,7 +446,9 @@ export function TemplateDrawer({ open, onClose }: { open: boolean; onClose: () =
         open={open}
         onRequestClose={requestClose}
         title={t('templates.title')}
-        size="md"
+        // Pilot 09-15: cửa sổ nổi gần toàn màn hình thay khung trượt 36rem.
+        size="xl"
+        placement="center"
         closeLabel={t('drawer.close')}
         footer={
           view === 'form' ? (
