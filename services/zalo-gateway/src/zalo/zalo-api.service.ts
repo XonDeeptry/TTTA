@@ -9,6 +9,7 @@ import {
   OutboundButton,
   RequestUserInfo,
 } from '../contracts';
+import { recordZaloCall } from '../lib/zalo-call-counter';
 import { RedisService } from '../redis.service';
 import { TokenService } from './token.service';
 
@@ -160,7 +161,10 @@ export class ZaloApiService {
       headers: { 'Content-Type': 'application/json', access_token: token },
       body: JSON.stringify({ recipient: { user_id: zaloUserId }, message }),
     });
-    return (await res.json()) as ZaloSendResponse;
+    const data = (await res.json()) as ZaloSendResponse;
+    // Mỗi phần của một tin bị chia và mỗi lần gửi lại sau -216 đều là một lượt tính vào hạn mức.
+    recordZaloCall(this.redis.client, 'message_cs', data.error);
+    return data;
   }
 
   /** undefined = không đính kèm gì (đường text thuần không phát sinh thêm một lượt đọc Redis). */

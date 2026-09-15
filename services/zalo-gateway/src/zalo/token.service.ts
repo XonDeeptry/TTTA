@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
+import { recordZaloCall } from '../lib/zalo-call-counter';
 import { RedisService } from '../redis.service';
 
 const REFRESH_INTERVAL_MS = 50 * 60 * 1000; // token OA sống ~1h → refresh mỗi 50 phút (mục 3.6)
@@ -60,6 +61,7 @@ export class TokenService implements OnApplicationBootstrap, OnModuleDestroy {
         }),
       });
       const data = (await res.json()) as ZaloTokenResponse;
+      recordZaloCall(this.redis.client, 'oauth_token', data.access_token ? 0 : (data.error ?? res.status));
       if (!data.access_token || !data.refresh_token) {
         throw new Error(`Zalo OAuth error: ${data.error ?? res.status} ${data.error_name ?? ''}`);
       }

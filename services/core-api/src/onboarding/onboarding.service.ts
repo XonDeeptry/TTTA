@@ -5,7 +5,31 @@ import { OutboundMessage, Q_OUTBOUND } from '../contracts';
 import { MessageTemplatesService } from '../message-templates/message-templates.service';
 import { PrismaService } from '../prisma.service';
 import { RabbitService } from '../rabbit.service';
+import { recordZaloCall } from '../lib/zalo-call-counter';
 import { KNOWN_USERS_KEY, RedisService } from '../redis.service';
+
+/**
+ * Lịch kiểm tra lại một người đang chờ kích hoạt (có chia sẻ SĐT chưa) — THƯA DẦN theo tuổi.
+ *
+ * Pilot 2026-09-15: cron 2 phút gọi `oa/user/detail` cho MỌI binding pending, nên 200 người chưa
+ * chia sẻ = 100 lượt/phút liên tục, tự nó đã chạm trần gói Zalo 100 req/phút. Người vừa nhắn vẫn
+ * được kiểm tra dày (họ thường bấm chia sẻ ngay); người để đó qua ngày thì không đốt hạn mức cả ngày.
+ */
+const PROFILE_CHECK_KEY = (bindingId: number) => `onboarding:profile_checked:${bindingId}`;
+const PROFILE_CHECK_TTL_SEC = 7 * 24 * 3600;
+
+export function profileCheckIntervalMs(ageMs: number): number {
+  if (ageMs < 3600_000) return 2 * 60_000;
+  if (ageMs < 24 * 3600_000) return 15 * 60_000;
+  return 60 * 60_000;
+}
+
+/** `lastCheckedMs` không đọc được (chưa từng kiểm tra) ⇒ đến lượt. Trừ 10 giây để lệch nhịp cron không làm lỡ một vòng. */
+export function isDueForProfileCheck(createdAt: Date | undefined, lastCheckedMs: number, nowMs: number): boolean {
+  if (!Number.isFinite(lastCheckedMs)) return true;
+  const created = createdAt instanceof Date ? createdAt.getTime() : nowMs;
+  return nowMs - lastCheckedMs >= profileCheckIntervalMs(nowMs - created) - 10_000;
+}
 
 /**
  * Zalo trả SĐT ở dạng có mã quốc gia (`84987654321`), còn `students.phone` lưu dạng nội địa
@@ -146,6 +170,7 @@ export class OnboardingService implements OnModuleInit {
         headers: { access_token: accessToken },
       });
       const body = (await res.json()) as { error?: number; data?: { avatar?: unknown } };
+      recordZaloCall(this.redis.client, 'getoa', body.error);
       const avatar = body.error === 0 && typeof body.data?.avatar === 'string' ? body.data.avatar : null;
       this.oaAvatarCache = avatar;
       return avatar;
@@ -210,8 +235,14 @@ export class OnboardingService implements OnModuleInit {
     const rows = await this.prisma.zaloBinding.findMany({ where: { status: 'pending' } });
     if (rows.length === 0) return;
 
+    const now = Date.now();
     for (const row of rows) {
+      const lastChecked = Number(await this.redis.client.get(PROFILE_CHECK_KEY(row.id)).catch(() => null));
+      if (!isDueForProfileCheck(row.createdAt, lastChecked, now)) continue;
       const { zaloSharedPhone } = await this.fetchZaloProfile(accessToken, row.zaloUserId);
+      await this.redis.client
+        .set(PROFILE_CHECK_KEY(row.id), String(now), 'EX', PROFILE_CHECK_TTL_SEC)
+        .catch(() => undefined);
       if (!zaloSharedPhone) continue;
 
       const matches = await this.prisma.student.findMany({ where: { phone: zaloSharedPhone } });
@@ -268,6 +299,7 @@ export class OnboardingService implements OnModuleInit {
       url.searchParams.set('data', JSON.stringify({ user_id: zaloUserId }));
       const res = await this.fetchFn(url.toString(), { headers: { access_token: accessToken } });
       const body = (await res.json()) as { error?: number; data?: Record<string, unknown> };
+      recordZaloCall(this.redis.client, 'user_detail', body.error);
       if (body.error !== 0 || !body.data) return {};
       const shared = body.data.shared_info as { phone?: unknown; name?: unknown } | undefined;
       // `shared_info.phone` chỉ khác 0 khi học viên đã CHỦ ĐỘNG chia sẻ qua Zalo. Có thì coi như

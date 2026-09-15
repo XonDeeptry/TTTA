@@ -1,6 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { Q_OUTBOUND } from '../contracts';
-import { OnboardingService, normalizeVnPhone } from './onboarding.service';
+import { OnboardingService, isDueForProfileCheck, normalizeVnPhone, profileCheckIntervalMs } from './onboarding.service';
 
 describe('normalizeVnPhone', () => {
   it.each([
@@ -347,6 +347,66 @@ describe('OnboardingService', () => {
       await service.autoActivateFromSharedPhone();
 
       expect(fetchFn).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Pilot 09-15: trước bản vá, cron 2 phút gọi `oa/user/detail` cho MỌI binding pending — 200
+     * người chưa chia sẻ SĐT là 100 lượt/phút liên tục, tự nó đã chạm trần gói Zalo 100 req/phút.
+     */
+    it('người vừa được kiểm tra (chưa tới lượt) ⇒ BỎ QUA, không gọi Zalo', async () => {
+      const now = Date.now();
+      redis.client.get.mockImplementation((key: string) =>
+        Promise.resolve(key.startsWith('onboarding:profile_checked:') ? String(now - 60_000) : 'tok'),
+      );
+      prisma.zaloBinding.findMany.mockResolvedValue([
+        { id: 7, zaloUserId: 'u1', status: 'pending', createdAt: new Date(now - 10 * 60_000) },
+      ]);
+      const fetchFn = jest.fn();
+      service.fetchFn = fetchFn as never;
+
+      await service.autoActivateFromSharedPhone();
+
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
+
+    it('tới lượt ⇒ gọi Zalo và GHI LẠI lúc kiểm tra để lần sau giãn ra', async () => {
+      withSharedPhone(0);
+      prisma.zaloBinding.findMany.mockResolvedValue([
+        { id: 7, zaloUserId: 'u1', status: 'pending', createdAt: new Date(Date.now() - 3 * 3600_000) },
+      ]);
+
+      await service.autoActivateFromSharedPhone();
+
+      expect(service.fetchFn).toHaveBeenCalledTimes(1);
+      expect(redis.client.set).toHaveBeenCalledWith('onboarding:profile_checked:7', expect.any(String), 'EX', 7 * 24 * 3600);
+    });
+  });
+
+  describe('lịch kiểm tra thưa dần (isDueForProfileCheck)', () => {
+    const NOW = Date.UTC(2026, 8, 15, 12, 0, 0);
+    const MIN = 60_000;
+    const created = (ageMs: number) => new Date(NOW - ageMs);
+
+    it('khoảng cách theo tuổi: < 1 giờ → 2 phút, < 24 giờ → 15 phút, sau đó → 60 phút', () => {
+      expect(profileCheckIntervalMs(10 * MIN)).toBe(2 * MIN);
+      expect(profileCheckIntervalMs(3 * 60 * MIN)).toBe(15 * MIN);
+      expect(profileCheckIntervalMs(2 * 24 * 60 * MIN)).toBe(60 * MIN);
+    });
+
+    it('chưa từng kiểm tra ⇒ luôn tới lượt', () => {
+      expect(isDueForProfileCheck(created(5 * 24 * 60 * MIN), Number.NaN, NOW)).toBe(true);
+      expect(isDueForProfileCheck(undefined, Number.NaN, NOW)).toBe(true);
+    });
+
+    it.each([
+      ['mới nhắn 10 phút, kiểm tra 1 phút trước', 10 * MIN, 1 * MIN, false],
+      ['mới nhắn 10 phút, kiểm tra 2 phút trước', 10 * MIN, 2 * MIN, true],
+      ['nhắn 3 giờ trước, kiểm tra 10 phút trước', 3 * 60 * MIN, 10 * MIN, false],
+      ['nhắn 3 giờ trước, kiểm tra 15 phút trước', 3 * 60 * MIN, 15 * MIN, true],
+      ['nhắn 2 ngày trước, kiểm tra 30 phút trước', 2 * 24 * 60 * MIN, 30 * MIN, false],
+      ['nhắn 2 ngày trước, kiểm tra 60 phút trước', 2 * 24 * 60 * MIN, 60 * MIN, true],
+    ])('%s ⇒ %s', (_label, ageMs, sinceCheckMs, due) => {
+      expect(isDueForProfileCheck(created(ageMs), NOW - sinceCheckMs, NOW)).toBe(due);
     });
   });
 
