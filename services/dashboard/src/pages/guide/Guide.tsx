@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import {
   GUIDE_SECTION_ORDER,
   GuideCallout,
+  GuideExample,
+  GuideFigure,
   GuideSection,
   GuideStep,
   guideEn,
@@ -47,6 +49,30 @@ function Callout({ callout }: { callout: GuideCallout }) {
   );
 }
 
+/** Hình chụp từ `Criteria-Source/*.pdf` — giáo viên đối chiếu thẳng với tài liệu gốc của trung tâm. */
+function Figures({ figures }: { figures: GuideFigure[] }) {
+  return (
+    <>
+      {figures.map((f) => (
+        <figure key={f.src} className="space-y-1.5">
+          <img src={f.src} alt={f.alt} loading="lazy" className="max-w-full rounded-md border border-border bg-white" />
+          {f.caption && <figcaption className="text-caption text-muted-foreground">{f.caption}</figcaption>}
+        </figure>
+      ))}
+    </>
+  );
+}
+
+/** Ví dụ điền thật — giữ xuống dòng y như giáo viên sẽ gõ vào ô. */
+function Example({ example }: { example: GuideExample }) {
+  return (
+    <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
+      <p className="text-caption font-medium text-primary">{example.title}</p>
+      <pre className="mt-1.5 whitespace-pre-wrap break-words font-sans text-body text-foreground/90">{example.text}</pre>
+    </div>
+  );
+}
+
 function Step({ step, index }: { step: GuideStep; index: number }) {
   return (
     <li className="flex gap-3">
@@ -56,7 +82,7 @@ function Step({ step, index }: { step: GuideStep; index: number }) {
       >
         {index + 1}
       </span>
-      <div className="min-w-0 space-y-2">
+      <div className="min-w-0 flex-1 space-y-2">
         <h3 className="text-body font-medium">{step.title}</h3>
         {step.body.map((p) => (
           <p key={p} className="text-body text-foreground/80">
@@ -64,6 +90,8 @@ function Step({ step, index }: { step: GuideStep; index: number }) {
           </p>
         ))}
         {step.uiKeys && <UiChips keys={step.uiKeys} />}
+        {step.example && <Example example={step.example} />}
+        {step.figures && <Figures figures={step.figures} />}
         {step.callout && <Callout callout={step.callout} />}
       </div>
     </li>
@@ -82,6 +110,8 @@ function Section({ id, section }: { id: string; section: GuideSection }) {
             {p}
           </p>
         ))}
+
+        {section.figures && <Figures figures={section.figures} />}
 
         {section.terms && (
           <dl className="space-y-3">
@@ -102,6 +132,7 @@ function Section({ id, section }: { id: string; section: GuideSection }) {
           </ol>
         )}
 
+        {section.example && <Example example={section.example} />}
         {section.callout && <Callout callout={section.callout} />}
       </CardContent>
     </Card>

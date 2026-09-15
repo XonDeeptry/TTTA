@@ -13,10 +13,27 @@
  * CHỈ dùng khóa của nhãn TĨNH. Khóa có placeholder (`{{...}}`, ví dụ `templates.maxTotal`) render
  * ra chuỗi cụt vì ở đây không có giá trị để truyền vào — hãy nhắc tới chúng trong văn xuôi thay vì
  * đưa vào `uiKeys`. `UiChips` cũng tự bỏ qua loại khóa này để lỗi không hiện ra trước mặt giáo viên.
+ *
+ * Pilot 2026-09-15: viết lại cho ĐỘI HỌC THUẬT (giáo viên, không phải IT) — theo đúng việc họ làm,
+ * mỗi bước có ví dụ điền thật lấy từ `Criteria-Source/*.pdf`. Hình trong `public/guide-img/` là ảnh
+ * chụp từ chính hai file PDF đó.
  */
 
 export interface GuideCallout {
   kind: 'tip' | 'warn';
+  text: string;
+}
+
+/** Ảnh tĩnh trong `public/` — đường dẫn tuyệt đối từ gốc site, ví dụ `/guide-img/x.png`. */
+export interface GuideFigure {
+  src: string;
+  alt: string;
+  caption?: string;
+}
+
+/** Một khung "gõ đúng như thế này" — giữ nguyên xuống dòng. */
+export interface GuideExample {
+  title: string;
   text: string;
 }
 
@@ -25,6 +42,8 @@ export interface GuideStep {
   body: string[];
   /** Khóa i18n của nhãn/nút thật, render thành "chip" để giáo viên đối chiếu với màn hình. */
   uiKeys?: string[];
+  figures?: GuideFigure[];
+  example?: GuideExample;
   callout?: GuideCallout;
 }
 
@@ -36,8 +55,10 @@ export interface GuideTerm {
 export interface GuideSection {
   heading: string;
   intro?: string[];
+  figures?: GuideFigure[];
   terms?: GuideTerm[];
   steps?: GuideStep[];
+  example?: GuideExample;
   callout?: GuideCallout;
 }
 
@@ -61,249 +82,403 @@ export const GUIDE_SECTION_ORDER = [
   'overview',
   'concepts',
   'who',
-  'structure',
   'content',
+  'structure',
   'after',
   'trouble',
 ] as const;
 
 export type GuideSectionId = (typeof GUIDE_SECTION_ORDER)[number];
 
+const IMG = {
+  ylScale1: '/guide-img/yl-thang-diem-1.png',
+  ylScale2: '/guide-img/yl-thang-diem-2.png',
+  ylComments: '/guide-img/yl-nhan-xet-mau.png',
+  ieltsBand: '/guide-img/ielts-band-fluency.png',
+  ieltsSheet: '/guide-img/ielts-bang-chua-bai.png',
+};
+
 export const guideVi: GuideContent = {
-  title: 'Hướng dẫn soạn tiêu chí chấm điểm',
-  lead: 'Trang này hướng dẫn từ đầu đến cuối: từ dựng bộ khung chấm điểm cho tới soạn nội dung chấm cho từng khóa học. Không cần biết kỹ thuật — chỉ cần làm theo thứ tự.',
+  title: 'Hướng dẫn cho đội học thuật',
+  lead: 'Trang này dành cho giáo viên: đọc bộ tiêu chí, soạn tiêu chí cho khóa học, rồi duyệt nhận xét và gửi cho học viên. Mọi ví dụ đều lấy từ hai file rubric của trung tâm (Rubric Speaking A0–C và Analytic Scoring Band). Không cần biết kỹ thuật — cứ làm theo thứ tự.',
   tocHeading: 'Nội dung',
 
   sections: {
     overview: {
-      heading: '1. Hệ thống này làm gì',
+      heading: '1. Toàn cảnh trong một phút',
       intro: [
-        'Học viên gửi bài nói (thường là clip khoảng 5 phút) qua Zalo. Hệ thống nhận bài, cho AI chấm theo đúng tiêu chí của khóa học, rồi trả nhận xét về cho học viên.',
-        'Bốn bước diễn ra như sau:',
+        'Học viên gửi bài nói qua Zalo. AI nghe và chấm theo bộ tiêu chí của khóa học. Giáo viên đọc lại, sửa nếu cần, rồi bấm gửi. Học viên nhận nhận xét qua Zalo.',
       ],
       terms: [
-        { term: 'Bước 1 — Học viên gửi bài', desc: 'Học viên gửi clip nói vào Zalo OA của trung tâm. Hệ thống tự nhận, không cần ai bấm gì.' },
-        { term: 'Bước 2 — AI chấm', desc: 'AI nghe clip và chấm theo tiêu chí bạn đã soạn cho khóa học đó. Đây là lý do phần soạn tiêu chí quan trọng: AI chấm đúng hay sai phụ thuộc vào những gì bạn viết.' },
-        { term: 'Bước 3 — Giáo viên duyệt', desc: 'Nếu lớp đang TẮT tự động gửi, bài sẽ nằm chờ ở màn Bài nộp để giáo viên đọc, sửa nhận xét rồi mới gửi.' },
-        { term: 'Bước 4 — Gửi lại học viên', desc: 'Nhận xét được gửi về Zalo cho học viên. Hệ thống không bao giờ nhắn cho phụ huynh và không nhắc bài.' },
+        { term: 'Bước 1 — Học viên gửi bài', desc: 'Học viên gửi file ghi âm vào Zalo OA của trung tâm. Hệ thống tự nhận, không ai phải bấm gì.' },
+        { term: 'Bước 2 — AI chấm', desc: 'AI chấm theo bộ tiêu chí của khóa học mà học viên đang học. AI chấm sát hay không phụ thuộc vào việc bộ tiêu chí viết rõ đến đâu — đó là phần việc của đội học thuật (mục 4).' },
+        { term: 'Bước 3 — Giáo viên duyệt', desc: 'Bài chấm xong nằm chờ ở màn Bài nộp. Giáo viên nghe lại, đọc nhận xét, sửa nếu cần (mục 6).' },
+        { term: 'Bước 4 — Gửi cho học viên', desc: 'Giáo viên bấm "Gửi cho học viên". Nhận xét đi theo đúng khung "Bảng chấm chữa bài Speaking" của trung tâm: với mỗi tiêu chí có Nhận xét và Hướng sửa bài.' },
+      ],
+      figures: [
+        {
+          src: IMG.ieltsSheet,
+          alt: 'Bảng chấm chữa bài Speaking: mỗi tiêu chí có cột Nhận xét và cột Hướng sửa bài',
+          caption: 'Khung nhận xét của trung tâm (trang cuối file Analytic Scoring Band). Tin nhắn học viên nhận được đi theo đúng khung này.',
+        },
       ],
       callout: {
         kind: 'tip',
-        text: 'Nhận xét của AI là để học viên luyện tập hằng ngày, không thay thế điểm chính thức của giáo viên.',
+        text: 'Học viên KHÔNG nhận điểm số — chỉ nhận nhận xét và hướng sửa. Điểm từng tiêu chí chỉ giáo viên thấy trên màn Bài nộp.',
       },
     },
 
     concepts: {
-      heading: '2. Hai thứ bạn cần soạn — và khác nhau thế nào',
+      heading: '2. Đọc hiểu một bộ tiêu chí — qua chính file của trung tâm',
       intro: [
-        'Đây là phần hay nhầm nhất, nên đọc kỹ một lần là về sau làm rất nhanh. Việc soạn tiêu chí được tách làm hai lớp:',
+        'Một bộ tiêu chí chính là bảng chấm điểm mà giáo viên vẫn dùng. Hệ thống chỉ cần ba thứ từ bảng đó: có những tiêu chí nào, thang điểm từ mấy đến mấy, và mỗi mức điểm nghĩa là gì.',
+        'Ví dụ file Rubric Speaking A0–A2 (lớp KID): mỗi HÀNG là một tiêu chí, mỗi CỘT là một mức điểm từ 0 đến 5.',
       ],
-      terms: [
+      figures: [
         {
-          term: 'Cấu trúc chấm điểm — cái khung',
-          desc: 'Quy định bài được chấm theo mấy tiêu chí, thang điểm từ mấy đến mấy, cộng tổng hay lấy trung bình, và bao nhiêu điểm thì ứng với cấp độ nào. Hãy hình dung nó là TỜ PHIẾU CHẤM CÒN TRỐNG.',
+          src: IMG.ylScale1,
+          alt: 'Bảng Rubric Speaking A0–A2: tiêu chí Pronunciation và Intonation, cột 0 đến 5 điểm',
+          caption: 'Rubric Speaking A0–A2 — tiêu chí 1–2. Hàng = tiêu chí, cột = mức điểm, ô = mô tả mức đó.',
         },
         {
-          term: 'Nội dung chấm điểm — chữ điền vào khung',
-          desc: 'Với mỗi tiêu chí, mỗi mức điểm nghĩa là gì; các yếu tố con cần để ý; kho câu nhận xét mẫu theo văn phong của trung tâm. Đây là PHẦN BẠN VIẾT VÀO PHIẾU.',
+          src: IMG.ylScale2,
+          alt: 'Bảng Rubric Speaking A0–A2: tiêu chí Ending sounds, Word Stress, Fluency',
+          caption: 'Rubric Speaking A0–A2 — tiêu chí 3–5.',
+        },
+      ],
+      terms: [
+        { term: 'Tiêu chí', desc: 'Một khía cạnh được chấm. Lớp KID có 5: Pronunciation, Intonation, Ending sounds, Word Stress, Fluency. IELTS có 4: Fluency and coherence, Lexical resources, Grammatical range and accuracy, Pronunciation.' },
+        { term: 'Thang điểm', desc: 'Lớp KID: 0 đến 5 điểm mỗi tiêu chí. IELTS: band 0 đến 9.' },
+        { term: 'Mô tả mức điểm', desc: 'Chữ trong từng ô của bảng. Ví dụ Pronunciation 3 điểm: "Phát âm đúng đa số từ quen thuộc, đôi lúc gây nhầm." AI dựa vào những câu này để quyết định cho mấy điểm.' },
+        { term: 'Cách tính tổng', desc: 'Lớp KID CỘNG 5 tiêu chí (tối đa 25 điểm) rồi quy ra cấp độ: 0–10 Pre-starter (Tiny Rabbit), 11–15 Starter (Little Fox), 16–20 Mover (Junior Panda), 21–25 Flyer (Great Big Dino). IELTS lấy TRUNG BÌNH 4 tiêu chí, không có số lẻ.' },
+      ],
+      steps: [
+        {
+          title: 'IELTS viết mỗi band thành nhiều gạch đầu dòng',
+          body: [
+            'File Analytic Scoring Band không viết một câu cho mỗi mức mà liệt kê nhiều ý. Hệ thống giữ nguyên cách đó: mỗi ý là một dòng.',
+          ],
+          figures: [
+            {
+              src: IMG.ieltsBand,
+              alt: 'Bảng band Fluency and coherence: band 9, 8, 7 mỗi band nhiều gạch đầu dòng',
+              caption: 'Analytic Scoring Band — Fluency and coherence, band 9 đến 7.',
+            },
+          ],
         },
       ],
       callout: {
         kind: 'tip',
-        text: 'Vì sao tách đôi? Để mọi lớp trong cùng một khóa chấm trên cùng một thang, số liệu so sánh được với nhau — và để bạn sửa câu chữ mà không lỡ tay đổi mất thang điểm. Thường thì cấu trúc dựng một lần rồi dùng lâu dài, còn nội dung là việc bạn làm thường xuyên.',
+        text: 'Cả hai file này ĐÃ ĐƯỢC NẠP SẴN vào hệ thống cho 22 khóa học: khóa thiếu nhi (Tiny Rabbit, Little Fox, Junior Panda, Great Big Dino) dùng bảng Cambridge, các khóa còn lại dùng bảng IELTS. Việc của đội học thuật là kiểm tra và chỉnh cho sát — không phải gõ lại từ đầu.',
       },
     },
 
     who: {
-      heading: '3. Ai làm được gì',
-      intro: [
-        'Hai lớp trên tương ứng với hai quyền riêng. Quản trị viên (admin) luôn có cả hai.',
-      ],
-      terms: [
-        { term: 'Quyền "rubric_template"', desc: 'Dựng, sửa, nhân bản, xóa CẤU TRÚC chấm điểm. Thường cấp cho trưởng bộ môn hoặc người thiết kế chương trình.' },
-        { term: 'Quyền "criteria_author"', desc: 'Soạn NỘI DUNG chấm điểm cho khóa học, và tải lên file .docx. Thường cấp cho giáo viên phụ trách khóa.' },
-      ],
-      callout: {
-        kind: 'warn',
-        text: 'Không thấy nút mình cần? Gần như chắc chắn là chưa được cấp quyền, chứ không phải hỏng. Nhờ quản trị viên vào màn Người dùng tích quyền tương ứng cho tài khoản của bạn — quyền có hiệu lực ngay, không cần đăng xuất rồi đăng nhập lại.',
-      },
-    },
-
-    structure: {
-      heading: '4. Dựng cấu trúc chấm điểm',
-      intro: [
-        'Cần quyền "rubric_template". Nếu trung tâm đã dựng sẵn cấu trúc phù hợp thì bỏ qua mục này và sang thẳng mục 5.',
-      ],
+      heading: '3. Lớp của tôi đang chấm bằng bộ tiêu chí nào?',
+      intro: ['Trước khi kiểm thử một lớp, hãy xem lớp đó đang dùng bộ nào.'],
       steps: [
         {
-          title: 'Mở danh sách cấu trúc',
-          body: ['Vào Tiêu chí ở thanh bên trái, rồi bấm nút mở danh sách cấu trúc.'],
-          uiKeys: ['nav.criteria', 'templates.open'],
+          title: 'Mở bảng Cấu hình theo lớp',
+          body: ['Vào Tiêu chí ở thanh bên trái, kéo xuống bảng Cấu hình theo lớp. Bảng liệt kê mọi lớp đang có học viên.'],
+          uiKeys: ['nav.criteria', 'criteria.classesConfig'],
         },
         {
-          title: 'Chọn cách bắt đầu',
+          title: 'Đọc cột "Tiêu chí đang áp dụng"',
           body: [
-            'Hệ thống có sẵn hai cấu trúc mặc định: Cambridge Young Learners (5 tiêu chí, thang 0–5, cộng tổng 25 điểm rồi quy ra cấp độ) và IELTS Speaking (4 tiêu chí, thang 0–9, lấy trung bình).',
-            'Bạn có ba lựa chọn: dùng luôn một mẫu có sẵn; bấm Nhân bản để tạo biến thể riêng mà vẫn giữ nguyên bản gốc; hoặc bấm Tạo cấu trúc mới để dựng từ đầu.',
+            'Cột này ghi tên bộ tiêu chí và phiên bản (ví dụ "Tiny Rabbit — Speaking (Cambridge YL) · v3"), kèm một nhãn:',
+            '• "Theo khóa": lớp dùng phiên bản mới nhất của khóa học. Đây là trường hợp bình thường.',
+            '• "Ghim riêng": lớp được chỉ định dùng một phiên bản cụ thể, kể cả khi khóa đã có phiên bản mới hơn.',
+            'Nhãn màu vàng là cảnh báo cần xử lý — ví dụ "Khóa chưa có tiêu chí" nghĩa là bài của lớp đó sẽ không được chấm.',
           ],
-          uiKeys: ['templates.duplicate', 'templates.new'],
-          callout: {
-            kind: 'tip',
-            text: 'Nếu chỉ cần chỉnh vài chỗ so với mẫu có sẵn, hãy Nhân bản thay vì dựng lại từ đầu — nhanh hơn và ít sai sót hơn.',
-          },
+          uiKeys: ['criteria.effectiveCriteria', 'criteria.sourceCourseLatest', 'criteria.sourcePinned'],
         },
         {
-          title: 'Điền thông tin chung và thang điểm',
+          title: 'Muốn một lớp dùng phiên bản khác (tùy chọn)',
           body: [
-            'Đặt Khóa (key) — mã ngắn không dấu, không đổi được sau khi tạo — và Tên để mọi người nhận ra.',
-            'Chọn thang điểm: nhỏ nhất, lớn nhất và bước nhảy. Ví dụ Cambridge là 0 đến 5 bước 1; IELTS là 0 đến 9 bước 1.',
-            'Chọn cách tính tổng: Tổng (cộng điểm các tiêu chí lại) hay Trung bình (lấy trung bình cộng). Ô Tổng điểm tối đa ngay bên cạnh sẽ tự cập nhật để bạn kiểm chứng.',
+            'Ở cột "Ghim tiêu chí", chọn phiên bản muốn dùng rồi bấm Lưu trên hàng đó. Chọn lại "Mặc định" để quay về phiên bản mới nhất của khóa. Ô Zalo ID tư vấn có thể để trống.',
           ],
-          uiKeys: ['templates.scale', 'templates.aggregationMethod'],
-        },
-        {
-          title: 'Khai báo các tiêu chí',
-          body: [
-            'Mỗi tiêu chí có một khóa máy (chữ thường không dấu, ví dụ "fluency") và một nhãn hiển thị cho người đọc (ví dụ "Fluency (Trôi chảy)").',
-            'Bắt buộc phải có một tiêu chí mang khóa "pronunciation". Đây là quy định của hệ thống, không bỏ được.',
-          ],
-          uiKeys: ['templates.addDimension', 'templates.dimKey', 'templates.dimLabel'],
-        },
-        {
-          title: 'Lập bảng cấp độ (nếu cần)',
-          body: [
-            'Bảng này quy đổi tổng điểm ra cấp độ, ví dụ 0–10 là Pre-starter, 11–15 là Starter, 16–20 là Mover, 21–25 là Flyer.',
-            'Các khoảng phải liền nhau và phủ kín từ 0 đến tổng điểm tối đa. Nếu bị hở hoặc chồng lấn, hệ thống sẽ báo ngay bên dưới.',
-            'Không cần quy đổi cấp độ thì cứ để trống bảng này.',
-          ],
-          uiKeys: ['templates.levels', 'templates.addLevel'],
-        },
-        {
-          title: 'Chọn đầu ra và khóa trường',
-          body: [
-            'Đầu ra quy định AI phải trả về những gì cho mỗi tiêu chí: chỉ Nhận xét, hoặc cả Hướng sửa.',
-            'Khóa trường quyết định giáo viên soạn nội dung được phép đổi những gì. Trường bị khóa sẽ hiện ổ khóa và chỉ đọc ở bước soạn nội dung — dùng để giữ thang điểm và cách tính thống nhất giữa các lớp.',
-          ],
-          uiKeys: ['templates.outputFields', 'templates.locked'],
+          uiKeys: ['criteria.pinCriteria', 'criteria.save'],
         },
       ],
       callout: {
         kind: 'warn',
-        text: 'Hai cấu trúc mặc định không xóa được — chỉ Ẩn đi. Bù lại chúng có nút Khôi phục bản gốc để lấy lại nguyên trạng nếu sửa hỏng. Với cấu trúc tự tạo thì xóa được, và việc xóa KHÔNG ảnh hưởng gì tới các nội dung đã soạn từ nó trước đó.',
+        text: 'Không thấy nút Soạn nội dung chấm điểm hoặc Cấu trúc chấm điểm? Tài khoản chưa được cấp quyền. Nhờ quản trị viên vào màn Người dùng tích quyền "criteria_author" (soạn nội dung) hoặc "rubric_template" (dựng cấu trúc) — có hiệu lực ngay.',
       },
     },
 
     content: {
-      heading: '5. Soạn nội dung chấm điểm',
+      heading: '4. Chỉnh bộ tiêu chí cho một khóa — điền gì vào ô nào',
       intro: [
-        'Cần quyền "criteria_author". Đây là việc giáo viên làm thường xuyên nhất.',
+        'Đây là việc đội học thuật làm thường xuyên nhất. Cách an toàn nhất là SỬA phiên bản đang dùng, vì nó đã có đầy đủ mô tả từ file của trung tâm. Mỗi lần lưu tạo ra một phiên bản mới; phiên bản cũ vẫn còn nguyên.',
       ],
       steps: [
         {
-          title: 'Mở trình soạn',
-          body: ['Vào Tiêu chí rồi bấm nút soạn nội dung. Muốn sửa lại một phiên bản đã có thì bấm Sửa ngay trên dòng phiên bản đó trong danh sách.'],
-          uiKeys: ['authoring.open'],
-        },
-        {
-          title: 'Chọn khóa học và cấu trúc',
+          title: 'Mở phiên bản đang dùng',
           body: [
-            'Chọn khóa học bạn đang soạn, rồi chọn cấu trúc chấm điểm sẽ dùng làm khung. Các ô bên dưới sẽ tự dựng theo cấu trúc đó.',
+            'Vào Tiêu chí. Ở ô Mã khóa (courseId), chọn khóa học (ví dụ "Little Fox") rồi bấm Xem danh sách. Trên dòng có số phiên bản lớn nhất, bấm Sửa.',
           ],
-          uiKeys: ['authoring.courseStep', 'authoring.selectTemplate'],
-        },
-        {
-          title: 'Viết mô tả cho từng mức điểm',
-          body: [
-            'Đây là phần quan trọng nhất. Với mỗi tiêu chí, bảng mức điểm hiện một dòng cho mỗi mức trong thang — thang 0–5 thì có 6 dòng, thang 0–9 thì có 10 dòng.',
-            'Ở mỗi ô, viết mô tả học viên ở mức đó nói như thế nào. Mỗi dòng bạn xuống hàng sẽ thành một gạch đầu dòng khi gửi cho AI.',
-            'Viết càng cụ thể, AI chấm càng sát. So sánh "Phát âm khá rõ, lỗi nhỏ không ảnh hưởng hiểu" với "Tạm được" — vế đầu cho AI một ranh giới rõ ràng, vế sau thì không.',
-          ],
-          uiKeys: ['authoring.bands'],
+          uiKeys: ['nav.criteria', 'criteria.courseId', 'criteria.load'],
           callout: {
-            kind: 'tip',
-            text: 'Đổi thang điểm rộng ra thì bảng tự thêm dòng mới, phần bạn đã viết vẫn còn nguyên. Thu hẹp thang lại thì những mức nằm ngoài thang được gom xuống mục "Ngoài thang điểm hiện tại" chứ không bị xóa.',
+            kind: 'warn',
+            text: 'Tránh bấm "Soạn nội dung chấm điểm" rồi chọn cấu trúc để làm từ đầu: cấu trúc mặc định chỉ có khung, phần mô tả mức điểm gần như trống, bạn sẽ phải gõ lại toàn bộ.',
           },
         },
         {
-          title: 'Thêm yếu tố con (tùy chọn)',
+          title: 'Kiểm tra mô tả từng mức điểm — phần quan trọng nhất',
           body: [
-            'Với tiêu chí phức tạp, bạn có thể tách nhỏ để nói rõ ranh giới giữa các mức — ví dụ tiêu chí Trôi chảy tách thành độ dài câu, độ ngập ngừng, độ lặp, từ nối.',
-            'Phần này không bắt buộc, nhưng là chỗ giúp AI phân biệt hai mức điểm sát nhau tốt nhất.',
+            'Mỗi tiêu chí có một ô cho mỗi mức điểm: thang 0–5 có 6 ô, thang 0–9 có 10 ô. Đối chiếu từng ô với bảng trong file rubric.',
+            'Mỗi lần xuống dòng trong ô là một gạch đầu dòng. Viết càng cụ thể, AI càng chấm sát: "Phát âm khá rõ, lỗi nhỏ không ảnh hưởng hiểu" tốt hơn nhiều so với "Tạm được".',
+          ],
+          uiKeys: ['authoring.bands'],
+          example: {
+            title: 'Ví dụ — Pronunciation (Âm chính), lớp KID, lấy từ Rubric Speaking A0–A2',
+            text:
+              'Mức 0: Không phát âm được, khó hiểu.\n' +
+              'Mức 1: Phát âm rời rạc, sai nhiều âm, khó nhận diện từ.\n' +
+              'Mức 2: Có thể phát âm từ quen thuộc nhưng nhiều sai sót.\n' +
+              'Mức 3: Phát âm đúng đa số từ quen thuộc, đôi lúc gây nhầm.\n' +
+              'Mức 4: Phát âm khá rõ, lỗi nhỏ không ảnh hưởng hiểu.\n' +
+              'Mức 5: Phát âm rõ ràng, dễ hiểu, gần chuẩn người bản ngữ.',
+          },
+        },
+        {
+          title: 'Với IELTS: mỗi ý một dòng',
+          body: ['Ô của một band IELTS thường có nhiều ý — gõ mỗi ý trên một dòng riêng, đúng như gạch đầu dòng trong file.'],
+          example: {
+            title: 'Ví dụ — Fluency and coherence, ô "Mức 8", lấy từ Analytic Scoring Band',
+            text:
+              'Nói một cách trôi chảy, hiếm khi lặp lại hoặc tự sửa lỗi\n' +
+              'Ngập ngừng chủ yếu do tìm nội dung, ý diễn đạt, ít khi phải dừng để tìm từ ngữ hay ngữ pháp\n' +
+              'Phát triển các chủ đề một cách mạch lạc và phù hợp',
+          },
+        },
+        {
+          title: 'Thêm yếu tố con khi hai mức điểm dễ nhầm (tùy chọn)',
+          body: [
+            'Nếu thấy AI hay nhầm giữa hai band sát nhau, tách tiêu chí thành các yếu tố nhỏ và ghi từ khóa cho từng band. File Analytic Scoring Band đã có sẵn các bảng so sánh band 4–8 như vậy.',
           ],
           uiKeys: ['authoring.subFactors', 'authoring.addSubFactor'],
+          example: {
+            title: 'Ví dụ — yếu tố con "Độ dài, tốc độ nói" của Fluency and coherence',
+            text:
+              'Tên yếu tố con: Độ dài, tốc độ, tính liên tục\n' +
+              'Band 4: Speak slowly, noticeable pauses\n' +
+              'Band 5: Slow speech; create fluent simple speech\n' +
+              'Band 6: Willing to speak at length\n' +
+              'Band 7: Speak at length without noticeable efforts\n' +
+              'Band 8: Speak fluently',
+          },
         },
         {
-          title: 'Nạp kho nhận xét mẫu',
+          title: 'Nạp câu nhận xét mẫu để AI viết giống giáo viên',
           body: [
-            'Dán vào đây những câu nhận xét bạn vẫn hay viết cho học viên, gắn nhãn khen hoặc góp ý, và chọn nó thuộc tiêu chí nào.',
-            'AI sẽ bám theo văn phong của những câu này, nên nhận xét trả về nghe giống giáo viên của trung tâm chứ không giống máy.',
+            'Ở Kho nhận xét, bấm Thêm nhận xét, dán một câu giáo viên vẫn hay viết, chọn nó thuộc tiêu chí nào và ý định là khen hay góp ý. Chỗ tên học viên hoặc từ cụ thể cứ để "…".',
+            'AI bắt chước giọng văn của những câu này. Nên có ít nhất một câu khen và một câu góp ý cho mỗi tiêu chí hay gặp.',
           ],
-          uiKeys: ['authoring.commentBank', 'authoring.addComment'],
+          uiKeys: ['authoring.commentBank', 'authoring.addComment', 'authoring.cbDimension', 'authoring.cbIntent'],
+          figures: [
+            {
+              src: IMG.ylComments,
+              alt: 'Trang CMT LỚP KIDS-TEEN: các câu nhận xét mẫu theo Ngữ điệu, Khen, Âm đuôi, Pronunciation',
+              caption: 'Nguồn câu mẫu: trang "CMT LỚP KIDS-TEEN" trong file Rubric Speaking A0–C. Mỗi đoạn có dấu "+" là một câu mẫu.',
+            },
+          ],
+          example: {
+            title: 'Ví dụ — một câu mẫu điền vào Kho nhận xét',
+            text:
+              'Tiêu chí: Ending sounds (Âm đuôi)\n' +
+              'Ý định: khen\n' +
+              'Nội dung: Cô cũng nhận được bài của … rui nha, cô thấy con cũng rất để ý đến âm đuôi, cái này sẽ khá hữu ích khi sau này học nhiều từ phức tạp hơn. Mong con tiếp tục phát huy điểm mạnh nha con.',
+          },
         },
         {
-          title: 'Xem trước prompt gửi AI',
+          title: 'Đọc thử phần xem trước rồi lưu',
           body: [
-            'Khung bên phải hiển thị đúng đoạn văn bản mà AI sẽ nhận được, cập nhật ngay khi bạn gõ.',
-            'Hãy đọc lướt trước khi lưu. Nếu bạn thấy đoạn đó khó hiểu hoặc thiếu thông tin thì AI cũng vậy — đây là cách nhanh nhất để biết mình đã viết đủ rõ chưa.',
+            'Khung Xem trước prompt gửi AI hiện đúng đoạn văn AI sẽ nhận. Đọc lướt một lượt: bạn thấy khó hiểu thì AI cũng vậy.',
+            'Bấm Lưu. Hệ thống báo "Đã lưu phiên bản …". Từ lúc này, bài nộp mới của khóa sẽ chấm theo phiên bản vừa lưu (trừ lớp đang Ghim riêng phiên bản cũ).',
           ],
-          uiKeys: ['authoring.preview'],
+          uiKeys: ['authoring.preview', 'criteria.save'],
         },
         {
-          title: 'Lưu lại',
+          title: 'Chấm thử trước khi dùng thật',
           body: [
-            'Bấm Lưu. Hệ thống tạo một phiên bản mới và giữ nguyên các phiên bản cũ.',
+            'Vào Test Upload, chọn một học viên thử (ví dụ lớp PILOT-TEST) và tải lên một file ghi âm. Bài được chấm như thật nhưng KHÔNG gửi cho ai — mở màn Bài nộp để xem AI cho điểm và nhận xét có sát với cách giáo viên chấm không.',
           ],
-          uiKeys: ['criteria.save'],
+          uiKeys: ['nav.testUpload', 'nav.submissions'],
+        },
+      ],
+      callout: {
+        kind: 'tip',
+        text: 'Sửa bộ tiêu chí không làm đổi điểm các bài đã chấm — mỗi bài giữ phiên bản tiêu chí của lúc nó được chấm.',
+      },
+    },
+
+    structure: {
+      heading: '5. Dựng một bộ tiêu chí hoàn toàn mới',
+      intro: [
+        'Chỉ cần khi trung tâm có chương trình mới với thang điểm hoặc bộ tiêu chí khác hẳn Cambridge và IELTS. Việc này cần quyền "rubric_template" và thường do trưởng bộ môn làm. Ví dụ dưới đây dựng lại đúng bảng Rubric Speaking A0–A2 để thấy từng ô điền gì.',
+      ],
+      steps: [
+        {
+          title: 'Nhân bản một cấu trúc có sẵn',
+          body: [
+            'Vào Tiêu chí, bấm Cấu trúc chấm điểm. Tìm cấu trúc gần giống nhất rồi bấm Nhân bản — nhanh và ít sai hơn tạo mới. Đặt Khóa mới là mã ngắn không dấu, không đổi được về sau (ví dụ "kid_speaking_2027").',
+          ],
+          uiKeys: ['templates.open', 'templates.duplicate', 'templates.new'],
+        },
+        {
+          title: 'Điền thang điểm và cách tính',
+          body: ['Lấy từ phần "Cách tính" trong file rubric.'],
+          uiKeys: ['templates.scale', 'templates.aggregationMethod'],
+          example: {
+            title: 'Ví dụ — lớp KID (Rubric Speaking A0–A2)',
+            text:
+              'Thang điểm: Nhỏ nhất 0 · Lớn nhất 5 · Bước nhảy 1\n' +
+              'Cách tính tổng: Tổng (sum) → ô "Tổng điểm tối đa" hiện 25\n\n' +
+              'Nếu là IELTS: Nhỏ nhất 0 · Lớn nhất 9 · Bước nhảy 1 · Cách tính: Trung bình (average) · Làm tròn: số nguyên',
+          },
+        },
+        {
+          title: 'Khai báo tiêu chí',
+          body: [
+            'Mỗi hàng của bảng rubric là một tiêu chí. "Khóa tiêu chí" là tên máy (chữ thường, không dấu, nối bằng gạch dưới); "Nhãn hiển thị" là tên giáo viên đọc.',
+            'Bắt buộc có một tiêu chí khóa "pronunciation".',
+          ],
+          uiKeys: ['templates.addDimension', 'templates.dimKey', 'templates.dimLabel'],
+          example: {
+            title: 'Ví dụ — 5 tiêu chí lớp KID',
+            text:
+              'pronunciation — Pronunciation (Âm chính)\n' +
+              'intonation — Intonation (Ngữ điệu)\n' +
+              'ending_sounds — Ending sounds (Âm đuôi)\n' +
+              'word_stress — Word Stress (Trọng âm từ/cụm)\n' +
+              'fluency — Fluency (Trôi chảy)',
+          },
+        },
+        {
+          title: 'Lập bảng cấp độ (nếu file có quy đổi)',
+          body: ['Các khoảng phải nối liền nhau và phủ kín từ 0 tới tổng tối đa. Không cần quy đổi thì để trống (như IELTS).'],
+          uiKeys: ['templates.levels', 'templates.addLevel'],
+          example: {
+            title: 'Ví dụ — quy đổi lớp KID',
+            text:
+              '0–10 · A0 · Pre-starter (A0) ~ Tiny Rabbit\n' +
+              '11–15 · A1- · Starter (A1-) ~ Little Fox\n' +
+              '16–20 · A1 · Mover (A1) ~ Junior Panda\n' +
+              '21–25 · A2 · Flyer (A2) ~ Great Big Dino',
+          },
+        },
+        {
+          title: 'Chọn đầu ra và mẫu tin gửi học viên',
+          body: [
+            'Đầu ra: tích cả Nhận xét và Hướng sửa để tin nhắn có đủ hai cột như "Bảng chấm chữa bài Speaking".',
+            'Mẫu văn bản phản hồi quyết định tin nhắn học viên nhận. Giữ nguyên mẫu dưới đây — chữ trong ngoặc nhọn kép được hệ thống tự thay bằng nội dung thật.',
+          ],
+          uiKeys: ['templates.outputFields', 'templates.outputFix', 'templates.replyTemplate'],
+          example: {
+            title: 'Mẫu văn bản phản hồi (gõ đúng như sau)',
+            text: '{{feedback}}\n\n{{criteria}}\n\nEm chú ý phát âm các từ sau:\n{{pronunciation_errors}}',
+          },
+          callout: {
+            kind: 'warn',
+            text: 'Không bật "Hiện tổng điểm" hay "Hiện cấp độ": trung tâm không gửi điểm số cho học viên.',
+          },
+        },
+        {
+          title: 'Lưu cấu trúc, rồi soạn nội dung',
+          body: ['Lưu cấu trúc xong, làm tiếp như mục 4: điền mô tả từng mức điểm và câu nhận xét mẫu cho từng khóa học dùng cấu trúc này.'],
         },
       ],
       callout: {
         kind: 'warn',
-        text: 'Trường nào hiện ổ khóa là do cấu trúc đã khóa — muốn đổi thì sang drawer Cấu trúc chấm điểm, hoặc nhờ người có quyền đó. Riêng tiêu chí "pronunciation" luôn có mặt và không xóa được.',
+        text: 'Hai cấu trúc mặc định (Cambridge và IELTS) không xóa được. Nút "Khôi phục bản gốc" đưa chúng về nguyên trạng ban đầu và XÓA mẫu văn bản phản hồi — sau khi khôi phục, nhờ quản trị viên điền lại mẫu ở bước trên.',
       },
     },
 
     after: {
-      heading: '6. Sau khi lưu thì điều gì xảy ra',
-      intro: ['Bạn không phải kích hoạt gì thêm. Cụ thể:'],
-      terms: [
-        { term: 'Bài nộp mới', desc: 'Mọi bài của khóa học đó từ lúc này sẽ được chấm theo phiên bản mới nhất.' },
-        { term: 'Bài đã chấm', desc: 'Giữ nguyên phiên bản tiêu chí lúc chấm. Sửa tiêu chí không làm đổi điểm của bài cũ.' },
-        { term: 'Lớp bật Tự động gửi', desc: 'Nhận xét gửi thẳng cho học viên ngay sau khi chấm xong.' },
-        { term: 'Lớp tắt Tự động gửi', desc: 'Bài chờ ở màn Bài nộp; giáo viên đọc, sửa lại nhận xét nếu cần, rồi bấm gửi.' },
+      heading: '6. Duyệt bài và gửi nhận xét cho học viên',
+      intro: ['Bài chấm xong không tự gửi — giáo viên đọc lại rồi mới gửi.'],
+      steps: [
+        {
+          title: 'Mở bài cần duyệt',
+          body: ['Vào Bài nộp, lọc Trạng thái là "awaiting_review" (chờ duyệt) hoặc tìm theo tên học viên, rồi bấm Xem.'],
+          uiKeys: ['nav.submissions', 'submissions.filterStatus', 'submissions.view'],
+        },
+        {
+          title: 'Nghe bài và đọc kết quả AI',
+          body: [
+            'Nghe file ghi âm. Ở mục Điểm từng tiêu chí, mỗi tiêu chí có điểm, nhận xét và hướng sửa. Từ phát âm sai có nút bấm để nghe lại đúng đoạn đó.',
+            'Nếu điểm hay nhận xét của một tiêu chí lệch nhiều so với cách bạn chấm, ghi lại và báo người phụ trách bộ tiêu chí — đó là dấu hiệu mô tả mức điểm cần viết rõ hơn (mục 4).',
+          ],
+          uiKeys: ['submissions.scores', 'submissions.scoreFix'],
+        },
+        {
+          title: 'Sửa nhận xét chung nếu cần — rồi bấm Lưu',
+          body: [
+            '"Nhận xét AI (gốc)" là đoạn mở đầu AI viết. Muốn đổi, gõ bản của bạn vào ô "Nhận xét đã sửa" rồi bấm Lưu. Ô này để trống thì hệ thống gửi đoạn của AI.',
+            'Phần nhận xét và hướng sửa theo từng tiêu chí được gửi kèm tự động.',
+          ],
+          uiKeys: ['submissions.llmFeedback', 'submissions.reviewedFeedback', 'students.save'],
+          callout: {
+            kind: 'warn',
+            text: 'Phải bấm Lưu TRƯỚC khi gửi — bấm Gửi luôn thì bản sửa không đi theo. Nếu làm việc lâu, đăng nhập lại trước khi Lưu: phiên đăng nhập hết hạn sau 8 giờ và bản sửa sẽ không được ghi.',
+          },
+        },
+        {
+          title: 'Bấm Gửi cho học viên',
+          body: ['Nút chuyển thành "Đã gửi" và mờ đi — mỗi bài chỉ gửi được một lần. Tin dài được tự chia thành 2–3 tin liên tiếp trên Zalo.'],
+          uiKeys: ['submissions.send', 'submissions.sent'],
+        },
       ],
+      example: {
+        title: 'Học viên nhận được trên Zalo (rút gọn từ một bài thật của lớp PILOT-TEST)',
+        text:
+          'Thầy/Cô đánh giá cao sự chuẩn bị chu đáo và khả năng mở rộng ý tưởng rất tốt của em trong bài nói này! …\n\n' +
+          '🔹 Fluency and coherence\n' +
+          'Nhận xét: Em trả lời đầy đủ tất cả các câu hỏi và biết cách kéo dài câu nói bằng cách đưa ra lý do, ví dụ minh họa rõ ràng.\n' +
+          '→ Hướng sửa: Hạn chế đọc lại câu hỏi trong đề bài; thay bằng câu dẫn tự nhiên như "Well, to be honest…".\n\n' +
+          '🔹 Grammatical range and accuracy\n' +
+          'Nhận xét: Em đã kết hợp được cả câu đơn và câu phức, còn một số lỗi hòa hợp chủ ngữ – động từ.\n' +
+          '→ Hướng sửa: "it requires" thay vì "it require"; "a musician" thay vì "a musicians".\n\n' +
+          'Em chú ý phát âm các từ sau:\n' +
+          '• 0:43 — "genres" em đọc thành "jurns" → /ˈʒɑːn.rəz/',
+      },
       callout: {
-        kind: 'tip',
-        text: 'Công tắc Tự động gửi nằm ở bảng Cấu hình theo lớp, ngay dưới trang Tiêu chí. Khi mới soạn xong một bộ tiêu chí, nên tắt tự động gửi vài ngày để đọc thử vài bài trước đã.',
+        kind: 'warn',
+        text: 'Hãy duyệt và gửi trong vòng 48 giờ kể từ khi học viên nhắn. Quá 48 giờ, Zalo không cho trung tâm nhắn miễn phí và hệ thống sẽ chặn tin — học viên không nhận được gì.',
       },
     },
 
     trouble: {
-      heading: '7. Gặp lỗi thì xử lý thế nào',
-      intro: ['Các thông báo hay gặp và cách xử lý:'],
+      heading: '7. Khi gặp vấn đề',
       terms: [
         {
+          term: 'Nút "Gửi cho học viên" bị mờ, ghi "Đã gửi"',
+          desc: 'Bài này đã được gửi đi rồi. Nếu học viên báo không nhận được, báo quản trị viên kèm tên học viên và giờ gửi — nguyên nhân hay gặp nhất là gửi quá 48 giờ sau khi học viên nhắn.',
+        },
+        {
+          term: 'Đã sửa nhận xét nhưng học viên nhận bản của AI',
+          desc: 'Chưa bấm Lưu trước khi Gửi, hoặc phiên đăng nhập đã hết hạn lúc bấm Lưu. Lần sau: đăng nhập lại → sửa → Lưu → kiểm tra ô vẫn còn bản sửa → Gửi.',
+        },
+        {
+          term: 'Bảng Cấu hình theo lớp có nhãn vàng "Khóa chưa có tiêu chí"',
+          desc: 'Khóa của lớp đó chưa có bộ tiêu chí nào nên bài sẽ không được chấm. Soạn tiêu chí cho khóa đó theo mục 4 hoặc báo quản trị viên.',
+        },
+        {
+          term: 'AI cho điểm lệch nhiều so với giáo viên',
+          desc: 'Mở phiên bản đang dùng (mục 4), viết lại mô tả của các mức bị nhầm cho cụ thể hơn, thêm yếu tố con cho tiêu chí đó, rồi chấm thử lại bằng Test Upload.',
+        },
+        {
+          term: 'Không thấy nút soạn nội dung hoặc cấu trúc',
+          desc: 'Tài khoản chưa có quyền — xem cuối mục 3.',
+        },
+        {
           term: '"Phải có một tiêu chí với khóa pronunciation"',
-          desc: 'Cấu trúc đang thiếu tiêu chí phát âm. Sang drawer Cấu trúc chấm điểm, thêm một tiêu chí có khóa đúng là "pronunciation" (chữ thường, không dấu).',
+          desc: 'Cấu trúc thiếu tiêu chí phát âm. Thêm một tiêu chí có khóa đúng là "pronunciation" (chữ thường, không dấu).',
         },
         {
-          term: '"Hở khoảng trước cấp độ #…"',
-          desc: 'Bảng cấp độ bị đứt quãng — ví dụ một cấp kết thúc ở 10 mà cấp tiếp theo lại bắt đầu ở 12, nên tổng 11 điểm không rơi vào cấp nào. Sửa cho các khoảng nối liền nhau.',
-        },
-        {
-          term: '"Khóa (key) đã tồn tại"',
-          desc: 'Đã có cấu trúc khác dùng khóa này rồi. Con trỏ sẽ tự nhảy về ô Khóa — chỉ cần đặt một khóa khác.',
-        },
-        {
-          term: 'Không thấy nút Cấu trúc hoặc nút Soạn nội dung',
-          desc: 'Tài khoản của bạn chưa có quyền tương ứng. Xem lại mục 3 và nhờ quản trị viên cấp quyền.',
-        },
-        {
-          term: 'Khung xem trước prompt trống',
-          desc: 'Thường là do chưa chọn cấu trúc, hoặc chưa nhập nội dung nào. Chọn cấu trúc và gõ thử một mô tả mức điểm là khung sẽ hiện ra.',
-        },
-        {
-          term: 'Đóng nhầm cửa sổ khi đang soạn dở',
-          desc: 'Hệ thống luôn hỏi lại trước khi đóng nếu bạn đang có thay đổi chưa lưu — kể cả khi bấm phím Esc hay bấm ra vùng nền bên ngoài.',
+          term: '"Hở khoảng trước cấp độ …"',
+          desc: 'Bảng cấp độ bị đứt quãng, ví dụ một cấp kết thúc ở 10 mà cấp sau bắt đầu ở 12. Sửa cho các khoảng nối liền nhau.',
         },
       ],
     },
@@ -311,233 +486,141 @@ export const guideVi: GuideContent = {
 };
 
 export const guideEn: GuideContent = {
-  title: 'Guide: authoring grading criteria',
-  lead: 'This page walks through the whole flow, from building a grading structure to authoring the grading content for a course. No technical knowledge needed — just follow the order.',
+  title: 'Guide for the academic team',
+  lead: 'For teachers: read a rubric, adapt it for a course, then review feedback and send it to students. Every example comes from the centre\'s two rubric files (Rubric Speaking A0–C and Analytic Scoring Band).',
   tocHeading: 'Contents',
 
   sections: {
     overview: {
-      heading: '1. What this system does',
-      intro: [
-        'Students send a speaking clip (usually around 5 minutes) over Zalo. The system receives it, has an AI grade it against your course criteria, then sends feedback back to the student.',
-        'Four steps happen:',
-      ],
+      heading: '1. The whole flow in one minute',
+      intro: ['A student sends a speaking clip on Zalo. The AI grades it against the course rubric. A teacher reviews, edits if needed, and sends. The student receives the feedback on Zalo.'],
       terms: [
-        { term: 'Step 1 — Student submits', desc: 'The student sends a clip to the centre’s Zalo OA. The system picks it up automatically; nobody has to click anything.' },
-        { term: 'Step 2 — AI grades', desc: 'The AI listens to the clip and grades it against the criteria you authored for that course. This is why authoring matters: how well the AI grades depends on what you write.' },
-        { term: 'Step 3 — Teacher reviews', desc: 'If the class has auto-send switched OFF, the submission waits on the Submissions screen for a teacher to read it, edit the feedback, and send.' },
-        { term: 'Step 4 — Sent to the student', desc: 'Feedback goes back over Zalo. The system never messages parents and never nags students to submit.' },
+        { term: 'Step 1 — Student submits', desc: 'The student sends an audio file to the centre\'s Zalo OA. Nothing to click.' },
+        { term: 'Step 2 — AI grades', desc: 'Against the rubric of the student\'s course. How close the AI gets depends on how clearly the rubric is written (section 4).' },
+        { term: 'Step 3 — Teacher reviews', desc: 'Graded work waits on the Submissions screen (section 6).' },
+        { term: 'Step 4 — Send', desc: 'The message follows the centre\'s "Speaking correction sheet": a comment and a fix for each criterion.' },
       ],
-      callout: {
-        kind: 'tip',
-        text: 'AI feedback is daily practice for students. It does not replace a teacher’s official marks.',
-      },
+      figures: [
+        {
+          src: IMG.ieltsSheet,
+          alt: 'Speaking correction sheet with Comment and Fix columns per criterion',
+          caption: 'The centre\'s correction sheet (last page of Analytic Scoring Band). Student messages follow this layout.',
+        },
+      ],
+      callout: { kind: 'tip', text: 'Students never receive scores — only comments and fixes.' },
     },
 
     concepts: {
-      heading: '2. The two things you author, and how they differ',
-      intro: [
-        'This is the part people most often mix up, so read it once carefully and everything afterwards goes quickly. Authoring is split into two layers:',
+      heading: '2. Reading a rubric — using the centre\'s own files',
+      intro: ['A rubric is the marking table teachers already use: which criteria, the score range, and what each score means. In Rubric Speaking A0–A2 each ROW is a criterion and each COLUMN a score from 0 to 5.'],
+      figures: [
+        { src: IMG.ylScale1, alt: 'Rubric Speaking A0–A2, criteria 1–2', caption: 'Rubric Speaking A0–A2 — criteria 1–2.' },
+        { src: IMG.ylScale2, alt: 'Rubric Speaking A0–A2, criteria 3–5', caption: 'Rubric Speaking A0–A2 — criteria 3–5.' },
       ],
       terms: [
+        { term: 'Criterion', desc: 'KID: Pronunciation, Intonation, Ending sounds, Word Stress, Fluency. IELTS: Fluency and coherence, Lexical resources, Grammatical range and accuracy, Pronunciation.' },
+        { term: 'Scale', desc: 'KID 0–5 per criterion; IELTS band 0–9.' },
+        { term: 'Band description', desc: 'The text in each cell, e.g. Pronunciation 3: "Phát âm đúng đa số từ quen thuộc, đôi lúc gây nhầm."' },
+        { term: 'Total', desc: 'KID sums to 25 and maps to a level (0–10 A0 … 21–25 A2). IELTS averages the four criteria with no half bands.' },
+      ],
+      steps: [
         {
-          term: 'Grading structure — the frame',
-          desc: 'Defines how many criteria a submission is graded on, what the scale runs from and to, whether scores are summed or averaged, and which total maps to which level. Think of it as a BLANK SCORING SHEET.',
-        },
-        {
-          term: 'Grading content — what you write into the frame',
-          desc: 'For each criterion: what each score level actually means, which sub-factors to watch, and a bank of sample comments in your centre’s voice. This is WHAT YOU WRITE ON THE SHEET.',
+          title: 'IELTS bands are bullet lists',
+          body: ['Each band lists several points; the system keeps one point per line.'],
+          figures: [{ src: IMG.ieltsBand, alt: 'Fluency and coherence bands 9 to 7', caption: 'Analytic Scoring Band — Fluency and coherence, bands 9–7.' }],
         },
       ],
-      callout: {
-        kind: 'tip',
-        text: 'Why split them? So every class in a course grades on the same scale and the numbers stay comparable — and so you can reword descriptions without accidentally changing the scale. A structure is usually built once and reused for a long time; content is the part you edit regularly.',
-      },
+      callout: { kind: 'tip', text: 'Both files are already loaded for all 22 courses: kids courses use Cambridge, the rest IELTS. The job is to check and refine, not retype.' },
     },
 
     who: {
-      heading: '3. Who can do what',
-      intro: ['The two layers map to two separate privileges. Administrators always have both.'],
-      terms: [
-        { term: 'The "rubric_template" privilege', desc: 'Build, edit, duplicate and delete grading STRUCTURES. Usually given to a head of department or curriculum designer.' },
-        { term: 'The "criteria_author" privilege', desc: 'Author grading CONTENT for a course, and upload .docx files. Usually given to the teacher who owns the course.' },
-      ],
-      callout: {
-        kind: 'warn',
-        text: 'Can’t see the button you need? It is almost always a missing privilege rather than a fault. Ask an administrator to tick the right privilege for your account on the Users screen — it takes effect immediately, with no need to log out and back in.',
-      },
-    },
-
-    structure: {
-      heading: '4. Building a grading structure',
-      intro: [
-        'Requires the "rubric_template" privilege. If your centre already has a suitable structure, skip this section and go straight to section 5.',
-      ],
+      heading: '3. Which rubric is my class using?',
       steps: [
+        { title: 'Open the per-class table', body: ['Criteria → scroll to the per-class config table. It lists every class with students.'], uiKeys: ['nav.criteria', 'criteria.classesConfig'] },
         {
-          title: 'Open the structure list',
-          body: ['Go to Criteria in the left sidebar, then click the button that opens the structure list.'],
-          uiKeys: ['nav.criteria', 'templates.open'],
+          title: 'Read "Criteria in use"',
+          body: ['Shows the rubric title and version with a badge: "Course default" (latest version of the course) or "Pinned" (a fixed version). Yellow badges need action.'],
+          uiKeys: ['criteria.effectiveCriteria', 'criteria.sourceCourseLatest', 'criteria.sourcePinned'],
         },
-        {
-          title: 'Choose how to start',
-          body: [
-            'Two structures ship by default: Cambridge Young Learners (5 criteria, scale 0–5, summed to 25 then converted to a level) and IELTS Speaking (4 criteria, scale 0–9, averaged).',
-            'You have three options: use a default as-is; click Duplicate to make your own variant while leaving the original untouched; or click New structure to build from scratch.',
-          ],
-          uiKeys: ['templates.duplicate', 'templates.new'],
-          callout: {
-            kind: 'tip',
-            text: 'If you only need a few changes from an existing default, Duplicate rather than rebuilding — it is faster and less error-prone.',
-          },
-        },
-        {
-          title: 'Fill in the basics and the scale',
-          body: [
-            'Set the Key — a short code that cannot be changed after creation — and a Name people will recognise.',
-            'Choose the scale: minimum, maximum and step. Cambridge is 0 to 5 step 1; IELTS is 0 to 9 step 1.',
-            'Choose how totals are computed: Sum (add the criteria up) or Average. The Maximum total shown beside it updates live so you can sanity-check it.',
-          ],
-          uiKeys: ['templates.scale', 'templates.aggregationMethod'],
-        },
-        {
-          title: 'Declare the criteria',
-          body: [
-            'Each criterion has a machine key (lowercase, no spaces, e.g. "fluency") and a display label people read (e.g. "Fluency").',
-            'One criterion keyed exactly "pronunciation" is mandatory. That is a system rule and cannot be skipped.',
-          ],
-          uiKeys: ['templates.addDimension', 'templates.dimKey', 'templates.dimLabel'],
-        },
-        {
-          title: 'Set up the level table (if you want one)',
-          body: [
-            'This converts a total into a level — for example 0–10 Pre-starter, 11–15 Starter, 16–20 Mover, 21–25 Flyer.',
-            'The ranges must be contiguous and cover everything from 0 to the maximum total. Gaps or overlaps are reported right below as you type.',
-            'If you do not need level conversion, just leave the table empty.',
-          ],
-          uiKeys: ['templates.levels', 'templates.addLevel'],
-        },
-        {
-          title: 'Choose outputs and lock fields',
-          body: [
-            'Outputs decide what the AI must return per criterion: just a Comment, or also a Fix suggestion.',
-            'Locking decides what a content author may change. A locked field shows a padlock and is read-only during content authoring — use it to keep the scale and totalling consistent across classes.',
-          ],
-          uiKeys: ['templates.outputFields', 'templates.locked'],
-        },
+        { title: 'Pin another version (optional)', body: ['Pick a version under "Pin criteria" and click Save on that row. The advisor Zalo ID may stay empty.'], uiKeys: ['criteria.pinCriteria', 'criteria.save'] },
       ],
-      callout: {
-        kind: 'warn',
-        text: 'The two default structures cannot be deleted — only hidden. In exchange they have a Restore original button that undoes any edit. Structures you create yourself can be deleted, and deleting one does NOT affect any content already authored from it.',
-      },
+      callout: { kind: 'warn', text: 'Missing authoring buttons means a missing permission: ask an admin for "criteria_author" or "rubric_template" in Users.' },
     },
 
     content: {
-      heading: '5. Authoring the grading content',
-      intro: ['Requires the "criteria_author" privilege. This is the part teachers do most often.'],
+      heading: '4. Adapting a course rubric — what goes in each field',
+      intro: ['EDIT the version in use: it already carries the full text from the centre\'s files. Each save creates a new version and keeps the old ones.'],
       steps: [
+        { title: 'Open the version in use', body: ['Criteria → pick the course → View list → Edit on the highest version.'], uiKeys: ['nav.criteria', 'criteria.courseId', 'criteria.load'] },
         {
-          title: 'Open the authoring drawer',
-          body: ['Go to Criteria and click the authoring button. To revise an existing version, click Edit on that version’s row in the list instead.'],
-          uiKeys: ['authoring.open'],
-        },
-        {
-          title: 'Pick the course and the structure',
-          body: ['Choose the course you are authoring for, then the structure to use as the frame. The fields below rebuild themselves to match it.'],
-          uiKeys: ['authoring.courseStep', 'authoring.selectTemplate'],
-        },
-        {
-          title: 'Describe every score level',
-          body: [
-            'This is the most important part. For each criterion the band grid shows one row per level in the scale — six rows for 0–5, ten rows for 0–9.',
-            'In each box, describe what a student at that level sounds like. Every line break you type becomes a separate bullet when it reaches the AI.',
-            'The more concrete you are, the closer the AI grades. Compare "Fairly clear pronunciation, small errors that do not affect understanding" with "OK" — the first gives the AI a real boundary; the second gives it nothing.',
-          ],
+          title: 'Check each band description',
+          body: ['One field per score. Each new line becomes a bullet. Be specific.'],
           uiKeys: ['authoring.bands'],
-          callout: {
-            kind: 'tip',
-            text: 'Widening the scale adds new rows and keeps everything you already wrote. Narrowing it moves the now-out-of-range levels into an "Out of current scale" section rather than deleting them.',
+          example: {
+            title: 'Example — Pronunciation, KID (Rubric Speaking A0–A2)',
+            text: 'Band 0: Không phát âm được, khó hiểu.\nBand 3: Phát âm đúng đa số từ quen thuộc, đôi lúc gây nhầm.\nBand 5: Phát âm rõ ràng, dễ hiểu, gần chuẩn người bản ngữ.',
           },
         },
+        { title: 'Add sub-factors where bands get confused (optional)', body: ['Split a criterion into smaller factors with keywords per band, as the Analytic Scoring Band comparison tables do.'], uiKeys: ['authoring.subFactors', 'authoring.addSubFactor'] },
         {
-          title: 'Add sub-factors (optional)',
-          body: [
-            'For a complex criterion you can break it down to sharpen the boundaries — for example splitting Fluency into utterance length, hesitation, repetition and connectives.',
-            'This is optional, but it is the single best place to help the AI tell two adjacent score levels apart.',
-          ],
-          uiKeys: ['authoring.subFactors', 'authoring.addSubFactor'],
-        },
-        {
-          title: 'Fill the comment bank',
-          body: [
-            'Paste in the comments you actually write for students, tag each as praise or suggestion, and assign it to a criterion.',
-            'The AI follows the voice of these examples, so the feedback that comes back sounds like your centre’s teachers rather than like a machine.',
-          ],
+          title: 'Load sample comments',
+          body: ['Paste comments teachers already write, pick the criterion and intent (praise / suggestion). The AI copies their tone.'],
           uiKeys: ['authoring.commentBank', 'authoring.addComment'],
+          figures: [{ src: IMG.ylComments, alt: 'CMT LỚP KIDS-TEEN sample comments', caption: 'Source: "CMT LỚP KIDS-TEEN" in Rubric Speaking A0–C.' }],
         },
+        { title: 'Preview, then save', body: ['Read the prompt preview, then Save. New submissions use the new version.'], uiKeys: ['authoring.preview', 'criteria.save'] },
+        { title: 'Test before real use', body: ['Test Upload grades a clip without sending anything; check the result on Submissions.'], uiKeys: ['nav.testUpload', 'nav.submissions'] },
+      ],
+      callout: { kind: 'tip', text: 'Editing a rubric never changes grades already given.' },
+    },
+
+    structure: {
+      heading: '5. Building a brand-new rubric',
+      intro: ['Only for a programme unlike Cambridge or IELTS. Needs "rubric_template".'],
+      steps: [
+        { title: 'Duplicate a structure', body: ['Criteria → Rubric structure → Duplicate the closest one; give it a short key.'], uiKeys: ['templates.open', 'templates.duplicate'] },
+        { title: 'Scale and total', body: ['From the file\'s scoring rules.'], uiKeys: ['templates.scale', 'templates.aggregationMethod'], example: { title: 'Example — KID', text: 'Min 0 · Max 5 · Step 1 · Sum → max total 25' } },
+        { title: 'Criteria', body: ['One per row of the rubric table; "pronunciation" is required.'], uiKeys: ['templates.addDimension'], example: { title: 'Example — KID', text: 'pronunciation — Pronunciation (Âm chính)\nintonation — Intonation (Ngữ điệu)\nending_sounds — Ending sounds (Âm đuôi)\nword_stress — Word Stress (Trọng âm từ/cụm)\nfluency — Fluency (Trôi chảy)' } },
+        { title: 'Levels (if the file maps totals)', body: ['Ranges must be contiguous from 0 to the max total.'], uiKeys: ['templates.levels'], example: { title: 'Example — KID', text: '0–10 A0 · 11–15 A1- · 16–20 A1 · 21–25 A2' } },
         {
-          title: 'Check the AI prompt preview',
-          body: [
-            'The right-hand panel shows exactly the text the AI will receive, updating as you type.',
-            'Skim it before saving. If that text looks vague or incomplete to you, it will to the AI as well — this is the fastest way to tell whether you have written enough.',
-          ],
-          uiKeys: ['authoring.preview'],
-        },
-        {
-          title: 'Save',
-          body: ['Click Save. The system creates a new version and leaves earlier versions untouched.'],
-          uiKeys: ['criteria.save'],
+          title: 'Outputs and student message template',
+          body: ['Tick Comment and Fix. Keep this reply template exactly.'],
+          uiKeys: ['templates.outputFields', 'templates.replyTemplate'],
+          example: { title: 'Reply template', text: '{{feedback}}\n\n{{criteria}}\n\nEm chú ý phát âm các từ sau:\n{{pronunciation_errors}}' },
+          callout: { kind: 'warn', text: 'Do not enable "show total" or "show level": students do not receive scores.' },
         },
       ],
-      callout: {
-        kind: 'warn',
-        text: 'A field showing a padlock was locked by the structure — change it in the Grading structure drawer, or ask someone with that privilege. The "pronunciation" criterion is always present and can never be removed.',
-      },
+      callout: { kind: 'warn', text: '"Reset to original" on a built-in structure also removes the reply template — ask an admin to re-enter it.' },
     },
 
     after: {
-      heading: '6. What happens after you save',
-      intro: ['Nothing else needs activating. Specifically:'],
-      terms: [
-        { term: 'New submissions', desc: 'Every submission for that course from now on is graded with the newest version.' },
-        { term: 'Already-graded submissions', desc: 'Keep the criteria version they were graded with. Editing criteria never changes past scores.' },
-        { term: 'Classes with auto-send ON', desc: 'Feedback goes straight to the student as soon as grading finishes.' },
-        { term: 'Classes with auto-send OFF', desc: 'The submission waits on the Submissions screen; a teacher reads it, edits the feedback if needed, then sends.' },
+      heading: '6. Reviewing and sending feedback',
+      steps: [
+        { title: 'Open the submission', body: ['Submissions → filter "awaiting_review" → View.'], uiKeys: ['nav.submissions', 'submissions.view'] },
+        { title: 'Listen and read', body: ['Each criterion shows score, comment and fix; mispronounced words link to the moment in the clip.'], uiKeys: ['submissions.scores'] },
+        {
+          title: 'Edit the opening comment, then Save',
+          body: ['Type your version in "Edited feedback" and Save. Leave it empty to send the AI\'s. Per-criterion comments are added automatically.'],
+          uiKeys: ['submissions.reviewedFeedback', 'students.save'],
+          callout: { kind: 'warn', text: 'Save BEFORE sending. Log in again if the session is old (8 hours) or the edit will not be stored.' },
+        },
+        { title: 'Send to student', body: ['The button turns "Sent" — one send per submission. Long messages are split into 2–3 Zalo messages.'], uiKeys: ['submissions.send'] },
       ],
-      callout: {
-        kind: 'tip',
-        text: 'The auto-send switch is in the per-class configuration table lower down the Criteria page. When you have just authored a new set of criteria, it is worth leaving auto-send off for a few days so you can read a few results first.',
+      example: {
+        title: 'What the student receives (shortened, real PILOT-TEST submission)',
+        text: 'Opening comment…\n\n🔹 Fluency and coherence\nNhận xét: …\n→ Hướng sửa: …\n\nEm chú ý phát âm các từ sau:\n• 0:43 — "genres" em đọc thành "jurns" → /ˈʒɑːn.rəz/',
       },
+      callout: { kind: 'warn', text: 'Send within 48 hours of the student\'s message; after that Zalo blocks free replies and the student receives nothing.' },
     },
 
     trouble: {
-      heading: '7. Common problems',
-      intro: ['Messages you are likely to see, and what to do:'],
+      heading: '7. Troubleshooting',
       terms: [
-        {
-          term: '"Must have a criterion keyed pronunciation"',
-          desc: 'The structure is missing the pronunciation criterion. Open the Grading structure drawer and add one keyed exactly "pronunciation" (lowercase).',
-        },
-        {
-          term: '"Gap before level #…"',
-          desc: 'The level table has a hole — one level ends at 10 and the next starts at 12, so a total of 11 maps to nothing. Make the ranges join up.',
-        },
-        {
-          term: '"Template key already exists"',
-          desc: 'Another structure already uses that key. The cursor jumps back to the Key field — just choose a different one.',
-        },
-        {
-          term: 'The structure or authoring button is missing',
-          desc: 'Your account does not have the matching privilege. See section 3 and ask an administrator to grant it.',
-        },
-        {
-          term: 'The prompt preview is empty',
-          desc: 'Usually no structure has been selected yet, or nothing has been typed. Pick a structure and write one band description and it will appear.',
-        },
-        {
-          term: 'You closed the drawer mid-edit',
-          desc: 'The system always asks before closing if you have unsaved changes — including when you press Esc or click the backdrop.',
-        },
+        { term: 'Send button greyed out, "Sent"', desc: 'Already sent. If the student got nothing, tell an admin the student name and send time — the usual cause is sending more than 48 hours after the student\'s message.' },
+        { term: 'Student received the AI text, not my edit', desc: 'Not saved before sending, or the session had expired. Log in → edit → Save → Send.' },
+        { term: 'Yellow "Course has no criteria" badge', desc: 'That class will not be graded until its course has a rubric (section 4).' },
+        { term: 'AI scores far from the teacher', desc: 'Make the confused bands more specific, add sub-factors, re-test with Test Upload.' },
+        { term: 'Authoring buttons missing', desc: 'Missing permission — see section 3.' },
       ],
     },
   },
