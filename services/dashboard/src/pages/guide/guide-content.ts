@@ -253,20 +253,37 @@ export const guideVi: GuideContent = {
           },
         },
         {
-          title: 'Thêm yếu tố con khi hai mức điểm dễ nhầm (tùy chọn)',
+          title: 'Yếu tố con — là gì, điền thế nào, khi nào dùng (tùy chọn)',
           body: [
-            'Nếu thấy AI hay nhầm giữa hai band sát nhau, tách tiêu chí thành các yếu tố nhỏ và ghi từ khóa cho từng band. File Analytic Scoring Band đã có sẵn các bảng so sánh band 4–8 như vậy.',
+            'Yếu tố con chia MỘT tiêu chí thành vài khía cạnh nhỏ, và ghi TỪ KHÓA NGẮN cho từng mức điểm. Mục đích duy nhất: giúp AI phân biệt hai mức điểm sát nhau, ví dụ band 6 với band 7.',
+            '• KHÔNG tạo thêm điểm: tiêu chí vẫn chỉ có một điểm. Yếu tố con chỉ là ghi chú tham khảo cho AI khi chấm tiêu chí đó.',
+            '• Học viên KHÔNG thấy phần này.',
+            '• Để trống cũng được: yếu tố con không có nội dung sẽ tự bị bỏ đi khi Lưu.',
+            'Cách điền: ngay dưới phần "Mô tả từng mức điểm" của tiêu chí, bấm "Thêm yếu tố con". Mỗi yếu tố con có một ô "Tên yếu tố con" và một ô nhỏ cho mỗi mức điểm. Ô rất nhỏ — chỉ gõ vài chữ khóa. Mức nào không cần thì để trống.',
+            'Lấy nội dung ở đâu: file Analytic Scoring Band có sẵn bảng so sánh band 4–8 cho từng tiêu chí IELTS (ảnh bên dưới). Mỗi HÀNG của bảng là một yếu tố con, mỗi CỘT band là một ô.',
           ],
-          uiKeys: ['authoring.subFactors', 'authoring.addSubFactor'],
+          uiKeys: ['authoring.subFactors', 'authoring.addSubFactor', 'authoring.subFactorLabel'],
+          figures: [
+            {
+              src: '/guide-img/ielts-yeu-to-con.png',
+              alt: 'Bảng so sánh band 4 đến 8 của Fluency and coherence: độ dài và tốc độ, độ ngập ngừng, độ lặp và tự sửa lỗi, phép nối, độ mạch lạc',
+              caption: 'Analytic Scoring Band — bảng so sánh band 4–8 của Fluency and coherence. Mỗi hàng là một yếu tố con.',
+            },
+          ],
           example: {
-            title: 'Ví dụ — yếu tố con "Độ dài, tốc độ nói" của Fluency and coherence',
+            title: 'Ví dụ — 3 yếu tố con cho Fluency and coherence, chép từ bảng trên',
             text:
-              'Tên yếu tố con: Độ dài, tốc độ, tính liên tục\n' +
-              'Band 4: Speak slowly, noticeable pauses\n' +
-              'Band 5: Slow speech; create fluent simple speech\n' +
-              'Band 6: Willing to speak at length\n' +
-              'Band 7: Speak at length without noticeable efforts\n' +
-              'Band 8: Speak fluently',
+              'Yếu tố con 1 — Tên: Độ dài, tốc độ nói\n' +
+              '   Band 4: Speak slowly · Band 5: Slow speech · Band 6: Willing to speak at length · Band 7: Speak at length without effort · Band 8: Speak fluently\n\n' +
+              'Yếu tố con 2 — Tên: Ngập ngừng\n' +
+              '   Band 4: Frequent · Band 5: Search for basic lexis · Band 6: Occasionally · Band 7: Language-related at times · Band 8: Content-related, rarely language\n\n' +
+              'Yếu tố con 3 — Tên: Từ nối\n' +
+              '   Band 4: Repetitive simple connectives · Band 5: Overuse of certain connectives · Band 6: A range, not always appropriate · Band 7: A range, flexibly · Band 8: A range, flexibly\n\n' +
+              '(Các ô band 0–3 và 9 để trống.)',
+          },
+          callout: {
+            kind: 'tip',
+            text: 'Khi nào dùng: lớp thiếu nhi (Cambridge) CHƯA cần — mô tả 0–5 điểm đã đủ rõ. Với IELTS, chỉ thêm khi thấy AI chấm lệch lặp lại giữa hai band liền nhau (giáo viên cho 6, AI liên tục cho 7), và chỉ thêm cho ĐÚNG tiêu chí bị lệch — rồi chấm thử lại bằng Test Upload. Đừng điền cho mọi tiêu chí ngay từ đầu: nhiều chữ hơn không làm AI chấm sát hơn.',
           },
         },
         {
@@ -561,7 +578,32 @@ export const guideEn: GuideContent = {
             text: 'Band 0: Không phát âm được, khó hiểu.\nBand 3: Phát âm đúng đa số từ quen thuộc, đôi lúc gây nhầm.\nBand 5: Phát âm rõ ràng, dễ hiểu, gần chuẩn người bản ngữ.',
           },
         },
-        { title: 'Add sub-factors where bands get confused (optional)', body: ['Split a criterion into smaller factors with keywords per band, as the Analytic Scoring Band comparison tables do.'], uiKeys: ['authoring.subFactors', 'authoring.addSubFactor'] },
+        {
+          title: 'Sub-factors — what they are, how to fill them, when to use them (optional)',
+          body: [
+            'A sub-factor splits ONE criterion into smaller aspects with SHORT keywords per band. Its only purpose is to help the AI tell adjacent bands apart (e.g. 6 vs 7).',
+            '• It adds NO score — the criterion still has one score.',
+            '• Students never see it.',
+            '• Empty sub-factors are dropped on Save.',
+            'Under the band descriptions of a criterion, click "Add sub-factor": one name field plus one small field per band. Type a few keywords; leave unneeded bands empty. Each row of the Analytic Scoring Band comparison table is one sub-factor.',
+          ],
+          uiKeys: ['authoring.subFactors', 'authoring.addSubFactor', 'authoring.subFactorLabel'],
+          figures: [
+            {
+              src: '/guide-img/ielts-yeu-to-con.png',
+              alt: 'Band 4 to 8 comparison table for Fluency and coherence',
+              caption: 'Analytic Scoring Band — band 4–8 comparison for Fluency and coherence. Each row is one sub-factor.',
+            },
+          ],
+          example: {
+            title: 'Example — Fluency and coherence',
+            text: 'Name: Length, speed\n   Band 4: Speak slowly · Band 6: Willing to speak at length · Band 8: Speak fluently\nName: Hesitation\n   Band 4: Frequent · Band 6: Occasionally · Band 8: Content-related, rarely language',
+          },
+          callout: {
+            kind: 'tip',
+            text: 'Kids (Cambridge) courses do not need them. For IELTS, add them only for a criterion where the AI repeatedly lands one band off the teacher, then re-test with Test Upload.',
+          },
+        },
         {
           title: 'Load sample comments',
           body: ['Paste comments teachers already write, pick the criterion and intent (praise / suggestion). The AI copies their tone.'],
