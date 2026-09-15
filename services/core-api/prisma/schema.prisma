@@ -171,6 +171,34 @@ model Grading {
   @@map("gradings")
 }
 
+// ILM 09-15: đo hiệu quả AI ↔ giáo viên trên từ phát âm sai. Ghi khi giáo viên bấm Gửi, mỗi từ một dòng:
+// `outcome` kept (AI đánh dấu, giữ) · removed (AI đánh dấu, giáo viên "Gắn sai" — chỉ bỏ khỏi tin gửi học
+// viên, bản AI trong `gradings.scores` còn nguyên) · added (giáo viên thêm từ AI bỏ sót). `azure_*` do
+// core-api tra từ `gradings.assessment`. Không khóa ngoại: log phải còn kể cả khi dữ liệu bài chấm bị dọn.
+model WordReviewLog {
+  id              Int      @id @default(autoincrement())
+  gradingId       Int      @map("grading_id")
+  submissionId    Int      @map("submission_id")
+  courseCode      String?  @map("course_code")
+  dimension       String
+  outcome         String
+  word            String
+  startSec        Float?   @map("start_sec")
+  endSec          Float?   @map("end_sec")
+  source          String?
+  needsReview     Boolean? @map("needs_review")
+  geminiConfirmed Boolean? @map("gemini_confirmed")
+  heardAs         String?  @map("heard_as")
+  azureAccuracy   Float?   @map("azure_accuracy")
+  azureErrorType  String?  @map("azure_error_type")
+  reviewedBy      String   @map("reviewed_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([gradingId])
+  @@index([createdAt])
+  @@map("word_review_log")
+}
+
 
 model Flag {
   id              Int        @id @default(autoincrement())

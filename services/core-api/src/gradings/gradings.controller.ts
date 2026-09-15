@@ -1,14 +1,20 @@
-import { Body, Controller, Param, ParseIntPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Grading } from '@prisma/client';
 import type { Request } from 'express';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
 import { UpdateGradingDto } from './dto/update-grading.dto';
-import { GradingsService } from './gradings.service';
+import { GradingsService, WordReviewStats } from './gradings.service';
 
 @Controller('gradings')
 @UseGuards(SessionAuthGuard)
 export class GradingsController {
   constructor(private readonly gradings: GradingsService) {}
+
+  /** ILM 09-15: AI ↔ giáo viên trên từ phát âm sai, `days` ngày gần nhất (mặc định 30). */
+  @Get('word-review-stats')
+  wordReviewStats(@Query('days') days?: string): Promise<WordReviewStats> {
+    return this.gradings.wordReviewStats(Number(days) || 30);
+  }
 
   @Patch(':id')
   review(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateGradingDto, @Req() req: Request): Promise<Grading> {

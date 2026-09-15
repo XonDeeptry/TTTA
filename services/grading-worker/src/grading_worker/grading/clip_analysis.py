@@ -136,7 +136,7 @@ def build_clip_instruction() -> str:
             "- said: học viên thực sự phát âm từ đó thế nào — ghi bằng IPA, ví dụ /ˈmjuːsɪk/.",
             "- is_error: true nếu phát âm SAI rõ rệt so với cách đọc chuẩn (người nghe khó hiểu hoặc sai âm), false nếu chấp nhận được.",
             "- issue: lỗi cụ thể (âm nào, sai thế nào, ở vị trí nào trong từ); để rỗng nếu is_error là false.",
-            "- suggestion: hướng sửa cụ thể, làm được ngay, bằng tiếng Việt, giọng khích lệ; để rỗng nếu is_error là false.",
+            "- suggestion: hướng sửa cụ thể, làm được ngay, bằng tiếng Việt, giọng khích lệ của giáo viên ILM: xưng 'cô', gọi học viên là 'em' (KHÔNG dùng 'bạn'); ví dụ 'Em đặt nhẹ đầu lưỡi giữa hai hàm răng rồi thổi hơi ra để đọc /θ/ nhé.'; để rỗng nếu is_error là false.",
             "CHỈ dựa trên đoạn audio. Nghe không rõ hoặc đoạn không chứa từ mục tiêu thì said = '' và is_error = false. Không bỏ sót đoạn nào.",
         ]
     )

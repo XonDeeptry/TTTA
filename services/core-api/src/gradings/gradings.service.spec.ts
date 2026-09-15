@@ -1,11 +1,12 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Q_OUTBOUND } from '../contracts';
-import { GradingsService } from './gradings.service';
+import { buildWordReviewRows, findAzureWord, GradingsService, summarizeWordReview } from './gradings.service';
 
 describe('GradingsService', () => {
   let prisma: {
     grading: { update: jest.Mock; findUnique: jest.Mock };
     submission: { update: jest.Mock };
+    wordReviewLog: { createMany: jest.Mock };
   };
   let rabbit: { publish: jest.Mock };
   let events: { publishStatus: jest.Mock };
@@ -15,6 +16,7 @@ describe('GradingsService', () => {
     prisma = {
       grading: { update: jest.fn(), findUnique: jest.fn() },
       submission: { update: jest.fn() },
+      wordReviewLog: { createMany: jest.fn() },
     };
     rabbit = { publish: jest.fn() };
     events = { publishStatus: jest.fn() };
@@ -283,6 +285,114 @@ describe('GradingsService', () => {
       expect(text).toContain('Nhận xét: Cô nhận xét');
       expect(text).toContain('→ Hướng sửa: Cô hướng sửa');
       expect(text).not.toContain('AI');
+    });
+  });
+
+  describe('ILM 09-15 — AI vs teacher log for mispronounced words', () => {
+    const assessment = {
+      words: [
+        { word: 'work', start_sec: 12.0, end_sec: 12.4, accuracy: 91, error_type: 'None' },
+        { word: 'work', start_sec: 27.1, end_sec: 27.61, accuracy: 48, error_type: 'Mispronunciation' },
+        { word: 'think', start_sec: 40.2, end_sec: 40.5, accuracy: 72, error_type: 'None' },
+      ],
+    };
+    const ai = {
+      pronunciation: {
+        score: 2,
+        comment: 'AI',
+        mispronounced_words: [
+          { word: 'musicians', start_sec: 6.85, end_sec: 8.03, source: 'azure', heard_as: '/s/', gemini_confirmed: true },
+          { word: 'work', start_sec: 27.1, end_sec: 27.61, source: 'azure', needs_review: true, gemini_confirmed: false },
+          { word: 'genres', start_sec: 120, end_sec: 120.5, source: 'gemini', gemini_confirmed: true },
+        ],
+      },
+    };
+    // Giáo viên: sửa gợi ý "musicians" (vẫn là giữ), "Gắn sai" từ "work", thêm "think" ở chỗ dừng audio 40,9 s.
+    const final = {
+      pronunciation: {
+        score: 3,
+        comment: 'Cô',
+        mispronounced_words: [
+          { word: 'musicians', start_sec: 6.85, end_sec: 8.03, source: 'azure', suggestion: 'Cô sửa gợi ý' },
+          { word: 'genres', start_sec: 120, end_sec: 120.5, source: 'gemini' },
+          { word: 'think', start_sec: 40.9, approx_position_sec: 40.9, source: 'teacher', suggestion: 'Đặt lưỡi giữa răng' },
+        ],
+      },
+    };
+
+    it('findAzureWord picks the nearest occurrence within tolerance, ignoring punctuation and case', () => {
+      expect(findAzureWord(assessment, 'Work.', 27.1)).toEqual({ accuracy: 48, errorType: 'Mispronunciation' });
+      expect(findAzureWord(assessment, 'work', 50)).toBeNull();
+      expect(findAzureWord(assessment, 'think', 40.9, 1.5)).toEqual({ accuracy: 72, errorType: 'None' });
+      expect(findAzureWord(null, 'work', 27.1)).toBeNull();
+    });
+
+    it('buildWordReviewRows: kept / removed ("Gắn sai") / added, editing a suggestion is still "kept"', () => {
+      const rows = buildWordReviewRows(ai, final, assessment);
+      expect(rows.map((r) => [r.word, r.outcome, r.source])).toEqual([
+        ['musicians', 'kept', 'azure'],
+        ['work', 'removed', 'azure'],
+        ['genres', 'kept', 'gemini'],
+        ['think', 'added', 'teacher'],
+      ]);
+      expect(rows[1]).toMatchObject({ startSec: 27.1, endSec: 27.61, needsReview: true, geminiConfirmed: false, azureAccuracy: 48 });
+      expect(rows[3]).toMatchObject({ startSec: 40.9, azureAccuracy: 72, azureErrorType: 'None' });
+    });
+
+    it('buildWordReviewRows: no teacher edits ⇒ every AI word is "kept"', () => {
+      expect(buildWordReviewRows(ai, ai, assessment).every((r) => r.outcome === 'kept')).toBe(true);
+    });
+
+    it("summarizeWordReview matches ILM's example: teacher 40 words, AI 27, 20 wrong flags", () => {
+      const s = summarizeWordReview(30, 3, [
+        { outcome: 'kept', source: 'azure', count: 7 },
+        { outcome: 'removed', source: 'azure', count: 20 },
+        { outcome: 'added', source: 'teacher', count: 33 },
+      ]);
+      expect([s.kept + s.removed, s.kept + s.added]).toEqual([27, 40]);
+      expect(s.aiPrecision).toBeCloseTo(7 / 27);
+      expect(s.aiCoverage).toBeCloseTo(7 / 40);
+      expect(s.bySource).toEqual([{ source: 'azure', kept: 7, removed: 20, aiPrecision: 7 / 27 }]);
+      expect(summarizeWordReview(30, 0, [])).toMatchObject({ aiPrecision: null, aiCoverage: null, bySource: [] });
+    });
+
+    const sendable = (sentAt: Date | null) => ({
+      id: 5,
+      submissionId: 15,
+      sentAt,
+      llmFeedback: 'AI',
+      reviewedFeedback: 'Cô',
+      scores: ai,
+      reviewedScores: final,
+      assessment,
+      submission: { zaloUserId: 'zalo-5' },
+      criteria: { rubric: { schema_version: 2, scale: { min: 0, max: 5, step: 1 }, dimensions: [{ key: 'pronunciation', label: 'P' }] }, course: { key: 'IELTS' } },
+    });
+
+    it('send() logs the comparison once, on the first send, with course and teacher', async () => {
+      prisma.grading.findUnique.mockResolvedValue(sendable(null));
+      prisma.submission.update.mockResolvedValue({ id: 15, status: 'sent' });
+      await service.send(5, undefined, 'gv@ilm.edu.vn');
+
+      const data = prisma.wordReviewLog.createMany.mock.calls[0][0].data;
+      expect(data).toHaveLength(4);
+      expect(data[1]).toMatchObject({ gradingId: 5, submissionId: 15, courseCode: 'IELTS', reviewedBy: 'gv@ilm.edu.vn', word: 'work', outcome: 'removed' });
+      // "Gắn sai" chỉ bỏ khỏi tin học viên
+      expect((rabbit.publish.mock.calls[0][1] as { text: string }).text).not.toContain('work');
+
+      prisma.wordReviewLog.createMany.mockClear();
+      prisma.grading.findUnique.mockResolvedValue(sendable(new Date()));
+      await service.send(5, undefined, 'gv@ilm.edu.vn');
+      expect(prisma.wordReviewLog.createMany).not.toHaveBeenCalled();
+    });
+
+    it('send() still sends when writing the log fails', async () => {
+      prisma.grading.findUnique.mockResolvedValue(sendable(null));
+      prisma.submission.update.mockResolvedValue({ id: 15, status: 'sent' });
+      prisma.wordReviewLog.createMany.mockRejectedValue(new Error('db down'));
+      await service.send(5, undefined, 'gv');
+      expect(rabbit.publish).toHaveBeenCalled();
+      expect(prisma.grading.update).toHaveBeenCalledWith({ where: { id: 5 }, data: { sentAt: expect.any(Date) } });
     });
   });
 });

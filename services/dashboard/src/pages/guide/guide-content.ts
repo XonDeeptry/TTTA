@@ -453,7 +453,10 @@ export const guideVi: GuideContent = {
         {
           title: 'Sửa trực tiếp mọi thứ học viên sẽ nhận',
           body: [
-            'Sửa được tất cả: nhận xét chung ở đầu tin, điểm từng tiêu chí, nhận xét, hướng sửa, và gợi ý cho từng từ phát âm sai. Azure bắt nhầm một từ thì bấm "Bỏ từ này".',
+            'Sửa được tất cả: nhận xét chung ở đầu tin, điểm từng tiêu chí, nhận xét, hướng sửa, và gợi ý cho từng từ phát âm sai.',
+            'Nghe lại một từ (bấm ▶ cạnh từ) mà thấy học viên đọc ĐÚNG — máy đánh dấu nhầm — thì bấm "Gắn sai" cạnh từ đó. Chỉ RIÊNG từ đó bị bỏ khỏi tin gửi học viên; các từ khác, điểm và nhận xét giữ nguyên. Bản AI vẫn được lưu. Từ có nhãn "Cần giáo viên nghe lại" là từ nên nghe trước.',
+            'Nghe thấy học viên đọc sai một từ mà máy KHÔNG đánh dấu: dừng audio đúng chỗ đó, bấm "+ Thêm từ AI bỏ sót", gõ từ và hướng sửa.',
+            'Khi bấm Gửi, hệ thống so danh sách của bạn với danh sách của AI và ghi lại: từ giữ, từ gắn sai, từ thêm. Trang Giám sát tổng hợp AI đúng bao nhiêu phần trăm và bắt được bao nhiêu phần trăm số từ giáo viên xác định. Ví dụ: giáo viên xác định 40 từ, AI đánh dấu 27, giáo viên gắn sai 20 ⇒ AI đúng 7/27 (26%), bắt được 7/40 (18%).',
             'Điểm bạn sửa khác điểm AI thì cạnh ô hiện nhãn "AI: …" để đối chiếu. Bản gốc của AI luôn được giữ lại — dùng để đo AI lệch giáo viên bao nhiêu.',
             'Học viên KHÔNG nhận điểm số: điểm chỉ dùng cho báo cáo. Nếu điểm hay nhận xét của một tiêu chí lệch nhiều so với cách bạn chấm, báo người phụ trách bộ tiêu chí (mục 4).',
           ],
@@ -463,6 +466,7 @@ export const guideVi: GuideContent = {
             'submissions.comment',
             'submissions.scoreFix',
             'submissions.removeWord',
+            'submissions.addWord',
           ],
         },
         {
@@ -699,9 +703,11 @@ export const guideEn: GuideContent = {
         {
           title: 'Edit everything the student will receive',
           body: [
-            'Opening comment, each score, comment, fix, and the suggestion for each mispronounced word ("Remove" if Azure misheard). An "AI: …" badge shows the original score; the AI version is always kept. Students never receive scores.',
+            'Opening comment, each score, comment, fix, and the suggestion for each mispronounced word. An "AI: …" badge shows the original score; the AI version is always kept. Students never receive scores.',
+            'If you replay a word (▶) and the student said it correctly, press "Wrong flag": ONLY that word leaves the student message; the AI version is kept. If the machine missed a word, pause the audio there and press "+ Add a word the AI missed".',
+            'On Send, your list is compared with the AI list and logged (kept / wrong flag / added). Monitoring shows how often the AI was right and how many of the teacher\'s words it caught — e.g. teacher 40 words, AI 27, 20 wrong flags ⇒ AI correct 7/27 (26%), caught 7/40 (18%).',
           ],
-          uiKeys: ['submissions.overallFeedback', 'submissions.dimensionScore', 'submissions.comment', 'submissions.removeWord'],
+          uiKeys: ['submissions.overallFeedback', 'submissions.dimensionScore', 'submissions.comment', 'submissions.removeWord', 'submissions.addWord'],
         },
         {
           title: 'Send to student',

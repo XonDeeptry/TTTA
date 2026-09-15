@@ -47,6 +47,21 @@ interface ZaloApiUsage {
   weekPeak: { perMinute: number; at: string | null };
 }
 
+/** `GET /gradings/word-review-stats` — AI ↔ giáo viên trên từ phát âm sai (ILM 09-15). */
+interface WordReviewStats {
+  days: number;
+  gradings: number;
+  kept: number;
+  removed: number;
+  added: number;
+  aiPrecision: number | null;
+  aiCoverage: number | null;
+  bySource: { source: string; kept: number; removed: number; aiPrecision: number | null }[];
+}
+
+const WORD_REVIEW_DAYS = 30;
+const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%`);
+
 const VN_TZ = 'Asia/Ho_Chi_Minh';
 const fmtTime = (iso: string | null) =>
   iso ? new Date(iso).toLocaleTimeString('vi-VN', { timeZone: VN_TZ, hour: '2-digit', minute: '2-digit' }) : '—';
@@ -65,8 +80,10 @@ export function Monitoring() {
   const [disk, setDisk] = useState<DiskStatus | null>(null);
   const [zaloApi, setZaloApi] = useState<ZaloApiUsage | null>(null);
   const [retried, setRetried] = useState<string | null>(null);
+  const [wordReview, setWordReview] = useState<WordReviewStats | null>(null);
 
   function load(): void {
+    void api.get<WordReviewStats>(`/gradings/word-review-stats?days=${WORD_REVIEW_DAYS}`).then(setWordReview);
     void api.get<QueueDepth[]>('/monitoring/queues').then(setQueues);
     void api.get<TokenStatus>('/monitoring/token').then(setToken);
     void api.get<SheetSyncLog[]>('/sheets-sync/log').then(setSheetsLog);
@@ -85,6 +102,59 @@ export function Monitoring() {
   return (
     <main id="main-content" className="space-y-6 p-6">
       <h1 className="text-h1">{t('monitoring.title')}</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('monitoring.wordReview')}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-body text-foreground/80">{t('monitoring.wordReviewHint', { days: WORD_REVIEW_DAYS })}</p>
+          {wordReview && wordReview.gradings === 0 && <p className="text-muted-foreground">{t('monitoring.wordReviewEmpty')}</p>}
+          {wordReview && wordReview.gradings > 0 && (
+            <>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <Stat label={t('monitoring.wordReviewGradings')} value={String(wordReview.gradings)} />
+                <Stat
+                  label={t('monitoring.wordReviewAiFlagged')}
+                  value={String(wordReview.kept + wordReview.removed)}
+                  sub={`${t('monitoring.wordReviewKept')} ${wordReview.kept} · ${t('monitoring.wordReviewRemoved')} ${wordReview.removed}`}
+                />
+                <Stat
+                  label={t('monitoring.wordReviewTeacherTotal')}
+                  value={String(wordReview.kept + wordReview.added)}
+                  sub={`${t('monitoring.wordReviewKept')} ${wordReview.kept} · ${t('monitoring.wordReviewAdded')} ${wordReview.added}`}
+                />
+                <Stat label={t('monitoring.wordReviewPrecision')} value={pct(wordReview.aiPrecision)} sub={t('monitoring.wordReviewPrecisionSub')} />
+                <Stat label={t('monitoring.wordReviewCoverage')} value={pct(wordReview.aiCoverage)} sub={t('monitoring.wordReviewCoverageSub')} />
+              </div>
+              {wordReview.bySource.length > 0 && (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead scope="col">{t('monitoring.wordReviewSource')}</TableHead>
+                        <TableHead scope="col">{t('monitoring.wordReviewKept')}</TableHead>
+                        <TableHead scope="col">{t('monitoring.wordReviewRemoved')}</TableHead>
+                        <TableHead scope="col">{t('monitoring.wordReviewPrecision')}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {wordReview.bySource.map((s) => (
+                        <TableRow key={s.source}>
+                          <TableCell>{s.source}</TableCell>
+                          <TableCell className="tabular-nums">{s.kept}</TableCell>
+                          <TableCell className="tabular-nums">{s.removed}</TableCell>
+                          <TableCell className="tabular-nums">{pct(s.aiPrecision)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

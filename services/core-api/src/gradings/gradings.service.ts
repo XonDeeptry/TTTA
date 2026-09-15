@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Grading, Prisma } from '@prisma/client';
 import { OutboundMessage, Q_OUTBOUND } from '../contracts';
 import { normalizeRubric, RubricV2 } from '../criteria/rubric-schema';
@@ -46,7 +46,8 @@ export function sanitizeReviewedScores(rubric: RubricV2, raw: Record<string, unk
           ...(typeof w.start_sec === 'number' && Number.isFinite(w.start_sec) ? { start_sec: w.start_sec } : {}),
           ...(typeof w.end_sec === 'number' && Number.isFinite(w.end_sec) ? { end_sec: w.end_sec } : {}),
           // Kết quả nghe lại đoạn lỗi (grading-worker `clip_analysis.py`) — giữ nguyên khi giáo viên lưu.
-          ...(w.source === 'azure' || w.source === 'gemini' ? { source: w.source } : {}),
+          // "teacher" = giáo viên thêm từ AI bỏ sót (ILM 09-15) — cần để ghi log `added` khi Gửi.
+          ...(w.source === 'azure' || w.source === 'gemini' || w.source === 'teacher' ? { source: w.source } : {}),
           ...(typeof w.issue === 'string' && w.issue ? { issue: w.issue } : {}),
           ...(typeof w.needs_review === 'boolean' ? { needs_review: w.needs_review } : {}),
           ...(typeof w.gemini_confirmed === 'boolean' ? { gemini_confirmed: w.gemini_confirmed } : {}),
@@ -57,14 +58,168 @@ export function sanitizeReviewedScores(rubric: RubricV2, raw: Record<string, unk
   return out;
 }
 
+const normWord = (w: unknown): string =>
+  String(w ?? '')
+    .trim()
+    .replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, '')
+    .toLowerCase();
+
+const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+/**
+ * Tra số đo Azure của một từ trong `gradings.assessment` (dòng thời gian mọi từ, rồi danh sách lỗi):
+ * cùng chữ, lần xuất hiện có mốc gần `startSec` nhất trong `toleranceSec`. Không thấy ⇒ null.
+ */
+export function findAzureWord(
+  assessment: unknown,
+  word: string,
+  startSec: number | null,
+  toleranceSec = 0.05,
+): { accuracy: number | null; errorType: string | null } | null {
+  if (!isRecord(assessment)) return null;
+  const target = normWord(word);
+  let best: { item: Record<string, unknown>; distance: number } | null = null;
+  for (const pool of [assessment.words, assessment.errors]) {
+    if (!Array.isArray(pool)) continue;
+    for (const item of pool) {
+      if (!isRecord(item) || normWord(item.word) !== target) continue;
+      const start = num(item.start_sec);
+      const distance = startSec === null || start === null ? 0 : Math.abs(start - startSec);
+      if (distance > toleranceSec) continue;
+      if (!best || distance < best.distance) best = { item, distance };
+    }
+    if (best) break;
+  }
+  if (!best) return null;
+  return {
+    accuracy: num(best.item.accuracy),
+    errorType: typeof best.item.error_type === 'string' ? best.item.error_type : null,
+  };
+}
+
+export type WordOutcome = 'kept' | 'removed' | 'added';
+
+export type WordReviewRow = Omit<Prisma.WordReviewLogCreateManyInput, 'gradingId' | 'submissionId' | 'courseCode' | 'reviewedBy'>;
+
+function mispronouncedOf(scores: unknown, dimension: string): Record<string, unknown>[] {
+  if (!isRecord(scores)) return [];
+  const dim = scores[dimension];
+  if (!isRecord(dim) || !Array.isArray(dim.mispronounced_words)) return [];
+  return dim.mispronounced_words.filter(isRecord).filter((w) => normWord(w.word) !== '');
+}
+
+const wordStart = (w: Record<string, unknown>): number | null => num(w.start_sec) ?? num(w.approx_position_sec);
+const wordIdentity = (w: Record<string, unknown>): string => `${normWord(w.word)}@${wordStart(w) ?? ''}`;
+
+/**
+ * ILM 09-15 — so danh sách từ phát âm sai của AI (`scores`) với bản giáo viên gửi đi:
+ * AI đánh dấu mà còn trong bản gửi ⇒ `kept`; AI đánh dấu mà giáo viên "Gắn sai" bỏ đi ⇒ `removed`;
+ * có trong bản gửi mà AI không đánh dấu (giáo viên thêm) ⇒ `added`. Khớp theo chữ + mốc bắt đầu — giao
+ * diện không cho sửa chữ hay mốc của từ AI, nên sửa gợi ý không làm từ bị tính là bỏ.
+ */
+export function buildWordReviewRows(aiScores: unknown, finalScores: unknown, assessment: unknown): WordReviewRow[] {
+  const dimensions = new Set([...Object.keys(isRecord(aiScores) ? aiScores : {}), ...Object.keys(isRecord(finalScores) ? finalScores : {})]);
+  const rows: WordReviewRow[] = [];
+  const toRow = (dimension: string, outcome: WordOutcome, w: Record<string, unknown>): WordReviewRow => {
+    const startSec = wordStart(w);
+    // Từ giáo viên thêm có mốc theo chỗ dừng audio — cho lệch tới 1,5 s khi tra số đo Azure.
+    const azure = findAzureWord(assessment, String(w.word), startSec, outcome === 'added' ? 1.5 : 0.05);
+    return {
+      dimension,
+      outcome,
+      word: String(w.word).trim(),
+      startSec,
+      endSec: num(w.end_sec),
+      source: typeof w.source === 'string' ? w.source : null,
+      needsReview: typeof w.needs_review === 'boolean' ? w.needs_review : null,
+      geminiConfirmed: typeof w.gemini_confirmed === 'boolean' ? w.gemini_confirmed : null,
+      heardAs: typeof w.heard_as === 'string' && w.heard_as ? w.heard_as : null,
+      azureAccuracy: azure?.accuracy ?? null,
+      azureErrorType: azure?.errorType ?? null,
+    };
+  };
+  for (const dimension of dimensions) {
+    const remaining = mispronouncedOf(finalScores, dimension);
+    for (const aiWord of mispronouncedOf(aiScores, dimension)) {
+      const index = remaining.findIndex((f) => f.source !== 'teacher' && wordIdentity(f) === wordIdentity(aiWord));
+      if (index >= 0) remaining.splice(index, 1);
+      rows.push(toRow(dimension, index >= 0 ? 'kept' : 'removed', aiWord));
+    }
+    for (const added of remaining) rows.push(toRow(dimension, 'added', added));
+  }
+  return rows;
+}
+
+export interface WordReviewStats {
+  days: number;
+  gradings: number;
+  kept: number;
+  removed: number;
+  added: number;
+  /** giữ / AI đánh dấu — AI đánh dấu đúng bao nhiêu phần. */
+  aiPrecision: number | null;
+  /** giữ / giáo viên xác định — AI bắt được bao nhiêu phần số từ giáo viên cho là sai. */
+  aiCoverage: number | null;
+  bySource: { source: string; kept: number; removed: number; aiPrecision: number | null }[];
+}
+
+const ratio = (a: number, b: number): number | null => (b > 0 ? a / b : null);
+
+export function summarizeWordReview(
+  days: number,
+  gradings: number,
+  groups: { outcome: string; source: string | null; count: number }[],
+): WordReviewStats {
+  const total = (outcome: WordOutcome) => groups.filter((g) => g.outcome === outcome).reduce((s, g) => s + g.count, 0);
+  const kept = total('kept');
+  const removed = total('removed');
+  const added = total('added');
+  const sources = new Map<string, { kept: number; removed: number }>();
+  for (const g of groups) {
+    if (g.outcome === 'added') continue;
+    const key = g.source ?? 'other';
+    const entry = sources.get(key) ?? { kept: 0, removed: 0 };
+    if (g.outcome === 'kept') entry.kept += g.count;
+    if (g.outcome === 'removed') entry.removed += g.count;
+    sources.set(key, entry);
+  }
+  return {
+    days,
+    gradings,
+    kept,
+    removed,
+    added,
+    aiPrecision: ratio(kept, kept + removed),
+    aiCoverage: ratio(kept, kept + added),
+    bySource: [...sources.entries()].map(([source, v]) => ({ source, ...v, aiPrecision: ratio(v.kept, v.kept + v.removed) })),
+  };
+}
+
 /** Kiểm duyệt (mục 3.7 phân hệ 3, Tranh luận 4): giáo viên sửa kết quả rồi bấm gửi. */
 @Injectable()
 export class GradingsService {
+  private readonly logger = new Logger(GradingsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly rabbit: RabbitService,
     private readonly events: EventsService,
   ) {}
+
+  /** ILM 09-15: AI ↔ giáo viên trên từ phát âm sai, `days` ngày gần nhất. */
+  async wordReviewStats(days = 30): Promise<WordReviewStats> {
+    const window = Math.min(Math.max(1, Math.floor(days)), 365);
+    const where = { createdAt: { gte: new Date(Date.now() - window * 86_400_000) } };
+    const [groups, gradings] = await Promise.all([
+      this.prisma.wordReviewLog.groupBy({ by: ['outcome', 'source'], where, _count: { _all: true } }),
+      this.prisma.wordReviewLog.findMany({ where, distinct: ['gradingId'], select: { gradingId: true } }),
+    ]);
+    return summarizeWordReview(
+      window,
+      gradings.length,
+      groups.map((g) => ({ outcome: g.outcome, source: g.source, count: g._count._all })),
+    );
+  }
 
   reviewFeedback(id: number, reviewedFeedback: string, reviewedBy: string): Promise<Grading> {
     return this.prisma.grading.update({ where: { id }, data: { reviewedFeedback, reviewedBy } });
@@ -104,9 +259,10 @@ export class GradingsService {
     }
     const grading = await this.prisma.grading.findUnique({
       where: { id },
-      include: { submission: true, criteria: true },
+      include: { submission: true, criteria: { include: { course: true } } },
     });
     if (!grading) throw new NotFoundException('grading not found');
+    const firstSend = !grading.sentAt;
 
     const rubric = normalizeRubric(grading.criteria?.rubric);
     const scores = grading.reviewedScores ?? grading.scores;
@@ -132,6 +288,32 @@ export class GradingsService {
       data: { status: 'sent' },
     });
     this.events.publishStatus(updated.id, updated.status); // F6: SSE realtime, sau khi ghi resolve
+    if (firstSend) await this.logWordReview(grading, reviewedBy);
     return this.prisma.grading.update({ where: { id }, data: { sentAt: new Date() } });
+  }
+
+  /**
+   * ILM 09-15: ghi giữ / gắn sai / thêm cho từng từ phát âm sai — một lần, ở lần Gửi đầu tiên, khi bản
+   * gửi đã chốt. Lỗi ghi log KHÔNG được chặn tin đã gửi cho học viên.
+   */
+  private async logWordReview(
+    grading: Grading & { criteria?: { course?: { key: string } | null } | null },
+    reviewedBy: string,
+  ): Promise<void> {
+    try {
+      const rows = buildWordReviewRows(grading.scores, grading.reviewedScores ?? grading.scores, grading.assessment);
+      if (rows.length === 0) return;
+      await this.prisma.wordReviewLog.createMany({
+        data: rows.map((row) => ({
+          ...row,
+          gradingId: grading.id,
+          submissionId: grading.submissionId,
+          courseCode: grading.criteria?.course?.key ?? null,
+          reviewedBy,
+        })),
+      });
+    } catch (err) {
+      this.logger.warn(`word review log failed for grading ${grading.id}: ${(err as Error).message}`);
+    }
   }
 }

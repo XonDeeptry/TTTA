@@ -22,12 +22,13 @@ interface MispronouncedWord {
   approx_position_sec?: number;
   start_sec?: number;
   end_sec?: number;
-  /** ILM 09-15: "azure" = Azure đánh dấu; "gemini" = Azure bỏ sót, Gemini nghe đoạn cắt xác nhận. */
-  source?: 'azure' | 'gemini';
+  /** ILM 09-15: "azure" = Azure đánh dấu; "gemini" = Azure bỏ sót, Gemini nghe đoạn cắt xác nhận; "teacher" = giáo viên thêm. */
+  source?: 'azure' | 'gemini' | 'teacher';
   /** Gemini nghe đoạn cắt thấy KHÔNG sai — giáo viên nghe lại rồi quyết định giữ hay bỏ. */
   needs_review?: boolean;
   /** Lỗi cụ thể Gemini nghe được trong đoạn cắt. */
   issue?: string;
+  gemini_confirmed?: boolean;
 }
 
 interface DimensionResult {
@@ -182,6 +183,16 @@ export function SubmissionDetail() {
     }));
   }
 
+  /**
+   * ILM 09-15: giáo viên thêm từ AI bỏ sót — mốc lấy theo vị trí audio đang dừng. Khi Gửi, core-api so
+   * danh sách này với bản AI để ghi log giữ / gắn sai / thêm (đo hiệu quả AI ↔ giáo viên).
+   */
+  function addWord(key: string): void {
+    const at = audioRef.current ? Math.round(audioRef.current.currentTime * 100) / 100 : undefined;
+    const word: MispronouncedWord = { word: '', suggestion: '', source: 'teacher', ...(at !== undefined ? { start_sec: at, approx_position_sec: at } : {}) };
+    setScoresDraft((s) => ({ ...s, [key]: { ...s[key], mispronounced_words: [...(s[key]?.mispronounced_words ?? []), word] } }));
+  }
+
   function reviewBody() {
     return { reviewedFeedback: feedbackDraft, reviewedScores: scoresDraft };
   }
@@ -298,10 +309,10 @@ export function SubmissionDetail() {
                         <Textarea rows={2} className="mt-0.5" value={dim.fix ?? ''} disabled={sent} onChange={(e) => patchDimension(key, { fix: e.target.value })} />
                       </label>
                     )}
-                    {words && words.length > 0 && (
+                    {(words !== undefined || (!sent && grading.assessment)) && (
                       <div className="space-y-2 rounded-md border border-border bg-muted/40 p-2">
                         <p className="text-muted-foreground">{t('submissions.mispronouncedHint')}</p>
-                        {words.map((w, i) => (
+                        {(words ?? []).map((w, i) => (
                           <div key={`${key}-${i}`} className="flex flex-wrap items-center gap-2">
                             {typeof w.approx_position_sec === 'number' ? (
                               <Button
@@ -315,9 +326,20 @@ export function SubmissionDetail() {
                                 ▶ {formatTimestamp(w.approx_position_sec)}
                               </Button>
                             ) : null}
-                            <span className="font-medium">{w.word}</span>
+                            {w.source === 'teacher' ? (
+                              <Input
+                                className="w-32"
+                                placeholder={t('submissions.wordPlaceholder')}
+                                value={w.word}
+                                disabled={sent}
+                                onChange={(e) => patchWord(key, i, { word: e.target.value })}
+                              />
+                            ) : (
+                              <span className="font-medium">{w.word}</span>
+                            )}
                             {w.needs_review && <Badge variant="warning">{t('submissions.wordNeedsReview')}</Badge>}
                             {w.source === 'gemini' && <Badge variant="secondary">{t('submissions.wordFromGemini')}</Badge>}
+                            {w.source === 'teacher' && <Badge variant="outline">{t('submissions.wordFromTeacher')}</Badge>}
                             {w.issue ? <span className="text-caption text-muted-foreground">({w.issue})</span> : null}
                             {w.heard_as ? (
                               <span className="text-muted-foreground">
@@ -331,12 +353,17 @@ export function SubmissionDetail() {
                               onChange={(e) => patchWord(key, i, { suggestion: e.target.value })}
                             />
                             {!sent && (
-                              <Button size="sm" variant="ghost" onClick={() => removeWord(key, i)}>
+                              <Button size="sm" variant="outline" onClick={() => removeWord(key, i)} title={t('submissions.removeWordHint')}>
                                 {t('submissions.removeWord')}
                               </Button>
                             )}
                           </div>
                         ))}
+                        {!sent && (
+                          <Button size="sm" variant="ghost" onClick={() => addWord(key)} title={t('submissions.addWordHint')}>
+                            {t('submissions.addWord')}
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
