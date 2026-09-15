@@ -1,14 +1,17 @@
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { Alert } from '../../components/ui/alert';
 import { Badge } from '../../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import {
-  GUIDE_SECTION_ORDER,
+  GUIDE_TABS,
+  GUIDE_TAB_IDS,
   GuideCallout,
   GuideExample,
   GuideFigure,
   GuideSection,
   GuideStep,
+  GuideTabId,
   guideEn,
   guideVi,
 } from './guide-content';
@@ -17,8 +20,12 @@ import {
  * Màn "Hướng dẫn" — trang đọc, không có trạng thái, không gọi API.
  *
  * Mọi vai trò đều xem được (kể cả staff chưa có quyền soạn): người CHƯA có quyền chính là người
- * cần đọc mục 3 để biết phải xin quyền gì — giấu trang này khỏi họ là đúng cái bẫy "dead end" mà
- * F12-ux đã cảnh báo.
+ * cần đọc phần phân quyền trong tab Tạo tiêu chí để biết phải xin quyền gì — giấu trang này khỏi họ
+ * là đúng cái bẫy "dead end" mà F12-ux đã cảnh báo. Vì thế trang KHÔNG nhắc tới màn chỉ admin thấy
+ * (Giám sát, số liệu AI ↔ giáo viên — ILM 09-15).
+ *
+ * Pilot 09-15: chia 3 tab theo việc — Chức năng · Tạo tiêu chí · Chấm bài. Tab đang mở nằm trên URL
+ * (`?tab=`) như trang Tiêu chí, để gửi link thẳng tới đúng phần.
  *
  * Văn xuôi nằm ở `guide-content.ts`; ở đây chỉ có cách trình bày.
  */
@@ -143,6 +150,15 @@ export function Guide() {
   const { i18n } = useTranslation();
   // Chọn theo tiền tố nên 'en-US' vẫn ra bản tiếng Anh; mặc định về tiếng Việt như phần còn lại.
   const content = i18n.language?.startsWith('en') ? guideEn : guideVi;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requested = searchParams.get('tab') as GuideTabId;
+  const tab: GuideTabId = GUIDE_TAB_IDS.includes(requested) ? requested : 'features';
+  const sectionIds = GUIDE_TABS[tab];
+
+  function selectTab(next: GuideTabId): void {
+    setSearchParams(next === 'features' ? {} : { tab: next });
+    window.scrollTo({ top: 0 });
+  }
 
   return (
     <main id="main-content" className="space-y-6 p-6">
@@ -151,31 +167,52 @@ export function Guide() {
         <p className="text-body text-foreground/80">{content.lead}</p>
       </div>
 
-      <Card className="max-w-3xl">
-        <CardHeader>
-          <CardTitle>{content.tocHeading}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ol className="space-y-1">
-            {GUIDE_SECTION_ORDER.map((key) => (
-              <li key={key}>
-                <a
-                  href={`#guide-${key}`}
-                  className="text-body text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                >
-                  {content.sections[key].heading}
-                </a>
-              </li>
-            ))}
-          </ol>
-        </CardContent>
-      </Card>
-
-      <div className="max-w-3xl space-y-6">
-        {GUIDE_SECTION_ORDER.map((key) => (
-          <Section key={key} id={`guide-${key}`} section={content.sections[key]} />
+      <div role="tablist" aria-label={content.title} className="flex max-w-3xl flex-wrap gap-1 border-b border-border">
+        {GUIDE_TAB_IDS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => selectTab(id)}
+            className={
+              'rounded-t-md border-b-2 px-4 py-2 text-body font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ' +
+              (tab === id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')
+            }
+          >
+            {content.tabs[id].label}
+          </button>
         ))}
       </div>
+
+      <section role="tabpanel" className="space-y-6">
+        <Card className="max-w-3xl">
+          <CardHeader>
+            <CardTitle>{content.tocHeading}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-body text-foreground/80">{content.tabs[tab].intro}</p>
+            <ol className="list-decimal space-y-1 pl-5">
+              {sectionIds.map((key) => (
+                <li key={key}>
+                  <a
+                    href={`#guide-${key}`}
+                    className="text-body text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  >
+                    {content.sections[key].heading}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </CardContent>
+        </Card>
+
+        <div className="max-w-3xl space-y-6">
+          {sectionIds.map((key) => (
+            <Section key={key} id={`guide-${key}`} section={content.sections[key]} />
+          ))}
+        </div>
+      </section>
     </main>
   );
 }
