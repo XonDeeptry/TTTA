@@ -94,6 +94,33 @@ function renderFixes(scores: unknown): string {
 }
 
 /**
+ * Khối "Nhận xét → Hướng sửa" theo TỪNG tiêu chí, đúng khung "BẢNG CHẤM CHỮA BÀI SPEAKING" của
+ * ILM (`Criteria-Source/Analystic-ScoringBand.pdf`). Pilot 2026-09-15: tin nhắn chỉ có `feedback`
+ * tóm tắt chung, trong khi `scores` đã có đủ comment + fix của từng tiêu chí.
+ *
+ * Thứ tự và nhãn lấy từ `rubric.dimensions` (giáo viên soạn), không theo thứ tự khóa trong JSON
+ * của LLM. KHÔNG in `score`: không điểm số nào đến tay học viên (ILM-Clone D39).
+ */
+function renderCriteria(rubric: Record<string, unknown>, scores: unknown): string {
+  if (!isRecord(scores) || !Array.isArray(rubric.dimensions)) return '';
+  const blocks: string[] = [];
+  for (const dim of rubric.dimensions) {
+    if (!isRecord(dim)) continue;
+    const key = asText(dim.key);
+    const result = key ? scores[key] : undefined;
+    if (!isRecord(result)) continue;
+    const comment = asText(result.comment);
+    const fix = asText(result.fix);
+    if (!comment && !fix) continue;
+    const lines = [`🔹 ${asText(dim.label) || key}`];
+    if (comment) lines.push(`Nhận xét: ${comment}`);
+    if (fix) lines.push(`→ Hướng sửa: ${fix}`);
+    blocks.push(lines.join('\n'));
+  }
+  return blocks.join('\n\n');
+}
+
+/**
  * Thay thế MỘT LƯỢT: quét chuỗi gốc đúng một lần nên nội dung vừa chèn vào KHÔNG bị coi là
  * placeholder để thay tiếp. Nếu không, một nhận xét của LLM vô tình chứa `{{total}}` sẽ được
  * thay thật — tức là để LLM điều khiển được cấu trúc tin nhắn.
@@ -160,6 +187,7 @@ export function renderStudentMessage(rubric: unknown, input: StudentMessageInput
       level,
       pronunciation_errors: renderPronunciationErrors(input.scores),
       fixes: renderFixes(input.scores),
+      criteria: isRecord(rubric) ? renderCriteria(rubric, input.scores) : '',
     };
     // Xác định dòng "chỉ có placeholder rỗng" TRƯỚC khi thay, để nội dung thật vô tình trùng
     // dạng `{{...}}` không bị nhận nhầm là placeholder.

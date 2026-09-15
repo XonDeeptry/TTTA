@@ -64,6 +64,42 @@ describe('renderStudentMessage', () => {
     expect(out).toContain('Tra IPA trước khi nói.');
   });
 
+  // ─── {{criteria}}: khung "Nhận xét → Hướng sửa" của ILM ───────────────────────────
+
+  const DIMS = [
+    { key: 'pronunciation', label: 'Pronunciation' },
+    { key: 'fluency', label: 'Fluency and coherence' },
+  ];
+
+  it('{{criteria}} in nhãn + nhận xét + hướng sửa theo THỨ TỰ rubric, không theo thứ tự scores', () => {
+    const out = renderStudentMessage({ dimensions: DIMS, student_reply: { template: '{{criteria}}' } }, BASE);
+    expect(out).toBe(
+      '🔹 Pronunciation\nNhận xét: khá rõ\n→ Hướng sửa: Tra IPA trước khi nói.\n\n' +
+        '🔹 Fluency and coherence\nNhận xét: ổn\n→ Hướng sửa: Dùng từ nối "Well..." để giữ nhịp.',
+    );
+  });
+
+  it('{{criteria}} KHÔNG lộ điểm số cho học viên (D39)', () => {
+    const out = renderStudentMessage({ dimensions: DIMS, student_reply: { template: '{{criteria}}' } }, BASE);
+    expect(out).not.toMatch(/\b3\b/);
+  });
+
+  it('{{criteria}}: thiếu fix thì bỏ dòng hướng sửa; tiêu chí không có kết quả thì bỏ cả khối', () => {
+    const out = renderStudentMessage(
+      { dimensions: [...DIMS, { key: 'grammar', label: 'Grammar' }], student_reply: { template: '{{criteria}}' } },
+      { ...BASE, scores: { fluency: { score: 2, comment: 'ổn' } } },
+    );
+    expect(out).toBe('🔹 Fluency and coherence\nNhận xét: ổn');
+  });
+
+  it('{{criteria}} rỗng ⇒ xóa luôn nhãn đứng trước', () => {
+    const out = renderStudentMessage(
+      { dimensions: DIMS, student_reply: { template: '{{feedback}}\n\nChi tiết:\n{{criteria}}' } },
+      { ...BASE, scores: {} },
+    );
+    expect(out).toBe('Em làm tốt lắm!');
+  });
+
   it('{{total}} và {{level}} thay đúng giá trị', () => {
     expect(renderStudentMessage({ student_reply: { template: '{{total}} | {{level}}' } }, BASE)).toBe(
       '15/25 | Starter (A1-)',

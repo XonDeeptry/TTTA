@@ -26,6 +26,36 @@ const BUTTON_TYPE = 'oa.query.show';
  * chốt được khi bắn thật vào OA thật. Rỗng/chưa đặt = bỏ trường (shape đã xác minh 2026-08-19). */
 const TEMPLATE_TYPE_KEY = 'zalo.buttons_template_type';
 
+/**
+ * Chia text thành các phần ≤ `max` ký tự để Zalo không từ chối (-210). Cắt ưu tiên ở ranh giới
+ * đoạn ("\n\n" — mỗi tiêu chí nhận xét là một đoạn), rồi dòng, cuối cùng mới cắt cứng. Text vừa
+ * giới hạn trả nguyên một phần, từng byte như trước.
+ */
+export function splitOutboundText(text: string, max: number): string[] {
+  if (text.length <= max) return [text];
+  const chunks: string[] = [];
+  let current = '';
+  const push = (piece: string, sep: string): void => {
+    if (!current) current = piece;
+    else if (current.length + sep.length + piece.length <= max) current += sep + piece;
+    else {
+      chunks.push(current);
+      current = piece;
+    }
+  };
+  for (const para of text.split('\n\n')) {
+    if (para.length <= max) {
+      push(para, '\n\n');
+      continue;
+    }
+    for (const line of para.split('\n')) {
+      for (let i = 0; i < line.length || i === 0; i += max) push(line.slice(i, i + max), '\n');
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
 interface ZaloSendResponse {
   error: number;
   message?: string;
@@ -55,14 +85,23 @@ export class ZaloApiService {
    * payload cũ (không hạ cấp khi retry).
    */
   async sendText(zaloUserId: string, text: string, buttons?: OutboundButton[]): Promise<void> {
-    if (typeof text === 'string' && text.length > MAX_OUTBOUND_TEXT_LEN) {
-      // CỐ Ý chỉ cảnh báo: cắt/chặn sẽ đổi hành vi của các tin nhận xét dài đang chạy hôm nay.
+    const chunks = splitOutboundText(text, MAX_OUTBOUND_TEXT_LEN);
+    if (chunks.length > 1) {
+      // Pilot 2026-09-15: Zalo TỪ CHỐI (-210) text > 2000 chứ không cắt hộ — tin nhận xét theo từng
+      // tiêu chí (2244 ký tự) rơi thẳng vào DLQ. Trước đây ở đây chỉ warn và gửi nguyên văn.
       this.logger.warn(
-        `Text dài ${text.length} ký tự > ${MAX_OUTBOUND_TEXT_LEN} — vẫn gửi nguyên văn: user ${zaloUserId}`,
+        `Text dài ${text.length} ký tự > ${MAX_OUTBOUND_TEXT_LEN} — chia thành ${chunks.length} tin: user ${zaloUserId}`,
       );
     }
     const attachment = await this.buildAttachment(zaloUserId, buttons);
+    // Nút chỉ gắn vào tin CUỐI — học viên đọc hết nhận xét rồi mới bấm.
+    for (let i = 0; i < chunks.length; i++) {
+      await this.sendOne(zaloUserId, chunks[i], i === chunks.length - 1 ? attachment : undefined);
+    }
+  }
 
+  /** Một tin ra Zalo, kèm nhánh `-216` (refresh + gửi lại một lần) dùng chung. */
+  private async sendOne(zaloUserId: string, text: string, attachment?: ZaloAttachment): Promise<void> {
     let data = await this.trySend(zaloUserId, text, attachment);
     if (data.error === ERR_TOKEN_EXPIRED) {
       this.logger.warn('Access token hết hạn giữa chừng — refresh và gửi lại một lần');

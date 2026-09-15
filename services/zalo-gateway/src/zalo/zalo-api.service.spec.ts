@@ -136,13 +136,34 @@ describe('ZaloApiService.sendText', () => {
     await expect(service.sendText('u1', 't', [btn({ action: 'nope' as never })])).rejects.toThrow('Zalo send failed: -32 boom');
   });
 
-  it('AC-03.6 — text over 2000 chars warns but is sent UNCHANGED (no truncation, no reject)', async () => {
+  // Pilot 2026-09-15: AC-03.6 cũ ("gửi NGUYÊN VĂN") sai với Zalo thật — OA trả -210 và tin nhận
+  // xét 2244 ký tự rơi vào DLQ. Nay chia thành nhiều tin, mỗi tin ≤ 2000.
+  it('text over 2000 chars is split at paragraph boundaries; every part ≤ 2000, nothing lost', async () => {
     const warn = jest.spyOn(service['logger'], 'warn');
+    const paras = ['a'.repeat(900), 'b'.repeat(900), 'c'.repeat(900)];
+    await service.sendText('u1', paras.join('\n\n'));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(bodyOf(fetchMock, 0).message.text).toBe(`${paras[0]}\n\n${paras[1]}`);
+    expect(bodyOf(fetchMock, 1).message.text).toBe(paras[2]);
+    expect(warn.mock.calls[0][0]).toContain('2 tin');
+  });
+
+  it('a single run with no line breaks is hard-cut, never dropped', async () => {
     const long = 'x'.repeat(2001);
     await service.sendText('u1', long);
-    expect(bodyOf(fetchMock).message.text).toBe(long);
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0][0]).toContain('2001');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(bodyOf(fetchMock, 0).message.text + bodyOf(fetchMock, 1).message.text).toBe(long);
+  });
+
+  it('buttons ride only on the LAST part', async () => {
+    await service.sendText('u1', `${'a'.repeat(1500)}\n\n${'b'.repeat(1500)}`, [btn()]);
+    expect(bodyOf(fetchMock, 0).message.attachment).toBeUndefined();
+    expect(bodyOf(fetchMock, 1).message.attachment.payload.buttons).toHaveLength(1);
+  });
+
+  it('a Zalo error on any part throws, so RabbitService retries', async () => {
+    fetchMock.mockResolvedValueOnce(ok()).mockResolvedValueOnce({ json: async () => ({ error: -32, message: 'boom' }) });
+    await expect(service.sendText('u1', `${'a'.repeat(1500)}\n\n${'b'.repeat(1500)}`)).rejects.toThrow('-32 boom');
   });
 
   it('AC-03.8 — the inclusive maxima (5 buttons / 100-char title / 1000-char payload / 2000-char text) still send WITH buttons', async () => {
