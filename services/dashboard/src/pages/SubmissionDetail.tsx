@@ -7,14 +7,13 @@ import { useSubmissionEvents } from '../hooks/useSubmissionEvents';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 
 /**
- * Bằng chứng phát âm sai do LLM trả về (`grading/schema.py`, chiều `pronunciation`).
- * `approx_position_sec` là ƯỚC LƯỢNG của model, KHÔNG phải forced alignment — nên giao diện
- * chỉ dùng nó để TUA TỚI GẦN chỗ đó cho người chấm tự nghe và tự phán, tuyệt đối không trình
- * bày như một mốc chính xác. Đo trên 2 lần chấm cùng một clip (2026-09-06) thì mốc trùng khít,
- * nhưng "lặp lại được" chưa phải "đúng".
+ * Từ phát âm sai. Với bài chấm bằng Azure (D149), `word`/`heard_as`/`approx_position_sec` là SỐ ĐO
+ * (mốc từ word offset của Azure); với bài chấm Gemini thuần thì vẫn là ƯỚC LƯỢNG của model — nên
+ * giao diện chỉ dùng mốc để TUA TỚI GẦN chỗ đó cho người chấm tự nghe và tự phán.
  */
 interface MispronouncedWord {
   word: string;
@@ -23,24 +22,45 @@ interface MispronouncedWord {
   approx_position_sec?: number;
 }
 
+interface DimensionResult {
+  score: number;
+  comment: string;
+  fix?: string;
+  mispronounced_words?: MispronouncedWord[];
+}
+
+type Scores = Record<string, DimensionResult>;
+
+interface AzureAssessment {
+  mode: 'scripted' | 'unscripted';
+  scores: { accuracy: number | null; fluency: number | null; prosody: number | null; completeness: number | null };
+  ending_sounds: number | null;
+  word_stress: number | null;
+  transcript?: string;
+}
+
 interface Grading {
   id: number;
-  // `fix` chỉ có với rubric khai báo output_fields ["comment","fix"] (F8) — thường vắng mặt.
-  // `mispronounced_words` chỉ có ở chiều `pronunciation`, và cũng chỉ khi LLM tìm thấy lỗi.
-  scores: Record<
-    string,
-    { score: number; comment: string; fix?: string; mispronounced_words?: MispronouncedWord[] }
-  >;
+  scores: Scores;
+  /** D153: bản giáo viên đã sửa; `scores` là bản AI, không bao giờ bị ghi đè. */
+  reviewedScores: Scores | null;
+  assessment: AzureAssessment | null;
   llmFeedback: string;
   reviewedFeedback: string | null;
   autoSent: boolean;
   sentAt: string | null;
   // F9: điểm tổng/cấp độ do core-api tính (`computeTotal`). `null` với bài chấm trước F9.
-  // `totalMax` là giá trị DẪN XUẤT do server trả về — KHÔNG tính lại số học chấm điểm ở đây.
   totalScore: number | null;
   levelCode: string | null;
   levelLabel: string | null;
   totalMax: number | null;
+  criteria?: {
+    rubric?: {
+      scale?: { min?: number; max?: number; step?: number };
+      band_scale?: number[];
+      dimensions?: { key?: string; name?: string; label?: string }[];
+    };
+  } | null;
 }
 
 interface Flag {
@@ -49,7 +69,7 @@ interface Flag {
   resolvedAt: string | null;
 }
 
-/** Lùi trước mốc LLM báo bấy nhiêu giây khi tua — xem `seekTo`. */
+/** Lùi trước mốc báo bấy nhiêu giây khi tua — xem `seekTo`. */
 const SEEK_LEAD_SEC = 2;
 
 interface SubmissionDetailData {
@@ -63,19 +83,39 @@ interface SubmissionDetailData {
   flags: Flag[];
 }
 
+function cloneScores(scores: Scores): Scores {
+  return JSON.parse(JSON.stringify(scores ?? {})) as Scores;
+}
+
+/** Thang và nhãn lấy từ rubric của CHÍNH bài chấm (có thể là v1 `band_scale`/`name`). */
+function rubricView(grading: Grading) {
+  const rubric = grading.criteria?.rubric ?? {};
+  const scale = rubric.scale ?? {};
+  const legacy = rubric.band_scale ?? [];
+  const min = scale.min ?? legacy[0] ?? 0;
+  const max = scale.max ?? legacy[1] ?? 3;
+  const step = scale.step ?? 1;
+  const labels: Record<string, string> = {};
+  for (const d of rubric.dimensions ?? []) {
+    const key = d.key ?? d.name;
+    if (key) labels[key] = d.label ?? d.name ?? key;
+  }
+  return { min, max, step, labels };
+}
+
 export function SubmissionDetail() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const [data, setData] = useState<SubmissionDetailData | null>(null);
-  const [draft, setDraft] = useState('');
+  const [feedbackDraft, setFeedbackDraft] = useState('');
+  const [scoresDraft, setScoresDraft] = useState<Scores>({});
   const [message, setMessage] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   /**
-   * Tua tới TRƯỚC mốc LLM báo vài giây rồi phát. Lùi lại là có chủ ý: mốc chỉ là ước lượng,
-   * và nghe được ngữ cảnh dẫn vào từ thì người chấm mới phán được — nhảy đúng phóc vào giữa
-   * từ thường khiến không nghe kịp.
+   * Tua tới TRƯỚC mốc vài giây rồi phát. Lùi lại là có chủ ý: nghe được ngữ cảnh dẫn vào từ thì
+   * người chấm mới phán được — nhảy đúng phóc vào giữa từ thường khiến không nghe kịp.
    */
   function seekTo(seconds: number): void {
     const el = audioRef.current;
@@ -85,8 +125,7 @@ export function SubmissionDetail() {
       el.currentTime = target;
       void el.play().catch(() => undefined); // trình duyệt chặn autoplay ⇒ vẫn đã tua đúng chỗ
     };
-    // Gán `currentTime` khi chưa có metadata thì trình duyệt LẶNG LẼ BỎ QUA. Lần bấm đầu tiên
-    // (người dùng chưa từng nhấn play) rơi đúng vào trường hợp đó, nên phải đợi `loadedmetadata`.
+    // Gán `currentTime` khi chưa có metadata thì trình duyệt LẶNG LẼ BỎ QUA.
     if (el.readyState >= HTMLMediaElement.HAVE_METADATA) {
       jump();
     } else {
@@ -104,7 +143,8 @@ export function SubmissionDetail() {
   function load(): void {
     void api.get<SubmissionDetailData>(`/submissions/${id}`).then((d) => {
       setData(d);
-      setDraft(d.grading?.reviewedFeedback ?? d.grading?.llmFeedback ?? '');
+      setFeedbackDraft(d.grading?.reviewedFeedback ?? d.grading?.llmFeedback ?? '');
+      setScoresDraft(cloneScores(d.grading?.reviewedScores ?? d.grading?.scores ?? {}));
     });
   }
 
@@ -115,16 +155,40 @@ export function SubmissionDetail() {
     load();
   });
 
+  function patchDimension(key: string, patch: Partial<DimensionResult>): void {
+    setScoresDraft((s) => ({ ...s, [key]: { ...s[key], ...patch } }));
+  }
+
+  function patchWord(key: string, index: number, patch: Partial<MispronouncedWord>): void {
+    setScoresDraft((s) => {
+      const words = [...(s[key]?.mispronounced_words ?? [])];
+      words[index] = { ...words[index], ...patch };
+      return { ...s, [key]: { ...s[key], mispronounced_words: words } };
+    });
+  }
+
+  function removeWord(key: string, index: number): void {
+    setScoresDraft((s) => ({
+      ...s,
+      [key]: { ...s[key], mispronounced_words: (s[key]?.mispronounced_words ?? []).filter((_, i) => i !== index) },
+    }));
+  }
+
+  function reviewBody() {
+    return { reviewedFeedback: feedbackDraft, reviewedScores: scoresDraft };
+  }
+
   async function saveReview(): Promise<void> {
     if (!data?.grading) return;
-    await api.patch(`/gradings/${data.grading.id}`, { reviewedFeedback: draft });
-    setMessage(t('students.save'));
+    await api.patch(`/gradings/${data.grading.id}`, reviewBody());
+    setMessage(t('submissions.saved'));
     load();
   }
 
+  /** D153: Gửi = lưu bản đang sửa rồi gửi đúng bản đó (core-api làm cả hai trong một lượt gọi). */
   async function send(): Promise<void> {
     if (!data?.grading) return;
-    await api.post(`/gradings/${data.grading.id}/send`);
+    await api.post(`/gradings/${data.grading.id}/send`, reviewBody());
     setMessage(t('submissions.sent'));
     load();
   }
@@ -136,6 +200,9 @@ export function SubmissionDetail() {
   }
 
   if (!data) return null;
+  const grading = data.grading;
+  const sent = Boolean(grading?.sentAt);
+  const view = grading ? rubricView(grading) : null;
 
   return (
     <main id="main-content" className="max-w-5xl space-y-6 p-6">
@@ -145,121 +212,143 @@ export function SubmissionDetail() {
       <h1 className="text-h1">{data.student?.fullName ?? '—'}</h1>
 
       {data.mediaPath && !data.mediaDeletedAt ? (
-        <audio
-          ref={audioRef}
-          controls
-          src={`/api/media/${data.id}`}
-          aria-label={t('submissions.audioPlayer')}
-          className="w-full"
-        />
+        <audio ref={audioRef} controls src={`/api/media/${data.id}`} aria-label={t('submissions.audioPlayer')} className="w-full" />
       ) : (
         <p className="text-muted-foreground">{t('submissions.noMedia')}</p>
       )}
 
-      {data.grading && (
-        <div className="flex flex-wrap gap-6">
-          <Card className="min-w-[320px] flex-1">
-            <CardHeader>
-              <CardTitle>{t('submissions.gradingTitle')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <h2 className="text-h2">{t('submissions.scores')}</h2>
-                {data.grading.totalScore !== null && data.grading.totalMax !== null ? (
-                  <p className="mt-1">
-                    {t('submissions.total')}:{' '}
-                    <span className="font-medium tabular-nums">
-                      {data.grading.totalScore}/{data.grading.totalMax}
-                    </span>
-                    {data.grading.levelLabel ? ` — ${data.grading.levelLabel}` : ''}
-                  </p>
-                ) : (
-                  <p className="mt-1 text-muted-foreground">{t('submissions.totalUnavailable')}</p>
-                )}
-                <ul className="mt-2 space-y-2">
-                  {Object.entries(data.grading.scores).map(
-                    ([dimension, { score, comment, fix, mispronounced_words: mispronounced }]) => (
-                      <li key={dimension} className="flex flex-wrap items-start gap-2">
-                        <span className="font-medium">{dimension}</span>
-                        <Badge variant="outline" className="shrink-0">
-                          {score}
+      {grading && view && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('submissions.gradingTitle')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {grading.totalScore !== null && grading.totalMax !== null ? (
+              <p>
+                {t('submissions.total')} (AI):{' '}
+                <span className="font-medium tabular-nums">
+                  {grading.totalScore}/{grading.totalMax}
+                </span>
+                {grading.levelLabel ? ` — ${grading.levelLabel}` : ''}
+              </p>
+            ) : (
+              <p className="text-muted-foreground">{t('submissions.totalUnavailable')}</p>
+            )}
+
+            {grading.assessment && <AzurePanel assessment={grading.assessment} />}
+
+            <p className="rounded-md border border-primary/30 bg-primary/5 p-3 text-body">
+              {sent ? t('submissions.sentReadOnly') : t('submissions.editHint')}
+            </p>
+
+            <div>
+              <h2 className="text-h2">{t('submissions.overallFeedback')}</h2>
+              <Textarea rows={4} className="mt-1" value={feedbackDraft} disabled={sent} onChange={(e) => setFeedbackDraft(e.target.value)} />
+              <details className="mt-1 text-caption text-muted-foreground">
+                <summary className="cursor-pointer">{t('submissions.llmFeedback')}</summary>
+                <p className="mt-1 whitespace-pre-wrap">{grading.llmFeedback}</p>
+              </details>
+            </div>
+
+            <div className="space-y-4">
+              <h2 className="text-h2">{t('submissions.scores')}</h2>
+              {Object.keys(scoresDraft).map((key) => {
+                const dim = scoresDraft[key];
+                const original = grading.scores[key];
+                const words = dim?.mispronounced_words;
+                return (
+                  <div key={key} className="space-y-2 rounded-md border border-border p-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="font-medium">{view.labels[key] ?? key}</span>
+                      <label className="flex items-center gap-1.5 text-body">
+                        {t('submissions.dimensionScore')}
+                        <Input
+                          type="number"
+                          className="w-20"
+                          min={view.min}
+                          max={view.max}
+                          step={view.step}
+                          value={dim?.score ?? ''}
+                          disabled={sent}
+                          onChange={(e) => patchDimension(key, { score: e.target.value === '' ? view.min : Number(e.target.value) })}
+                        />
+                        <span className="text-muted-foreground">/ {view.max}</span>
+                      </label>
+                      {original && original.score !== dim?.score && (
+                        <Badge variant="outline" className="font-normal">
+                          {t('submissions.aiOriginal')}: {original.score}
                         </Badge>
-                        <span className="text-muted-foreground">{comment}</span>
-                        {fix ? (
-                          <span className="w-full text-muted-foreground">
-                            {t('submissions.scoreFix')}: {fix}
-                          </span>
-                        ) : null}
-                        {mispronounced && mispronounced.length > 0 ? (
-                          <div className="w-full space-y-1 rounded-md border border-border bg-muted/40 p-2">
-                            <p className="text-muted-foreground">{t('submissions.mispronouncedHint')}</p>
-                            {mispronounced.map((w, i) => (
-                              <div key={`${w.word}-${i}`} className="flex flex-wrap items-baseline gap-2">
-                                {typeof w.approx_position_sec === 'number' ? (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="shrink-0 tabular-nums"
-                                    onClick={() => seekTo(w.approx_position_sec as number)}
-                                    disabled={!data.mediaPath || Boolean(data.mediaDeletedAt)}
-                                    aria-label={t('submissions.seekTo', {
-                                      word: w.word,
-                                      time: formatTimestamp(w.approx_position_sec),
-                                    })}
-                                  >
-                                    ▶ {formatTimestamp(w.approx_position_sec)}
-                                  </Button>
-                                ) : null}
-                                <span className="font-medium">{w.word}</span>
-                                {w.heard_as ? (
-                                  <span className="text-muted-foreground">
-                                    {t('submissions.heardAs')}: <em>{w.heard_as}</em>
-                                  </span>
-                                ) : null}
-                                {w.suggestion ? <span className="text-muted-foreground">→ {w.suggestion}</span> : null}
-                              </div>
-                            ))}
+                      )}
+                    </div>
+                    <label className="block text-caption text-muted-foreground">
+                      {t('submissions.comment')}
+                      <Textarea rows={2} className="mt-0.5" value={dim?.comment ?? ''} disabled={sent} onChange={(e) => patchDimension(key, { comment: e.target.value })} />
+                    </label>
+                    {dim && 'fix' in dim && (
+                      <label className="block text-caption text-muted-foreground">
+                        {t('submissions.scoreFix')}
+                        <Textarea rows={2} className="mt-0.5" value={dim.fix ?? ''} disabled={sent} onChange={(e) => patchDimension(key, { fix: e.target.value })} />
+                      </label>
+                    )}
+                    {words && words.length > 0 && (
+                      <div className="space-y-2 rounded-md border border-border bg-muted/40 p-2">
+                        <p className="text-muted-foreground">{t('submissions.mispronouncedHint')}</p>
+                        {words.map((w, i) => (
+                          <div key={`${key}-${i}`} className="flex flex-wrap items-center gap-2">
+                            {typeof w.approx_position_sec === 'number' ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="shrink-0 tabular-nums"
+                                onClick={() => seekTo(w.approx_position_sec as number)}
+                                disabled={!data.mediaPath || Boolean(data.mediaDeletedAt)}
+                                aria-label={t('submissions.seekTo', { word: w.word, time: formatTimestamp(w.approx_position_sec) })}
+                              >
+                                ▶ {formatTimestamp(w.approx_position_sec)}
+                              </Button>
+                            ) : null}
+                            <span className="font-medium">{w.word}</span>
+                            {w.heard_as ? (
+                              <span className="text-muted-foreground">
+                                {t('submissions.heardAs')}: <em>{w.heard_as}</em>
+                              </span>
+                            ) : null}
+                            <Input
+                              className="min-w-[12rem] flex-1"
+                              value={w.suggestion ?? ''}
+                              disabled={sent}
+                              onChange={(e) => patchWord(key, i, { suggestion: e.target.value })}
+                            />
+                            {!sent && (
+                              <Button size="sm" variant="ghost" onClick={() => removeWord(key, i)}>
+                                {t('submissions.removeWord')}
+                              </Button>
+                            )}
                           </div>
-                        ) : null}
-                      </li>
-                    ),
-                  )}
-                </ul>
-              </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-              <div>
-                <h2 className="text-h2">{t('submissions.llmFeedback')}</h2>
-                <p className="mt-1">{data.grading.llmFeedback}</p>
-              </div>
-
-              <div>
-                <h2 className="text-h2">{t('submissions.reviewedFeedback')}</h2>
-                <Textarea
-                  rows={5}
-                  className="mt-1"
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={saveReview}>
-                  {t('students.save')}
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={saveReview} disabled={sent}>
+                {t('students.save')}
+              </Button>
+              <Button onClick={send} disabled={sent}>
+                {t('submissions.send')}
+              </Button>
+              {user?.role === 'admin' && data.mediaPath && !data.mediaDeletedAt && (
+                <Button variant="destructive" onClick={deleteMedia}>
+                  {t('submissions.deleteMedia')}
                 </Button>
-                <Button onClick={send} disabled={!!data.grading.sentAt}>
-                  {t('submissions.send')}
-                </Button>
-                {user?.role === 'admin' && data.mediaPath && !data.mediaDeletedAt && (
-                  <Button variant="destructive" onClick={deleteMedia}>
-                    {t('submissions.deleteMedia')}
-                  </Button>
-                )}
-              </div>
-              {message && <p className="text-body text-muted-foreground">{message}</p>}
-            </CardContent>
-          </Card>
-
-        </div>
+              )}
+            </div>
+            {message && <p className="text-body text-muted-foreground">{message}</p>}
+          </CardContent>
+        </Card>
       )}
 
       {data.flags.length > 0 && (
@@ -273,5 +362,39 @@ export function SubmissionDetail() {
         </div>
       )}
     </main>
+  );
+}
+
+function AzurePanel({ assessment }: { assessment: AzureAssessment }) {
+  const { t } = useTranslation();
+  const metric = (label: string, value: number | null | undefined) => (
+    <div className="rounded-md border border-border bg-muted/40 px-3 py-2">
+      <p className="text-caption text-muted-foreground">{label}</p>
+      <p className="text-body font-medium tabular-nums">{value == null ? '—' : Math.round(value)}</p>
+    </div>
+  );
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-h2">{t('submissions.azureTitle')}</h2>
+        <Badge variant={assessment.mode === 'scripted' ? 'success' : 'warning'}>
+          {t(assessment.mode === 'scripted' ? 'submissions.azureModeScripted' : 'submissions.azureModeUnscripted')}
+        </Badge>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
+        {metric(t('submissions.azureAccuracy'), assessment.scores.accuracy)}
+        {metric(t('submissions.azureFluency'), assessment.scores.fluency)}
+        {metric(t('submissions.azureProsody'), assessment.scores.prosody)}
+        {metric(t('submissions.azureEndingSounds'), assessment.ending_sounds)}
+        {metric(t('submissions.azureWordStress'), assessment.word_stress)}
+        {assessment.mode === 'scripted' && metric(t('submissions.azureCompleteness'), assessment.scores.completeness)}
+      </div>
+      {assessment.transcript && (
+        <details className="text-caption text-muted-foreground">
+          <summary className="cursor-pointer">{t('submissions.transcript')}</summary>
+          <p className="mt-1 whitespace-pre-wrap">{assessment.transcript}</p>
+        </details>
+      )}
+    </div>
   );
 }

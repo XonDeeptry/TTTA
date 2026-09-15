@@ -12,11 +12,12 @@ export class GradingsController {
 
   @Patch(':id')
   review(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateGradingDto, @Req() req: Request): Promise<Grading> {
-    return this.gradings.reviewFeedback(id, body.reviewedFeedback, req.session.user?.email ?? 'unknown');
+    return this.gradings.review(id, body, req.session.user?.email ?? 'unknown');
   }
 
+  /** D153: body tùy chọn — có bản đang sửa thì LƯU trước rồi gửi đúng bản đó, tránh "quên bấm Lưu". */
   @Post(':id/send')
-  send(@Param('id', ParseIntPipe) id: number): Promise<Grading> {
-    return this.gradings.send(id);
+  send(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateGradingDto, @Req() req: Request): Promise<Grading> {
+    return this.gradings.send(id, body, req.session.user?.email ?? 'unknown');
   }
 }

@@ -53,6 +53,8 @@ export interface StudentForGrading {
   courseId: number | null;
   llmConfig: unknown;
   autoSend: boolean;
+  /** D151: văn bản bài đọc hiện tại của lớp — có thì Azure chấm theo văn bản (scripted). */
+  readingText: string | null;
 }
 
 /**
@@ -283,6 +285,7 @@ export class WorkerApiController {
       courseId: student.courseId,
       llmConfig: student.course?.llmConfig ?? null,
       autoSend: classConfig?.autoSend ?? false,
+      readingText: classConfig?.readingText ?? null,
     };
   }
 
@@ -321,6 +324,8 @@ export class WorkerApiController {
         totalScore: scored ? result.total : null,
         levelCode: levelText(level?.code),
         levelLabel: levelText(level?.label),
+        // D149: chỉ ghi khi worker chấm bằng Azure — bài Gemini thuần giữ nguyên dữ liệu như trước.
+        ...(body.assessment ? { assessment: body.assessment as never } : {}),
       },
     });
 

@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Q_OUTBOUND } from '../contracts';
 import { GradingsService } from './gradings.service';
 
@@ -176,6 +176,105 @@ describe('GradingsService', () => {
       mockGrading({ rubric });
       await service.send(7);
       expect(rabbit.publish).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  /** ILM-Clone D153: giáo viên sửa mọi trường AI; Gửi = lưu bản đang sửa rồi gửi đúng bản đó. */
+  describe('D153 — teacher edits', () => {
+    const rubric = {
+      schema_version: 2,
+      scale: { min: 0, max: 5, step: 1 },
+      output_fields: ['comment', 'fix'],
+      dimensions: [
+        { key: 'pronunciation', label: 'Pronunciation' },
+        { key: 'fluency', label: 'Fluency' },
+      ],
+      student_reply: { template: '{{feedback}}\n\n{{criteria}}' },
+    };
+
+    it('review() stores a sanitised copy and never touches the AI scores', async () => {
+      prisma.grading.findUnique.mockResolvedValue({ id: 3, sentAt: null, criteria: { rubric } });
+      prisma.grading.update.mockResolvedValue({ id: 3 });
+
+      await service.review(
+        3,
+        {
+          reviewedFeedback: 'Mở đầu của cô',
+          reviewedScores: {
+            pronunciation: {
+              score: 4,
+              comment: 'Rõ hơn',
+              fix: 'Luyện /θ/',
+              injected: 'x',
+              mispronounced_words: [
+                { word: 'think', heard_as: '/t/', suggestion: 'Đặt lưỡi giữa răng', approx_position_sec: 43 },
+                { word: '   ' },
+              ],
+            },
+            invented_dimension: { score: 1, comment: 'không có trong rubric' },
+          },
+        },
+        'gv@ilm.edu.vn',
+      );
+
+      const data = prisma.grading.update.mock.calls[0][0].data;
+      expect(data).toMatchObject({ reviewedBy: 'gv@ilm.edu.vn', reviewedFeedback: 'Mở đầu của cô' });
+      expect(data.reviewedAt).toBeInstanceOf(Date);
+      expect(data.reviewedScores).toEqual({
+        pronunciation: {
+          score: 4,
+          comment: 'Rõ hơn',
+          fix: 'Luyện /θ/',
+          mispronounced_words: [{ word: 'think', heard_as: '/t/', suggestion: 'Đặt lưỡi giữa răng', approx_position_sec: 43 }],
+        },
+      });
+      expect(data).not.toHaveProperty('scores');
+    });
+
+    it('review() rejects a score outside the rubric scale and writes nothing', async () => {
+      prisma.grading.findUnique.mockResolvedValue({ id: 3, sentAt: null, criteria: { rubric } });
+      await expect(
+        service.review(3, { reviewedScores: { pronunciation: { score: 7, comment: 'x' } } }, 'gv'),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.grading.update).not.toHaveBeenCalled();
+    });
+
+    it('review() refuses to edit a grading that was already sent', async () => {
+      prisma.grading.findUnique.mockResolvedValue({ id: 3, sentAt: new Date(), criteria: { rubric } });
+      await expect(service.review(3, { reviewedFeedback: 'muộn' }, 'gv')).rejects.toThrow(BadRequestException);
+      expect(prisma.grading.update).not.toHaveBeenCalled();
+    });
+
+    it('send() with edits saves them FIRST and the message is built from the edited version, not the AI one', async () => {
+      prisma.grading.findUnique
+        .mockResolvedValueOnce({ id: 3, sentAt: null, criteria: { rubric } })
+        .mockResolvedValueOnce({
+          id: 3,
+          submissionId: 30,
+          llmFeedback: 'AI mở đầu',
+          reviewedFeedback: 'Cô mở đầu',
+          scores: { pronunciation: { score: 1, comment: 'AI nhận xét', fix: 'AI hướng sửa' } },
+          reviewedScores: { pronunciation: { score: 4, comment: 'Cô nhận xét', fix: 'Cô hướng sửa' } },
+          submission: { zaloUserId: 'zalo-3' },
+          criteria: { rubric },
+        });
+      prisma.grading.update.mockResolvedValue({ id: 3 });
+      prisma.submission.update.mockResolvedValue({ id: 30, status: 'sent' });
+
+      await service.send(
+        3,
+        { reviewedFeedback: 'Cô mở đầu', reviewedScores: { pronunciation: { score: 4, comment: 'Cô nhận xét', fix: 'Cô hướng sửa' } } },
+        'gv@ilm.edu.vn',
+      );
+
+      expect(prisma.grading.update.mock.calls[0][0].data.reviewedScores).toEqual({
+        pronunciation: { score: 4, comment: 'Cô nhận xét', fix: 'Cô hướng sửa' },
+      });
+      const text = (rabbit.publish.mock.calls[0][1] as { text: string }).text;
+      expect(text).toContain('Cô mở đầu');
+      expect(text).toContain('Nhận xét: Cô nhận xét');
+      expect(text).toContain('→ Hướng sửa: Cô hướng sửa');
+      expect(text).not.toContain('AI');
     });
   });
 });

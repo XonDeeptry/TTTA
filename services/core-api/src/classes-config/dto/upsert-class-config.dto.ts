@@ -23,4 +23,12 @@ export class UpsertClassConfigDto {
   @IsOptional()
   @IsInt()
   criteriaId?: number | null;
+
+  /**
+   * D151: văn bản bài đọc hiện tại của lớp. Có ⇒ Azure chấm theo văn bản (bắt buộc với giọng trẻ
+   * em — Grading spec §13A). Vắng mặt = giữ nguyên; chuỗi rỗng hoặc `null` = xóa.
+   */
+  @IsOptional()
+  @IsString()
+  readingText?: string | null;
 }

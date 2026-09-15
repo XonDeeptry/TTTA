@@ -9,6 +9,9 @@ dependencies = [
   "redis>=5.0",
   "google-genai>=0.7",
   "openai>=1.50",
+  # D149: Azure Pronunciation Assessment — continuous recognition cho clip dài (REST short-audio
+  # giới hạn 60 giây). 1.51.2 là bản spike 09-09 đã chạy thật; cần glibc (image python:3.11-slim).
+  "azure-cognitiveservices-speech>=1.51.2,<2",
   "jsonschema>=4.23",
   "python-dotenv>=1.0",
 ]

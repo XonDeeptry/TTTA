@@ -37,6 +37,15 @@ export const SETTING_DEFS: SettingDef[] = [
   // Model chọn được từ UI mà bảng giá lại hardcode thì `est_usd` sẽ về 0 và cảnh báo ngưỡng chi phí
   // (mục 3.12) im lặng — đây là chỗ điền đơn giá thật mà không cần sửa code.
   { key: 'llm.pricing_json', kind: 'string', masked: false },
+  // Pilot 09-15 (ILM-Clone D149): Azure Pronunciation Assessment chấm điểm, Gemini viết nhận xét.
+  // Có đủ key + region thì worker tự chuyển sang Azure; trống ⇒ chấm bằng Gemini như trước.
+  { key: 'azure.speech_key', kind: 'string', masked: true },
+  { key: 'azure.speech_region', kind: 'string', masked: false },
+  // Để trống = en-US (prosody và phoneme-level chỉ hỗ trợ đầy đủ ở en-US).
+  { key: 'azure.language', kind: 'string', masked: false },
+  // D152: ngưỡng quy đổi 0–100 → thang rubric, JSON {"5": [[90,5],[75,4],...], "9": [...]}.
+  // Để trống = ngưỡng mặc định trong grading-worker `grading/azure_pa.py`.
+  { key: 'azure.score_thresholds_json', kind: 'string', masked: false },
   { key: 'limits.outbound_48h_guard', kind: 'boolean', masked: false },
   // Số sự kiện tối đa MỘT NGÀY từ một Zalo user CHƯA có binding `active`. Vượt ngưỡng thì
   // gateway bỏ tin ngay tại cửa: không vào queue, không sinh `submissions`/`flags`, không có

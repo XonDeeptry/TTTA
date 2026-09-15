@@ -8,7 +8,7 @@ export interface ClassOverview {
   className: string;
   studentCount: number;
   courses: { id: number; key: string }[];
-  config: { advisorZaloId: string; autoSend: boolean; criteriaId: number | null } | null;
+  config: { advisorZaloId: string; autoSend: boolean; criteriaId: number | null; readingText: string | null } | null;
   /** Bộ tiêu chí grading-worker SẼ dùng cho học viên lớp này; null khi không xác định được một bộ duy nhất. */
   effective: {
     id: number;
@@ -95,7 +95,14 @@ export class ClassesConfigService {
           className,
           studentCount,
           courses: [...courseIds].map((id) => ({ id, key: courseKey.get(id) ?? `#${id}` })),
-          config: cfg ? { advisorZaloId: cfg.advisorZaloId, autoSend: cfg.autoSend, criteriaId: cfg.criteriaId } : null,
+          config: cfg
+            ? {
+                advisorZaloId: cfg.advisorZaloId,
+                autoSend: cfg.autoSend,
+                criteriaId: cfg.criteriaId,
+                readingText: cfg.readingText ?? null,
+              }
+            : null,
           effective,
           warnings,
         };
@@ -104,6 +111,7 @@ export class ClassesConfigService {
 
   /**
    * `criteriaId`: undefined = giữ nguyên · null = gỡ ghim (về fallback theo khóa) · số = ghim.
+   * `readingText`: undefined = giữ nguyên · null/chuỗi rỗng = xóa · chuỗi = bài đọc mới (D151).
    * Kiểm tra tồn tại TRƯỚC khi ghi để trả 400 có nội dung, thay vì để Postgres ném lỗi khóa
    * ngoại (P2003) rồi Nest dịch thành 500 vô nghĩa với người dùng dashboard.
    */
@@ -112,6 +120,7 @@ export class ClassesConfigService {
     advisorZaloId: string,
     autoSend?: boolean,
     criteriaId?: number | null,
+    readingText?: string | null,
   ): Promise<ClassConfig> {
     if (criteriaId !== undefined && criteriaId !== null) {
       const exists = await this.prisma.criteria.findUnique({
@@ -120,6 +129,7 @@ export class ClassesConfigService {
       });
       if (!exists) throw new BadRequestException(`criteria ${criteriaId} không tồn tại`);
     }
+    const reading = readingText === undefined ? undefined : readingText?.trim() ? readingText.trim() : null;
     return this.prisma.classConfig.upsert({
       where: { className },
       create: {
@@ -127,11 +137,13 @@ export class ClassesConfigService {
         advisorZaloId,
         autoSend: autoSend ?? false,
         criteriaId: criteriaId ?? null,
+        ...(reading !== undefined ? { readingText: reading } : {}),
       },
       update: {
         advisorZaloId,
         ...(autoSend !== undefined ? { autoSend } : {}),
         ...(criteriaId !== undefined ? { criteriaId } : {}),
+        ...(reading !== undefined ? { readingText: reading } : {}),
       },
     });
   }

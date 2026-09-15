@@ -19,4 +19,9 @@ export class CreateGradingDto {
   @IsOptional()
   @IsBoolean()
   autoSent?: boolean;
+
+  /** D149: dữ kiện Azure Pronunciation Assessment gốc; vắng mặt = bài chấm bằng Gemini thuần. */
+  @IsOptional()
+  @IsObject()
+  assessment?: Record<string, unknown>;
 }

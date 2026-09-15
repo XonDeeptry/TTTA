@@ -160,6 +160,13 @@ model Grading {
   levelLabel       String?    @map("level_label")
   // Cột do F11 ghi (nút "#ilm:ack:<id>"); F9 chỉ TẠO cột, không bao giờ ghi (BR-11).
   studentAckAt     DateTime?  @map("student_ack_at")
+  // Pilot 09-15 (ILM-Clone D149): dữ kiện Azure Pronunciation Assessment gốc — điểm 0–100, lỗi
+  // phát âm, transcript, band đã quy đổi. NULL = bài chấm bằng Gemini thuần.
+  assessment       Json?
+  // D153: bản giáo viên đã sửa (điểm, nhận xét, hướng sửa, từ phát âm sai). `scores` là bản AI và
+  // KHÔNG BAO GIỜ bị ghi đè — cần để đo độ lệch AI ↔ giáo viên (Grading spec §8.4 quy tắc 1).
+  reviewedScores   Json?      @map("reviewed_scores")
+  reviewedAt       DateTime?  @map("reviewed_at")
 
   @@map("gradings")
 }
@@ -186,6 +193,9 @@ model ClassConfig {
   // TỰ RƠI VỀ fallback theo khóa, chứ không được làm hỏng cấu hình lớp hay chặn việc xóa.
   criteriaId     Int?      @map("criteria_id")
   criteria       Criteria? @relation(fields: [criteriaId], references: [id], onDelete: SetNull)
+  // D151: văn bản bài đọc hiện tại của lớp. Có ⇒ Azure chấm theo văn bản (scripted); NULL ⇒ nói
+  // tự do, và với lớp thiếu nhi bài bị gắn cờ (spec §13A: unscripted không dùng được trên giọng trẻ).
+  readingText    String?   @map("reading_text")
 
   @@map("classes_config")
 }

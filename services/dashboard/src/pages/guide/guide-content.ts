@@ -199,6 +199,18 @@ export const guideVi: GuideContent = {
           ],
           uiKeys: ['criteria.pinCriteria', 'criteria.save'],
         },
+        {
+          title: 'Lớp thiếu nhi: nhập bài đọc hiện tại',
+          body: [
+            'Ngay dưới ô "Ghim tiêu chí" có ô "Bài đọc hiện tại". Dán đúng đoạn văn học viên đang đọc ở nhà rồi bấm Lưu trên hàng đó. Đổi bài thì dán bài mới; xóa trắng khi lớp chuyển sang nói tự do.',
+            'Có bài đọc, Azure đối chiếu từng từ học viên nói với văn bản nên chấm phát âm chính xác. Không có, Azure phải tự đoán trẻ nói gì — với giọng trẻ em nó hay đoán sai, bài sẽ bị gắn nhãn vàng để giáo viên nghe kỹ.',
+          ],
+          uiKeys: ['criteria.readingText', 'criteria.save'],
+          example: {
+            title: 'Ví dụ — bài đọc của lớp Tiny Rabbit',
+            text: 'Playground. Written by Elizabeth Jane Pustilnik. What can you do at the playground? The gate. The swing. The slide. The sandbox. The ladder. The bridge.',
+          },
+        },
       ],
       callout: {
         kind: 'warn',
@@ -422,29 +434,40 @@ export const guideVi: GuideContent = {
           uiKeys: ['nav.submissions', 'submissions.filterStatus', 'submissions.view'],
         },
         {
-          title: 'Nghe bài và đọc kết quả AI',
+          title: 'Nghe bài và xem số liệu đo',
           body: [
-            'Nghe file ghi âm. Ở mục Điểm từng tiêu chí, mỗi tiêu chí có điểm, nhận xét và hướng sửa. Từ phát âm sai có nút bấm để nghe lại đúng đoạn đó.',
-            'Nếu điểm hay nhận xét của một tiêu chí lệch nhiều so với cách bạn chấm, ghi lại và báo người phụ trách bộ tiêu chí — đó là dấu hiệu mô tả mức điểm cần viết rõ hơn (mục 4).',
+            'Nghe file ghi âm. Khi hệ thống đã bật Azure, khung "Số liệu đo bằng Azure" hiện điểm 0–100 đo từ giọng nói: độ chính xác, trôi chảy, ngữ điệu, âm đuôi, trọng âm — và lời nói Azure nhận dạng được.',
+            'Điểm các tiêu chí đo được bằng giọng nói (phát âm, ngữ điệu, âm đuôi, trọng âm, trôi chảy) là do Azure đo, lần nào chấm lại cũng ra đúng số đó. Nhận xét và hướng sửa do Gemini viết dựa trên số đo. Với IELTS, Từ vựng, Ngữ pháp và phần Mạch lạc vẫn do Gemini chấm.',
+            'Nhãn vàng "Nói tự do (không có bài đọc)" ở lớp thiếu nhi nghĩa là lớp chưa nhập bài đọc: điểm phát âm kém tin cậy, nghe kỹ trước khi gửi và nhập bài đọc cho lớp (mục 3).',
           ],
-          uiKeys: ['submissions.scores', 'submissions.scoreFix'],
+          uiKeys: ['submissions.azureTitle', 'submissions.azureModeScripted', 'submissions.azureModeUnscripted'],
         },
         {
-          title: 'Sửa nhận xét chung nếu cần — rồi bấm Lưu',
+          title: 'Sửa trực tiếp mọi thứ học viên sẽ nhận',
           body: [
-            '"Nhận xét AI (gốc)" là đoạn mở đầu AI viết. Muốn đổi, gõ bản của bạn vào ô "Nhận xét đã sửa" rồi bấm Lưu. Ô này để trống thì hệ thống gửi đoạn của AI.',
-            'Phần nhận xét và hướng sửa theo từng tiêu chí được gửi kèm tự động.',
+            'Sửa được tất cả: nhận xét chung ở đầu tin, điểm từng tiêu chí, nhận xét, hướng sửa, và gợi ý cho từng từ phát âm sai. Azure bắt nhầm một từ thì bấm "Bỏ từ này".',
+            'Điểm bạn sửa khác điểm AI thì cạnh ô hiện nhãn "AI: …" để đối chiếu. Bản gốc của AI luôn được giữ lại — dùng để đo AI lệch giáo viên bao nhiêu.',
+            'Học viên KHÔNG nhận điểm số: điểm chỉ dùng cho báo cáo. Nếu điểm hay nhận xét của một tiêu chí lệch nhiều so với cách bạn chấm, báo người phụ trách bộ tiêu chí (mục 4).',
           ],
-          uiKeys: ['submissions.llmFeedback', 'submissions.reviewedFeedback', 'students.save'],
-          callout: {
-            kind: 'warn',
-            text: 'Phải bấm Lưu TRƯỚC khi gửi — bấm Gửi luôn thì bản sửa không đi theo. Nếu làm việc lâu, đăng nhập lại trước khi Lưu: phiên đăng nhập hết hạn sau 8 giờ và bản sửa sẽ không được ghi.',
-          },
+          uiKeys: [
+            'submissions.overallFeedback',
+            'submissions.dimensionScore',
+            'submissions.comment',
+            'submissions.scoreFix',
+            'submissions.removeWord',
+          ],
         },
         {
           title: 'Bấm Gửi cho học viên',
-          body: ['Nút chuyển thành "Đã gửi" và mờ đi — mỗi bài chỉ gửi được một lần. Tin dài được tự chia thành 2–3 tin liên tiếp trên Zalo.'],
-          uiKeys: ['submissions.send', 'submissions.sent'],
+          body: [
+            'Gửi tự LƯU bản bạn đang sửa rồi gửi đúng bản đó — không cần bấm Lưu trước. Nút Lưu chỉ dùng khi muốn để dành, gửi sau.',
+            'Gửi xong, nút chuyển thành "Đã gửi" và các ô khóa lại — mỗi bài chỉ gửi một lần. Tin dài tự chia thành 2–3 tin liên tiếp trên Zalo.',
+          ],
+          uiKeys: ['students.save', 'submissions.send', 'submissions.sent'],
+          callout: {
+            kind: 'warn',
+            text: 'Làm việc lâu thì đăng nhập lại trước khi Gửi: phiên đăng nhập hết hạn sau 8 giờ, lúc đó bấm Gửi sẽ báo lỗi và CHƯA có gì được gửi đi.',
+          },
         },
       ],
       example: {
@@ -639,14 +662,27 @@ export const guideEn: GuideContent = {
       heading: '6. Reviewing and sending feedback',
       steps: [
         { title: 'Open the submission', body: ['Submissions → filter "awaiting_review" → View.'], uiKeys: ['nav.submissions', 'submissions.view'] },
-        { title: 'Listen and read', body: ['Each criterion shows score, comment and fix; mispronounced words link to the moment in the clip.'], uiKeys: ['submissions.scores'] },
         {
-          title: 'Edit the opening comment, then Save',
-          body: ['Type your version in "Edited feedback" and Save. Leave it empty to send the AI\'s. Per-criterion comments are added automatically.'],
-          uiKeys: ['submissions.reviewedFeedback', 'students.save'],
-          callout: { kind: 'warn', text: 'Save BEFORE sending. Log in again if the session is old (8 hours) or the edit will not be stored.' },
+          title: 'Listen and check the measurements',
+          body: [
+            'With Azure on, "Azure measurements" shows 0–100 scores measured from the voice (accuracy, fluency, intonation, ending sounds, word stress) and the recognised speech. Those criteria are scored by Azure; comments and fixes are written by Gemini. IELTS lexical, grammar and coherence are still scored by Gemini.',
+            'A yellow "Free speech (no reading text)" badge on a kids class means no reading text was entered — pronunciation scores are unreliable; listen carefully and add the text (section 3).',
+          ],
+          uiKeys: ['submissions.azureTitle', 'submissions.azureModeUnscripted'],
         },
-        { title: 'Send to student', body: ['The button turns "Sent" — one send per submission. Long messages are split into 2–3 Zalo messages.'], uiKeys: ['submissions.send'] },
+        {
+          title: 'Edit everything the student will receive',
+          body: [
+            'Opening comment, each score, comment, fix, and the suggestion for each mispronounced word ("Remove" if Azure misheard). An "AI: …" badge shows the original score; the AI version is always kept. Students never receive scores.',
+          ],
+          uiKeys: ['submissions.overallFeedback', 'submissions.dimensionScore', 'submissions.comment', 'submissions.removeWord'],
+        },
+        {
+          title: 'Send to student',
+          body: ['Send SAVES your edits and sends exactly that version — no separate Save needed. Afterwards the fields lock; one send per submission. Long messages are split into 2–3 Zalo messages.'],
+          uiKeys: ['students.save', 'submissions.send'],
+          callout: { kind: 'warn', text: 'Log in again if the session is old (8 hours): sending then fails and nothing is sent.' },
+        },
       ],
       example: {
         title: 'What the student receives (shortened, real PILOT-TEST submission)',

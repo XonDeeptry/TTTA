@@ -7,6 +7,7 @@ tin ngoài luồng nộp bài).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from datetime import datetime, timezone
@@ -19,12 +20,13 @@ from . import contracts
 from .buttons import build_reply_buttons, build_select_student_buttons, parse_ilm_payload
 from .config import MEDIA_ROOT, ConfigStore
 from .core_api_client import CoreApiClient
+from .grading import azure_pa
 from .grading.prompt import build_system_instruction, build_user_instruction
 from .grading.providers.factory import grade_with_fallback
 from .grading.rubric_schema import normalize_rubric
 from .grading.schema import build_output_schema, validate_output
 from .media.downloader import download_original
-from .media.ffmpeg import FfmpegError, extract_audio, probe_duration_sec
+from .media.ffmpeg import FfmpegError, extract_audio, probe_duration_sec, to_wav_16k_mono
 from .pricing import estimate_cost_usd, parse_pricing_overrides
 
 logger = logging.getLogger(__name__)
@@ -209,6 +211,12 @@ class SubmissionPipeline:
         user_instruction = build_user_instruction()
         llm_config = student["llmConfig"] or {}
 
+        # D149: có khóa Azure ⇒ Azure đo điểm từ tín hiệu âm thanh; Gemini nhận các điểm đó như dữ
+        # kiện ĐÃ CHỐT và chỉ viết nhận xét (cùng các tiêu chí Azure không đo được — D150).
+        facts, measured = await self._azure_assessment(submission_id, audio_path, rubric, student, duration_sec)
+        if facts is not None:
+            system_instruction += "\n" + azure_pa.build_facts_instruction(rubric, facts, measured)
+
         result = await grade_with_fallback(
             llm_config,
             self._config,
@@ -226,19 +234,26 @@ class SubmissionPipeline:
         # Sai schema → để exception lan lên rabbit_consumer, republish retry → DLQ (mục 3.9).
         validate_output(schema, result.data)
 
+        graded = result.data
+        if facts is not None:
+            # Điểm Azure THẮNG điểm Gemini cho mọi tiêu chí đo được; từ phát âm sai lấy từ Azure.
+            graded = azure_pa.apply_azure_scores(rubric, result.data, facts, measured)
+            validate_output(schema, graded)
+
         # testMode (Test Upload, dashboard admin): luôn awaiting_review — binding test là giả
         # (test:{studentId}), không bao giờ tự gửi dù lớp có autoSend=true.
         auto_send = bool(student.get("autoSend")) and not msg.testMode
-        grading = await self._core_api.create_grading(
-            {
-                "submissionId": submission_id,
-                "criteriaId": criteria["id"],
-                "criteriaVersion": criteria["version"],
-                "scores": result.data["scores"],
-                "llmFeedback": result.data["feedback"],
-                "autoSent": auto_send,
-            }
-        )
+        grading_payload: dict[str, Any] = {
+            "submissionId": submission_id,
+            "criteriaId": criteria["id"],
+            "criteriaVersion": criteria["version"],
+            "scores": graded["scores"],
+            "llmFeedback": graded["feedback"],
+            "autoSent": auto_send,
+        }
+        if facts is not None:
+            grading_payload["assessment"] = azure_pa.storable(facts, measured)
+        grading = await self._core_api.create_grading(grading_payload)
         est_usd = estimate_cost_usd(result.provider, result.model, result.input_tokens, result.output_tokens, await self._pricing_overrides())
         await self._core_api.create_cost_log(
             {
@@ -258,7 +273,7 @@ class SubmissionPipeline:
             # mặc định cứng — rubric không khai báo thì tin nhắn y hệt trước F11.
             await self._publish_outbound(
                 msg.zaloUserId,
-                result.data["feedback"],
+                graded["feedback"],
                 submission_id=str(submission_id),
                 buttons=build_reply_buttons(rubric.get("student_reply"), grading.get("id")),
             )
@@ -266,6 +281,42 @@ class SubmissionPipeline:
             # Kiểm duyệt (Tranh luận 4): giáo viên duyệt trên dashboard (M4) rồi core-api mới publish outbound.
             await self._core_api.update_submission(submission_id, {"status": "awaiting_review"})
             logger.info("submission %s: awaiting_review (grading %s)", submission_id, grading.get("id"))
+
+    async def _azure_assessment(
+        self,
+        submission_id: int,
+        audio_path: str,
+        rubric: dict[str, Any],
+        student: dict[str, Any],
+        duration_sec: float,
+    ) -> tuple[dict[str, Any] | None, dict[str, dict[str, float]]]:
+        """D149–D151. `(None, {})` ⇒ chấm bằng Gemini thuần.
+
+        Azure lỗi (khóa sai, hết hạn mức, mạng) KHÔNG làm mất bài của học viên: gắn cờ cho giáo viên
+        rồi để Gemini chấm như trước. Clip ~0.5× thời gian thực (spec §5.4) nên hạn chờ tính theo độ dài.
+        """
+        settings = await azure_pa.load_azure_settings(self._config)
+        if settings is None:
+            return None, {}
+        reading = student.get("readingText")
+        reference = reading.strip() if isinstance(reading, str) and reading.strip() else None
+        try:
+            wav_path = await to_wav_16k_mono(audio_path)
+            timeout = max(120.0, float(duration_sec) * 2 + 60)
+            segments = await asyncio.to_thread(azure_pa.run_assessment, wav_path, settings, reference, timeout)
+        except Exception as err:  # noqa: BLE001 — mọi lỗi Azure đều rơi về Gemini, không retry cả bài
+            logger.warning("submission %s: Azure lỗi (%s) — chấm bằng Gemini", submission_id, err)
+            await self._core_api.create_flag(submission_id, f"Azure lỗi, bài được chấm bằng Gemini: {err}"[:500])
+            return None, {}
+
+        facts = azure_pa.summarize(segments, scripted=reference is not None)
+        if reference is None and not azure_pa.is_ielts(rubric):
+            await self._core_api.create_flag(
+                submission_id,
+                "Lớp không có bài đọc mẫu — Azure chấm nói tự do, điểm phát âm của trẻ kém tin cậy (D151)",
+            )
+        overrides = azure_pa.parse_thresholds(await self._config.get("azure.score_thresholds_json"))
+        return facts, azure_pa.measure_bands(rubric, facts, overrides)
 
     async def _probe_or_reject(self, submission_id: int, media_path: str, kind: str) -> float | None:
         """Đo độ dài clip. Trả None = đã xử lý xong nhánh từ chối, caller phải `return`.

@@ -47,3 +47,25 @@ async def extract_audio(video_path: str) -> str:
     if proc.returncode != 0:
         raise FfmpegError(f"ffmpeg tách audio thất bại cho {video_path}: {stderr.decode().strip()}")
     return audio_path
+
+
+async def to_wav_16k_mono(audio_path: str) -> str:
+    """WAV PCM 16 kHz mono cho Azure Speech (D149). Azure SDK đọc WAV trực tiếp; mp3/m4a thì không
+    (spike 09-09: 'Audio must be converted to 16 kHz mono PCM')."""
+    wav_path = os.path.join(os.path.dirname(audio_path), "audio16k.wav")
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg",
+        "-y",
+        "-i", audio_path,
+        "-vn",
+        "-ac", "1",
+        "-ar", "16000",
+        "-acodec", "pcm_s16le",
+        wav_path,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        raise FfmpegError(f"ffmpeg chuyển WAV 16 kHz thất bại cho {audio_path}: {stderr.decode().strip()}")
+    return wav_path

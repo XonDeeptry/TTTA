@@ -28,6 +28,8 @@ interface ClassConfig {
   autoSend: boolean;
   /** null = lớp dùng bản tiêu chí mới nhất của khóa (mặc định). */
   criteriaId: number | null;
+  /** D151: văn bản bài đọc hiện tại — có thì Azure chấm theo văn bản. */
+  readingText: string | null;
 }
 
 /** Một hàng của `GET /classes-config/overview`: mọi lớp có học viên, kể cả lớp chưa cấu hình. */
@@ -109,6 +111,8 @@ export function Criteria() {
     await api.put(`/classes-config/${className}`, {
       advisorZaloId: draft.advisorZaloId ?? existing?.advisorZaloId ?? '',
       autoSend: draft.autoSend ?? existing?.autoSend ?? false,
+      // D151: `!== undefined` chứ không `??` — chuỗi rỗng là giá trị CÓ NGHĨA (xóa bài đọc).
+      readingText: draft.readingText !== undefined ? draft.readingText : (existing?.readingText ?? null),
       // `null` là giá trị CÓ NGHĨA ở đây (gỡ ghim, quay về bản mới nhất của khóa), nên dùng
       // `??` chứ không phải `||` — `|| null` sẽ nuốt mất id hợp lệ nếu nó là 0.
       criteriaId: draft.criteriaId ?? existing?.criteriaId ?? null,
@@ -326,6 +330,20 @@ export function Criteria() {
                             </option>
                           ))}
                       </SelectNative>
+                      {/* D151: có bài đọc ⇒ Azure chấm theo văn bản; bắt buộc để điểm phát âm của trẻ đáng tin (spec §13A). */}
+                      <label className="mt-2 block text-caption text-muted-foreground">
+                        {t('criteria.readingText')}
+                        <textarea
+                          rows={2}
+                          defaultValue={c.config?.readingText ?? ''}
+                          title={t('criteria.readingTextHint')}
+                          placeholder={t('criteria.readingTextHint')}
+                          className="mt-0.5 block w-full min-w-[14rem] rounded-md border border-input bg-background px-2 py-1 text-body text-foreground"
+                          onChange={(e) =>
+                            setClassDrafts((d) => ({ ...d, [c.className]: { ...d[c.className], readingText: e.target.value } }))
+                          }
+                        />
+                      </label>
                     </TableCell>
                     <TableCell>
                       <Input

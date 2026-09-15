@@ -20,11 +20,12 @@ interface SettingGroupDef {
   titleKey: string;
 }
 
-// Panels mirror the key prefixes in core-api's setting-defs.ts (zalo./llm./limits./sheets./internal.) —
+// Panels mirror the key prefixes in core-api's setting-defs.ts (zalo./llm./azure./limits./sheets./internal.) —
 // keep this list in sync if a new prefix is added there.
 const SETTING_GROUPS: SettingGroupDef[] = [
   { prefix: 'zalo.', titleKey: 'settings.group.zalo' },
   { prefix: 'llm.', titleKey: 'settings.group.llm' },
+  { prefix: 'azure.', titleKey: 'settings.group.azure' },
   { prefix: 'limits.', titleKey: 'settings.group.limits' },
   { prefix: 'sheets.', titleKey: 'settings.group.sheets' },
   { prefix: 'internal.', titleKey: 'settings.group.internal' },
