@@ -17,6 +17,13 @@
 	# Caddy chỉ serve tĩnh, không cần Node/nginx chạy runtime.
 	handle {
 		root * /srv/dashboard
+		# index.html không có Cache-Control thì trình duyệt tự giữ bản cũ, và bản cũ trỏ vào bundle
+		# cũ vẫn còn trong volume — sau mỗi lần deploy người dùng thấy giao diện cũ (pilot 09-15).
+		# File trong /assets/ có hash trong tên nên giữ lâu được; mọi thứ khác phải hỏi lại.
+		@hashed path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@unhashed not path /assets/*
+		header @unhashed Cache-Control "no-cache"
 		file_server
 		try_files {path} /index.html
 	}
