@@ -207,7 +207,7 @@ describe('GradingsService', () => {
               fix: 'Luyện /θ/',
               injected: 'x',
               mispronounced_words: [
-                { word: 'think', heard_as: '/t/', suggestion: 'Đặt lưỡi giữa răng', approx_position_sec: 43 },
+                { word: 'think', heard_as: '/t/', suggestion: 'Đặt lưỡi giữa răng', approx_position_sec: 43, start_sec: 43.21, end_sec: 43.62 },
                 { word: '   ' },
               ],
             },
@@ -225,7 +225,9 @@ describe('GradingsService', () => {
           score: 4,
           comment: 'Rõ hơn',
           fix: 'Luyện /θ/',
-          mispronounced_words: [{ word: 'think', heard_as: '/t/', suggestion: 'Đặt lưỡi giữa răng', approx_position_sec: 43 }],
+          mispronounced_words: [
+            { word: 'think', heard_as: '/t/', suggestion: 'Đặt lưỡi giữa răng', approx_position_sec: 43, start_sec: 43.21, end_sec: 43.62 },
+          ],
         },
       });
       expect(data).not.toHaveProperty('scores');

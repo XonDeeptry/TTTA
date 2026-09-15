@@ -113,8 +113,9 @@ def test_azure_scores_override_gemini_scripted_with_class_reading_text_and_asses
     assert scores["pronunciation"]["score"] == 5  # Azure accuracy 92 ⇒ 5, không phải 1 của Gemini
     assert scores["fluency"]["score"] == 4  # 76 ⇒ 4
     assert scores["pronunciation"]["mispronounced_words"] == [
-        {"word": "gate", "heard_as": "/d/ thay vì /t/", "suggestion": "đọc rõ /t/", "approx_position_sec": 1.2}
+        {"word": "gate", "heard_as": "/d/ thay vì /t/", "suggestion": "đọc rõ /t/", "approx_position_sec": 1.2, "start_sec": 1.2}
     ]
+    assert payload["assessment"]["words"][0]["word"] == "gate"
     assert payload["assessment"]["mode"] == "scripted"
     assert payload["assessment"]["measured"]["pronunciation"] == {"metric": 92.0, "band": 5}
     # Gemini được báo điểm đã chốt trong system instruction

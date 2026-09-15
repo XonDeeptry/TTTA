@@ -42,6 +42,9 @@ export function sanitizeReviewedScores(rubric: RubricV2, raw: Record<string, unk
           ...(typeof w.approx_position_sec === 'number' && Number.isFinite(w.approx_position_sec)
             ? { approx_position_sec: w.approx_position_sec }
             : {}),
+          // Khoảng thời gian đo bằng Azure — hệ thống phía sau cần, giáo viên sửa gợi ý không được làm mất.
+          ...(typeof w.start_sec === 'number' && Number.isFinite(w.start_sec) ? { start_sec: w.start_sec } : {}),
+          ...(typeof w.end_sec === 'number' && Number.isFinite(w.end_sec) ? { end_sec: w.end_sec } : {}),
         }));
     }
     out[dim.key] = item;

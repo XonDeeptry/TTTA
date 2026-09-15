@@ -12,6 +12,13 @@ Quyết định Chủ tịch 2026-09-15 (ILM-Clone Decisions Log D149–D152), t
 - Thang 0–100 của Azure quy đổi sang thang rubric bằng BẢNG NGƯỠNG, mặc định ở đây, đội học thuật
   ghi đè qua setting `azure.score_thresholds_json` (D152).
 
+Đối chiếu phản hồi THẬT 2026-09-15 (IELTS Part 1, 303 giây, 30 đoạn, 452 từ): cấu trúc JSON khớp.
+Hai lỗi của bản đầu, cả hai do pilot tìm ra:
+- Giới hạn 10 từ lỗi đã BỎ 17 trong 27 từ Azure đánh dấu Mispronunciation — Gemini không bao giờ
+  thấy chúng nên không có hướng sửa. Nay lấy mọi từ Mispronunciation và mọi từ dưới ngưỡng.
+- Chỉ lưu mốc bắt đầu làm tròn 0,1 s. Hệ thống phía sau (từ điển, bảng lỗi phát âm §8.4) cần
+  khoảng [bắt đầu, kết thúc] của từ VÀ của âm vị yếu, cùng dòng thời gian mọi từ.
+
 Phần gọi SDK (`run_assessment`) mỏng và KHÔNG có test tự động — nó chỉ kiểm chứng được bằng khóa
 thật. Mọi phần có logic (tóm tắt JSON, quy đổi, ghép điểm, dựng prompt) là hàm THUẦN và có test.
 """
@@ -30,8 +37,12 @@ logger = logging.getLogger(__name__)
 
 TICKS_PER_SEC = 10_000_000
 MAX_TRANSCRIPT_CHARS = 4000
-MAX_ERRORS = 10
+# Từ có độ chính xác dưới ngưỡng này được coi là lỗi dù Azure không gắn ErrorType.
 LOW_WORD_ACCURACY = 60
+# Âm vị dưới ngưỡng này được liệt kê là âm vị yếu của từ đó.
+LOW_PHONEME_ACCURACY = 60
+# Trần an toàn cho prompt và tin nhắn — clip 5 phút thật có 27 từ Mispronunciation, 63 từ < 80.
+MAX_ERRORS = 80
 
 SCORE_FIELDS = {
     "accuracy": "AccuracyScore",
@@ -81,7 +92,8 @@ def run_assessment(
     timeout_sec: float = 900,
 ) -> list[dict[str, Any]]:
     """Continuous recognition + pronunciation assessment trên cả file (clip 5 phút vượt giới hạn
-    60 giây của REST short-audio). Trả về JSON thô của từng đoạn Azure nhận dạng được."""
+    60 giây của REST short-audio). Trả về JSON thô của từng đoạn Azure nhận dạng được.
+    Đo 2026-09-15: clip 303 giây mất 147,7 giây (~0,49× thời gian thực)."""
     import azure.cognitiveservices.speech as speechsdk  # noqa: PLC0415 — chỉ nạp khi thật sự dùng
 
     scripted = bool(reference_text and reference_text.strip())
@@ -136,17 +148,63 @@ def run_assessment(
 # ─── tóm tắt JSON Azure thành dữ kiện — THUẦN ─────────────────────────────────────────────────
 
 
+def _number(value: Any) -> float | None:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
 def _error_type(word: dict[str, Any]) -> str:
     return str((word.get("PronunciationAssessment") or {}).get("ErrorType") or "None")
 
 
 def _accuracy(node: dict[str, Any]) -> float | None:
-    value = (node.get("PronunciationAssessment") or {}).get("AccuracyScore")
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+    return _number((node.get("PronunciationAssessment") or {}).get("AccuracyScore"))
 
 
 def _mean(values: list[float]) -> float | None:
     return round(sum(values) / len(values), 2) if values else None
+
+
+def _span(node: dict[str, Any]) -> tuple[float | None, float | None]:
+    """[bắt đầu, kết thúc] tính bằng giây, từ Offset/Duration (đơn vị 100 ns) của Azure."""
+    offset = _number(node.get("Offset"))
+    duration = _number(node.get("Duration"))
+    start = round(offset / TICKS_PER_SEC, 2) if offset is not None else None
+    end = round((offset + duration) / TICKS_PER_SEC, 2) if offset is not None and duration is not None else None
+    return start, end
+
+
+def _heard(phoneme: dict[str, Any]) -> str:
+    expected = str(phoneme.get("Phoneme") or "")
+    nbest = (phoneme.get("PronunciationAssessment") or {}).get("NBestPhonemes") or []
+    top = str(nbest[0].get("Phoneme") or "") if nbest and isinstance(nbest[0], dict) else ""
+    return top if top and top != expected else ""
+
+
+def _position(index: int, count: int) -> str:
+    if index == count - 1 and count > 1:
+        return "final"
+    return "initial" if index == 0 else "medial"
+
+
+def _weak_phonemes(word: dict[str, Any]) -> list[dict[str, Any]]:
+    phonemes = [p for p in word.get("Phonemes") or [] if isinstance(p, dict)]
+    out = []
+    for i, p in enumerate(phonemes):
+        acc = _accuracy(p)
+        if acc is None or acc >= LOW_PHONEME_ACCURACY:
+            continue
+        start, end = _span(p)
+        out.append(
+            {
+                "phoneme": str(p.get("Phoneme") or ""),
+                "accuracy": acc,
+                "heard": _heard(p),
+                "position": _position(i, len(phonemes)),
+                "start_sec": start,
+                "end_sec": end,
+            }
+        )
+    return out
 
 
 def _worst_phoneme(word: dict[str, Any]) -> dict[str, Any] | None:
@@ -154,15 +212,22 @@ def _worst_phoneme(word: dict[str, Any]) -> dict[str, Any] | None:
     if not phonemes:
         return None
     worst = min(phonemes, key=lambda p: _accuracy(p) or 0)
-    expected = str(worst.get("Phoneme") or "")
-    nbest = (worst.get("PronunciationAssessment") or {}).get("NBestPhonemes") or []
-    heard = str(nbest[0].get("Phoneme") or "") if nbest and isinstance(nbest[0], dict) else ""
-    return {"expected": expected, "heard": heard if heard and heard != expected else "", "accuracy": _accuracy(worst)}
+    return {"expected": str(worst.get("Phoneme") or ""), "heard": _heard(worst), "accuracy": _accuracy(worst)}
+
+
+def _prosody_errors(word: dict[str, Any]) -> list[str]:
+    prosody = ((word.get("PronunciationAssessment") or {}).get("Feedback") or {}).get("Prosody") or {}
+    found = []
+    for aspect in ("Break", "Intonation"):
+        for error_type in (prosody.get(aspect) or {}).get("ErrorTypes") or []:
+            if error_type and error_type != "None":
+                found.append(str(error_type))
+    return found
 
 
 def summarize(segments: list[dict[str, Any]], scripted: bool) -> dict[str, Any]:
-    """Gộp các đoạn Azure: điểm tổng (trung bình có trọng số theo số từ), âm đuôi, trọng âm,
-    danh sách từ phát âm kém nhất, transcript."""
+    """Gộp các đoạn Azure: điểm tổng (trung bình có trọng số theo số từ), âm đuôi, trọng âm, MỌI từ
+    phát âm kém kèm khoảng thời gian và âm vị yếu, dòng thời gian mọi từ, transcript."""
     weighted: dict[str, list[float]] = {k: [0.0, 0.0] for k in SCORE_FIELDS}
     words: list[dict[str, Any]] = []
     transcript: list[str] = []
@@ -173,9 +238,9 @@ def summarize(segments: list[dict[str, Any]], scripted: bool) -> dict[str, Any]:
         weight = max(1, sum(1 for w in seg_words if _error_type(w) not in ("Omission", "Insertion")))
         pa = nbest.get("PronunciationAssessment") or {}
         for name, field in SCORE_FIELDS.items():
-            value = pa.get(field)
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                weighted[name][0] += float(value) * weight
+            value = _number(pa.get(field))
+            if value is not None:
+                weighted[name][0] += value * weight
                 weighted[name][1] += weight
         display = nbest.get("Display") or segment.get("DisplayText")
         if display:
@@ -193,20 +258,19 @@ def summarize(segments: list[dict[str, Any]], scripted: bool) -> dict[str, Any]:
         syllables = [a for s in w.get("Syllables") or [] if (a := _accuracy(s)) is not None]
         if len(syllables) >= 2:
             stress_words.append(sum(syllables) / len(syllables))
-    syllable_score = _mean(stress_words)
-    parts = [v for v in (syllable_score, scores["prosody"]) if v is not None]
-    word_stress = _mean(parts)
+    word_stress = _mean([v for v in (_mean(stress_words), scores["prosody"]) if v is not None])
 
     candidates = [
         w
         for w in spoken
         if w.get("Word") and ((_accuracy(w) or 100) < LOW_WORD_ACCURACY or _error_type(w) == "Mispronunciation")
     ]
-    candidates.sort(key=lambda w: _accuracy(w) or 0)
+    if len(candidates) > MAX_ERRORS:  # giữ những từ tệ nhất, rồi xếp lại theo thời gian
+        candidates = sorted(candidates, key=lambda w: _accuracy(w) or 0)[:MAX_ERRORS]
     errors = []
-    for w in candidates[:MAX_ERRORS]:
+    for w in candidates:
+        start, end = _span(w)
         worst = _worst_phoneme(w)
-        offset = w.get("Offset")
         errors.append(
             {
                 "word": str(w["Word"]),
@@ -214,9 +278,23 @@ def summarize(segments: list[dict[str, Any]], scripted: bool) -> dict[str, Any]:
                 "error_type": _error_type(w),
                 "phoneme": worst["expected"] if worst else "",
                 "heard_phoneme": worst["heard"] if worst else "",
-                "offset_sec": round(offset / TICKS_PER_SEC, 1) if isinstance(offset, (int, float)) else None,
+                "offset_sec": start,  # giữ tên cũ cho bản ghi trước 09-15 và giao diện
+                "start_sec": start,
+                "end_sec": end,
+                "weak_phonemes": _weak_phonemes(w),
             }
         )
+    errors.sort(key=lambda e: (e["start_sec"] is None, e["start_sec"] or 0))
+
+    timeline = []
+    prosody_counts: dict[str, int] = {}
+    for w in words:
+        start, end = _span(w)
+        timeline.append(
+            {"word": str(w.get("Word") or ""), "start_sec": start, "end_sec": end, "accuracy": _accuracy(w), "error_type": _error_type(w)}
+        )
+        for error_type in _prosody_errors(w):
+            prosody_counts[error_type] = prosody_counts.get(error_type, 0) + 1
 
     return {
         "engine": "azure-pronunciation-assessment",
@@ -227,7 +305,9 @@ def summarize(segments: list[dict[str, Any]], scripted: bool) -> dict[str, Any]:
         "word_count": len(spoken),
         "omissions": sum(1 for w in words if _error_type(w) == "Omission"),
         "insertions": sum(1 for w in words if _error_type(w) == "Insertion"),
+        "prosody_feedback": prosody_counts,
         "errors": errors,
+        "words": timeline,
         "transcript": " ".join(transcript)[:MAX_TRANSCRIPT_CHARS],
     }
 
@@ -322,8 +402,8 @@ def apply_azure_scores(
     measured: dict[str, dict[str, float]],
 ) -> dict[str, Any]:
     """Ghi đè điểm Gemini bằng điểm Azure cho các tiêu chí đo được. `fluency_coherence`: Gemini
-    chỉ chấm nửa mạch lạc ⇒ trung bình với nửa trôi chảy của Azure. Từ phát âm sai lấy từ Azure;
-    Gemini chỉ góp phần `suggestion` cho đúng những từ đó."""
+    chỉ chấm nửa mạch lạc ⇒ trung bình với nửa trôi chảy của Azure. Từ phát âm sai lấy từ Azure
+    (theo thứ tự thời gian, kèm khoảng [bắt đầu, kết thúc]); Gemini chỉ góp phần `suggestion`."""
     out = copy.deepcopy(data)
     scores = out.setdefault("scores", {})
     for key, m in measured.items():
@@ -337,20 +417,25 @@ def apply_azure_scores(
 
     pron = scores.get("pronunciation")
     if isinstance(pron, dict):
-        llm_words = {
-            str(w.get("word", "")).lower(): w
-            for w in pron.get("mispronounced_words") or []
-            if isinstance(w, dict) and w.get("word")
-        }
+        llm_words: dict[str, list[dict[str, Any]]] = {}
+        for w in pron.get("mispronounced_words") or []:
+            if isinstance(w, dict) and w.get("word"):
+                llm_words.setdefault(str(w["word"]).lower(), []).append(w)
         merged = []
         for e in facts.get("errors") or []:
-            llm = llm_words.get(e["word"].lower()) or {}
+            # Cùng một từ có thể sai nhiều lần — ghép lần lượt, không dùng lại một gợi ý cho mọi lần.
+            same_word = llm_words.get(e["word"].lower()) or []
+            llm = same_word.pop(0) if same_word else {}
             suggestion = llm.get("suggestion") or (
                 f"Chú ý âm /{e['phoneme']}/ trong từ này" if e.get("phoneme") else "Nghe lại và đọc chậm từ này"
             )
             item: dict[str, Any] = {"word": e["word"], "heard_as": _heard_as(e), "suggestion": str(suggestion)}
-            if e.get("offset_sec") is not None:
-                item["approx_position_sec"] = e["offset_sec"]
+            start = e.get("start_sec", e.get("offset_sec"))
+            if start is not None:
+                item["approx_position_sec"] = start
+                item["start_sec"] = start
+            if e.get("end_sec") is not None:
+                item["end_sec"] = e["end_sec"]
             merged.append(item)
         pron["mispronounced_words"] = merged
     return out
@@ -366,8 +451,8 @@ def _fmt(value: float | None) -> str:
 def _mmss(seconds: float | None) -> str:
     if seconds is None:
         return "?"
-    s = max(0, int(seconds))
-    return f"{s // 60}:{s % 60:02d}"
+    whole = max(0.0, float(seconds))
+    return f"{int(whole // 60)}:{whole % 60:04.1f}"
 
 
 def build_facts_instruction(rubric: dict[str, Any], facts: dict[str, Any], measured: dict[str, dict[str, float]]) -> str:
@@ -382,8 +467,17 @@ def build_facts_instruction(rubric: dict[str, Any], facts: dict[str, Any], measu
         f"trọng âm {_fmt(facts.get('word_stress'))}"
         + (f", độ đầy đủ so với bài đọc {_fmt(s.get('completeness'))}" if facts["mode"] == "scripted" else "")
         + ".",
-        "ĐIỂM CÁC TIÊU CHÍ SAU ĐÃ ĐƯỢC HỆ THỐNG CHỐT. Trả ĐÚNG số này trong trường 'score', và viết nhận xét, hướng sửa KHỚP với mức điểm đó:",
     ]
+    prosody = facts.get("prosody_feedback") or {}
+    if prosody:
+        detail = ", ".join(f"{name} ở {count} từ" for name, count in sorted(prosody.items(), key=lambda kv: -kv[1]))
+        lines.append(
+            f"Phản hồi ngữ điệu của Azure trên {facts.get('word_count', '?')} từ: {detail} "
+            "(Monotone = giọng đều; UnexpectedBreak/MissingBreak = ngắt hơi sai chỗ)."
+        )
+    lines.append(
+        "ĐIỂM CÁC TIÊU CHÍ SAU ĐÃ ĐƯỢC HỆ THỐNG CHỐT. Trả ĐÚNG số này trong trường 'score', và viết nhận xét, hướng sửa KHỚP với mức điểm đó:"
+    )
     for key, m in measured.items():
         if key == "fluency_coherence":
             continue
@@ -397,13 +491,19 @@ def build_facts_instruction(rubric: dict[str, Any], facts: dict[str, Any], measu
     errors = facts.get("errors") or []
     if errors:
         lines.append(
-            "Từ phát âm kém đo được — trong 'mispronounced_words' CHỈ được dùng các từ trong danh sách này, "
-            "KHÔNG thêm từ khác; viết 'suggestion' cụ thể cho từng từ:"
+            f"Từ phát âm kém đo được — {len(errors)} từ, theo thứ tự thời gian. Trong 'mispronounced_words' "
+            "phải trả ĐỦ TẤT CẢ các từ này (một mục cho mỗi dòng, kể cả từ lặp lại), KHÔNG thêm từ khác, "
+            "và viết 'suggestion' cụ thể cho từng từ dựa vào âm vị yếu:"
         )
         for e in errors:
-            sound = f", âm /{e['phoneme']}/" if e.get("phoneme") else ""
-            heard = f" nghe như /{e['heard_phoneme']}/" if e.get("heard_phoneme") else ""
-            lines.append(f"  - {e['word']} (độ chính xác {_fmt(e.get('accuracy'))}{sound}{heard}, lúc {_mmss(e.get('offset_sec'))})")
+            weak = ", ".join(
+                f"/{p['phoneme']}/ {p['position']} {_fmt(p['accuracy'])}" + (f" nghe như /{p['heard']}/" if p.get("heard") else "")
+                for p in e.get("weak_phonemes") or []
+            )
+            lines.append(
+                f"  - {_mmss(e.get('start_sec', e.get('offset_sec')))}–{_mmss(e.get('end_sec'))} {e['word']} "
+                f"(độ chính xác {_fmt(e.get('accuracy'))}; âm vị yếu: {weak or 'không có âm vị dưới ngưỡng'})"
+            )
     else:
         lines.append("Azure không phát hiện từ phát âm kém rõ rệt — để 'mispronounced_words' là mảng rỗng.")
     if facts.get("transcript"):
@@ -415,5 +515,6 @@ def build_facts_instruction(rubric: dict[str, Any], facts: dict[str, Any], measu
 
 
 def storable(facts: dict[str, Any], measured: dict[str, dict[str, float]]) -> dict[str, Any]:
-    """Bản ghi vào `gradings.assessment` — dữ kiện gốc để giáo viên đối chiếu và để đo độ lệch sau này."""
+    """Bản ghi vào `gradings.assessment` — dữ kiện gốc để giáo viên đối chiếu, để hệ thống phía sau
+    dùng mốc thời gian, và để đo độ lệch sau này."""
     return {**facts, "measured": measured}
