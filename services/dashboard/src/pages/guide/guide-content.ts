@@ -179,7 +179,7 @@ export const guideVi: GuideContent = {
       steps: [
         {
           title: 'Mở bảng Cấu hình theo lớp',
-          body: ['Vào Tiêu chí ở thanh bên trái, kéo xuống bảng Cấu hình theo lớp. Bảng liệt kê mọi lớp đang có học viên.'],
+          body: ['Vào Tiêu chí ở thanh bên trái, chọn tab "Cấu hình theo lớp". Bảng liệt kê mọi lớp đang có học viên.'],
           uiKeys: ['nav.criteria', 'criteria.classesConfig'],
         },
         {
@@ -235,9 +235,9 @@ export const guideVi: GuideContent = {
         {
           title: 'Mở phiên bản đang dùng',
           body: [
-            'Vào Tiêu chí. Ở ô Mã khóa (courseId), chọn khóa học (ví dụ "Little Fox") rồi bấm Xem danh sách. Trên dòng có số phiên bản lớn nhất, bấm Sửa.',
+            'Vào Tiêu chí, tab "Khóa & phiên bản" (tab mở sẵn). Tìm hàng của khóa học (ví dụ "Little Fox"): cột "Phiên bản đang áp dụng" cho biết khóa đang chấm bằng phiên bản nào. Bấm "Xem nội dung" để đọc lại trước, rồi bấm "Sửa".',
           ],
-          uiKeys: ['nav.criteria', 'criteria.courseId', 'criteria.load'],
+          uiKeys: ['nav.criteria', 'criteria.tab.courses', 'criteria.view', 'templates.edit'],
           callout: {
             kind: 'warn',
             text: 'Tránh bấm "Soạn nội dung chấm điểm" rồi chọn cấu trúc để làm từ đầu: cấu trúc mặc định chỉ có khung, phần mô tả mức điểm gần như trống, bạn sẽ phải gõ lại toàn bộ.',
@@ -359,7 +359,7 @@ export const guideVi: GuideContent = {
         {
           title: 'Nhân bản một cấu trúc có sẵn',
           body: [
-            'Vào Tiêu chí, bấm Cấu trúc chấm điểm. Tìm cấu trúc gần giống nhất rồi bấm Nhân bản — nhanh và ít sai hơn tạo mới. Đặt Khóa mới là mã ngắn không dấu, không đổi được về sau (ví dụ "kid_speaking_2027").',
+            'Vào Tiêu chí, tab "Tiêu chí & Prompt": bảng "Cấu trúc chấm điểm hiện có" cho thấy các khung đang có và bao nhiêu khóa đang dùng mỗi khung. Bấm Cấu trúc chấm điểm, tìm cấu trúc gần giống nhất rồi bấm Nhân bản — nhanh và ít sai hơn tạo mới. Đặt Khóa mới là mã ngắn không dấu, không đổi được về sau (ví dụ "kid_speaking_2027").',
           ],
           uiKeys: ['templates.open', 'templates.duplicate', 'templates.new'],
         },
@@ -584,7 +584,7 @@ export const guideEn: GuideContent = {
     who: {
       heading: '3. Which rubric is my class using?',
       steps: [
-        { title: 'Open the per-class table', body: ['Criteria → scroll to the per-class config table. It lists every class with students.'], uiKeys: ['nav.criteria', 'criteria.classesConfig'] },
+        { title: 'Open the per-class table', body: ['Criteria → the "Per-class config" tab. It lists every class with students.'], uiKeys: ['nav.criteria', 'criteria.tab.classes'] },
         {
           title: 'Read "Criteria in use"',
           body: ['Shows the rubric title and version with a badge: "Course default" (latest version of the course) or "Pinned" (a fixed version). Yellow badges need action.'],
@@ -617,7 +617,7 @@ export const guideEn: GuideContent = {
       heading: '4. Adapting a course rubric — what goes in each field',
       intro: ['EDIT the version in use: it already carries the full text from the centre\'s files. Each save creates a new version and keeps the old ones.'],
       steps: [
-        { title: 'Open the version in use', body: ['Criteria → pick the course → View list → Edit on the highest version.'], uiKeys: ['nav.criteria', 'criteria.courseId', 'criteria.load'] },
+        { title: 'Open the version in use', body: ['Criteria → "Courses & versions" tab → the course row shows the version in use → View to read it, Edit to change it.'], uiKeys: ['nav.criteria', 'criteria.tab.courses', 'criteria.view', 'templates.edit'] },
         {
           title: 'Check each band description',
           body: ['One field per score. Each new line becomes a bullet. Be specific.'],
@@ -669,7 +669,7 @@ export const guideEn: GuideContent = {
       heading: '5. Building a brand-new rubric',
       intro: ['Only for a programme unlike Cambridge or IELTS. Needs "rubric_template".'],
       steps: [
-        { title: 'Duplicate a structure', body: ['Criteria → Rubric structure → Duplicate the closest one; give it a short key.'], uiKeys: ['templates.open', 'templates.duplicate'] },
+        { title: 'Duplicate a structure', body: ['Criteria → "Rubrics & prompt" tab lists the structures in use → Rubric structure → Duplicate the closest one; give it a short key.'], uiKeys: ['templates.open', 'templates.duplicate'] },
         { title: 'Scale and total', body: ['From the file\'s scoring rules.'], uiKeys: ['templates.scale', 'templates.aggregationMethod'], example: { title: 'Example — KID', text: 'Min 0 · Max 5 · Step 1 · Sum → max total 25' } },
         { title: 'Criteria', body: ['One per row of the rubric table; "pronunciation" is required.'], uiKeys: ['templates.addDimension'], example: { title: 'Example — KID', text: 'pronunciation — Pronunciation (Âm chính)\nintonation — Intonation (Ngữ điệu)\nending_sounds — Ending sounds (Âm đuôi)\nword_stress — Word Stress (Trọng âm từ/cụm)\nfluency — Fluency (Trôi chảy)' } },
         { title: 'Levels (if the file maps totals)', body: ['Ranges must be contiguous from 0 to the max total.'], uiKeys: ['templates.levels'], example: { title: 'Example — KID', text: '0–10 A0 · 11–15 A1- · 16–20 A1 · 21–25 A2' } },
