@@ -45,6 +45,11 @@ export function sanitizeReviewedScores(rubric: RubricV2, raw: Record<string, unk
           // Khoảng thời gian đo bằng Azure — hệ thống phía sau cần, giáo viên sửa gợi ý không được làm mất.
           ...(typeof w.start_sec === 'number' && Number.isFinite(w.start_sec) ? { start_sec: w.start_sec } : {}),
           ...(typeof w.end_sec === 'number' && Number.isFinite(w.end_sec) ? { end_sec: w.end_sec } : {}),
+          // Kết quả nghe lại đoạn lỗi (grading-worker `clip_analysis.py`) — giữ nguyên khi giáo viên lưu.
+          ...(w.source === 'azure' || w.source === 'gemini' ? { source: w.source } : {}),
+          ...(typeof w.issue === 'string' && w.issue ? { issue: w.issue } : {}),
+          ...(typeof w.needs_review === 'boolean' ? { needs_review: w.needs_review } : {}),
+          ...(typeof w.gemini_confirmed === 'boolean' ? { gemini_confirmed: w.gemini_confirmed } : {}),
         }));
     }
     out[dim.key] = item;

@@ -69,3 +69,26 @@ async def to_wav_16k_mono(audio_path: str) -> str:
     if proc.returncode != 0:
         raise FfmpegError(f"ffmpeg chuyển WAV 16 kHz thất bại cho {audio_path}: {stderr.decode().strip()}")
     return wav_path
+
+
+async def cut_clip(wav_path: str, start_sec: float, end_sec: float, out_path: str) -> str:
+    """Cắt [start, end] giây từ WAV — đoạn lỗi phát âm gửi Gemini nghe lại (`clip_analysis.py`).
+    `-ss`/`-t` đặt SAU `-i` để cắt chính xác từng mẫu (WAV PCM nên không tốn thời gian giải mã)."""
+    duration = max(0.05, float(end_sec) - float(start_sec))
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg",
+        "-y",
+        "-i", wav_path,
+        "-ss", f"{max(0.0, float(start_sec)):.3f}",
+        "-t", f"{duration:.3f}",
+        "-ac", "1",
+        "-ar", "16000",
+        "-acodec", "pcm_s16le",
+        out_path,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        raise FfmpegError(f"ffmpeg cắt đoạn {start_sec}-{end_sec}s thất bại cho {wav_path}: {stderr.decode().strip()}")
+    return out_path

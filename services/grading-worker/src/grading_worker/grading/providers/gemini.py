@@ -87,6 +87,35 @@ class GeminiProvider:
         input_tokens, output_tokens = _usage_tokens(interaction)
         return GradingResult(data=data, input_tokens=input_tokens, output_tokens=output_tokens, provider=self.name, model=model)
 
+    async def analyze_clips(
+        self,
+        system_instruction: str,
+        clips: list[tuple[str, str]],
+        schema: dict[str, Any],
+        model: str,
+        temperature: float,
+    ) -> GradingResult:
+        """Nhiều đoạn audio NGẮN trong MỘT lần gọi, mỗi đoạn đứng sau nhãn chữ của nó
+        (`clip_analysis.py`). Cùng `interactions.create`, chỉ khác `input` là danh sách xen kẽ."""
+        items: list[dict[str, Any]] = [{"type": "text", "text": "Phân tích từng đoạn audio dưới đây theo đúng nhãn [số]."}]
+        for label, path in clips:
+            items.append({"type": "text", "text": label})
+            items.append(await asyncio.to_thread(self._build_audio_item, path, "audio/wav"))
+
+        def _call():
+            return self._client.interactions.create(
+                model=model,
+                system_instruction=system_instruction,
+                input=items,
+                response_format={"type": "text", "mime_type": "application/json", "schema": schema},
+                generation_config={"temperature": temperature},
+            )
+
+        interaction = await asyncio.to_thread(_call)
+        data = json.loads(interaction.output_text)
+        input_tokens, output_tokens = _usage_tokens(interaction)
+        return GradingResult(data=data, input_tokens=input_tokens, output_tokens=output_tokens, provider=self.name, model=model)
+
     def _build_audio_item(self, audio_path: str, mime_type: str) -> dict[str, Any]:
         size = os.path.getsize(audio_path)
         if size > _FILES_API_THRESHOLD_BYTES:

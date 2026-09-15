@@ -20,7 +20,9 @@ from . import contracts
 from .buttons import build_reply_buttons, build_select_student_buttons, parse_ilm_payload
 from .config import MEDIA_ROOT, ConfigStore
 from .core_api_client import CoreApiClient
-from .grading import azure_pa
+import copy
+
+from .grading import azure_pa, clip_analysis
 from .grading.prompt import build_system_instruction, build_user_instruction
 from .grading.providers.factory import grade_with_fallback
 from .grading.rubric_schema import normalize_rubric
@@ -213,7 +215,7 @@ class SubmissionPipeline:
 
         # D149: có khóa Azure ⇒ Azure đo điểm từ tín hiệu âm thanh; Gemini nhận các điểm đó như dữ
         # kiện ĐÃ CHỐT và chỉ viết nhận xét (cùng các tiêu chí Azure không đo được — D150).
-        facts, measured = await self._azure_assessment(submission_id, audio_path, rubric, student, duration_sec)
+        facts, measured, wav_path = await self._azure_assessment(submission_id, audio_path, rubric, student, duration_sec)
         if facts is not None:
             system_instruction += "\n" + azure_pa.build_facts_instruction(rubric, facts, measured)
 
@@ -235,9 +237,13 @@ class SubmissionPipeline:
         validate_output(schema, result.data)
 
         graded = result.data
+        clip_meta: dict[str, Any] = {}
         if facts is not None:
             # Điểm Azure THẮNG điểm Gemini cho mọi tiêu chí đo được; từ phát âm sai lấy từ Azure.
             graded = azure_pa.apply_azure_scores(rubric, result.data, facts, measured)
+            validate_output(schema, graded)
+            # ILM 09-15: cắt từng đoạn lỗi (và từ Azure bỏ sót) cho Gemini nghe lại.
+            graded, clip_meta = await self._analyze_error_clips(submission_id, wav_path, facts, result.data, graded)
             validate_output(schema, graded)
 
         # testMode (Test Upload, dashboard admin): luôn awaiting_review — binding test là giả
@@ -252,7 +258,7 @@ class SubmissionPipeline:
             "autoSent": auto_send,
         }
         if facts is not None:
-            grading_payload["assessment"] = azure_pa.storable(facts, measured)
+            grading_payload["assessment"] = {**azure_pa.storable(facts, measured), "clip_analysis": clip_meta}
         grading = await self._core_api.create_grading(grading_payload)
         est_usd = estimate_cost_usd(result.provider, result.model, result.input_tokens, result.output_tokens, await self._pricing_overrides())
         await self._core_api.create_cost_log(
@@ -289,15 +295,16 @@ class SubmissionPipeline:
         rubric: dict[str, Any],
         student: dict[str, Any],
         duration_sec: float,
-    ) -> tuple[dict[str, Any] | None, dict[str, dict[str, float]]]:
-        """D149–D151. `(None, {})` ⇒ chấm bằng Gemini thuần.
+    ) -> tuple[dict[str, Any] | None, dict[str, dict[str, float]], str | None]:
+        """D149–D151. `(None, {}, None)` ⇒ chấm bằng Gemini thuần. Phần tử thứ ba là WAV 16 kHz — cần
+        để cắt đoạn lỗi.
 
         Azure lỗi (khóa sai, hết hạn mức, mạng) KHÔNG làm mất bài của học viên: gắn cờ cho giáo viên
         rồi để Gemini chấm như trước. Clip ~0.5× thời gian thực (spec §5.4) nên hạn chờ tính theo độ dài.
         """
         settings = await azure_pa.load_azure_settings(self._config)
         if settings is None:
-            return None, {}
+            return None, {}, None
         reading = student.get("readingText")
         reference = reading.strip() if isinstance(reading, str) and reading.strip() else None
         try:
@@ -307,7 +314,7 @@ class SubmissionPipeline:
         except Exception as err:  # noqa: BLE001 — mọi lỗi Azure đều rơi về Gemini, không retry cả bài
             logger.warning("submission %s: Azure lỗi (%s) — chấm bằng Gemini", submission_id, err)
             await self._core_api.create_flag(submission_id, f"Azure lỗi, bài được chấm bằng Gemini: {err}"[:500])
-            return None, {}
+            return None, {}, None
 
         facts = azure_pa.summarize(segments, scripted=reference is not None)
         if reference is None and not azure_pa.is_ielts(rubric):
@@ -316,7 +323,61 @@ class SubmissionPipeline:
                 "Lớp không có bài đọc mẫu — Azure chấm nói tự do, điểm phát âm của trẻ kém tin cậy (D151)",
             )
         overrides = azure_pa.parse_thresholds(await self._config.get("azure.score_thresholds_json"))
-        return facts, azure_pa.measure_bands(rubric, facts, overrides)
+        return facts, azure_pa.measure_bands(rubric, facts, overrides), wav_path
+
+    async def _analyze_error_clips(
+        self,
+        submission_id: int,
+        wav_path: str | None,
+        facts: dict[str, Any],
+        llm_data: dict[str, Any],
+        graded: dict[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Cắt đoạn lỗi → Gemini nghe lại → ghép vào `mispronounced_words` (xem `clip_analysis.py`).
+
+        Lỗi ở bước này KHÔNG làm mất bài và KHÔNG đổi điểm: gắn cờ, giữ nguyên danh sách Azure.
+        """
+        pron = (graded.get("scores") or {}).get("pronunciation")
+        if not isinstance(pron, dict) or not wav_path:
+            return graded, {}
+        llm_words = (((llm_data.get("scores") or {}).get("pronunciation") or {}).get("mispronounced_words")) or []
+        candidates = clip_analysis.build_candidates(facts, llm_words)
+        try:
+            results, meta = await clip_analysis.analyze_error_clips(self._config, wav_path, candidates)
+        except Exception as err:  # noqa: BLE001 — nghe lại là phần làm giàu, không được chặn việc chấm
+            logger.warning("submission %s: nghe lại đoạn lỗi thất bại (%s) — giữ danh sách Azure", submission_id, err)
+            await self._core_api.create_flag(
+                submission_id, f"Không nghe lại được các đoạn lỗi bằng Gemini — giữ danh sách Azure: {err}"[:500]
+            )
+            return graded, {"error": str(err)[:300], "candidates": len(candidates)}
+
+        out = copy.deepcopy(graded)
+        merged = clip_analysis.merge_clip_results(pron.get("mispronounced_words") or [], candidates, results)
+        out["scores"]["pronunciation"]["mispronounced_words"] = merged
+        meta = {
+            **meta,
+            "candidates": len(candidates),
+            "azure_words": sum(1 for c in candidates if c.get("source") == "azure"),
+            "gemini_proposed": sum(1 for c in candidates if c.get("source") == "gemini"),
+            "gemini_added": sum(1 for w in merged if w.get("source") == "gemini"),
+            "needs_review": sum(1 for w in merged if w.get("needs_review")),
+        }
+        if meta.get("input_tokens") or meta.get("output_tokens"):
+            est_usd = estimate_cost_usd(
+                "gemini", meta.get("model", ""), meta["input_tokens"], meta["output_tokens"], await self._pricing_overrides()
+            )
+            await self._core_api.create_cost_log(
+                {
+                    "submissionId": submission_id,
+                    "provider": "gemini",
+                    "model": meta.get("model", ""),
+                    "inputTokens": meta["input_tokens"],
+                    "outputTokens": meta["output_tokens"],
+                    "estUsd": est_usd,
+                    "callType": "clip_analysis",
+                }
+            )
+        return out, meta
 
     async def _probe_or_reject(self, submission_id: int, media_path: str, kind: str) -> float | None:
         """Đo độ dài clip. Trả None = đã xử lý xong nhánh từ chối, caller phải `return`.

@@ -20,6 +20,14 @@ interface MispronouncedWord {
   heard_as?: string;
   suggestion?: string;
   approx_position_sec?: number;
+  start_sec?: number;
+  end_sec?: number;
+  /** ILM 09-15: "azure" = Azure đánh dấu; "gemini" = Azure bỏ sót, Gemini nghe đoạn cắt xác nhận. */
+  source?: 'azure' | 'gemini';
+  /** Gemini nghe đoạn cắt thấy KHÔNG sai — giáo viên nghe lại rồi quyết định giữ hay bỏ. */
+  needs_review?: boolean;
+  /** Lỗi cụ thể Gemini nghe được trong đoạn cắt. */
+  issue?: string;
 }
 
 interface DimensionResult {
@@ -308,6 +316,9 @@ export function SubmissionDetail() {
                               </Button>
                             ) : null}
                             <span className="font-medium">{w.word}</span>
+                            {w.needs_review && <Badge variant="warning">{t('submissions.wordNeedsReview')}</Badge>}
+                            {w.source === 'gemini' && <Badge variant="secondary">{t('submissions.wordFromGemini')}</Badge>}
+                            {w.issue ? <span className="text-caption text-muted-foreground">({w.issue})</span> : null}
                             {w.heard_as ? (
                               <span className="text-muted-foreground">
                                 {t('submissions.heardAs')}: <em>{w.heard_as}</em>

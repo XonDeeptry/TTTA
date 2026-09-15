@@ -492,8 +492,10 @@ def build_facts_instruction(rubric: dict[str, Any], facts: dict[str, Any], measu
     if errors:
         lines.append(
             f"Từ phát âm kém đo được — {len(errors)} từ, theo thứ tự thời gian. Trong 'mispronounced_words' "
-            "phải trả ĐỦ TẤT CẢ các từ này (một mục cho mỗi dòng, kể cả từ lặp lại), KHÔNG thêm từ khác, "
-            "và viết 'suggestion' cụ thể cho từng từ dựa vào âm vị yếu:"
+            "phải trả ĐỦ TẤT CẢ các từ này (một mục cho mỗi dòng, kể cả từ lặp lại) và viết 'suggestion' cụ thể "
+            "cho từng từ dựa vào âm vị yếu. Nếu nghe cả bài thấy THÊM từ phát âm sai rõ rệt mà danh sách dưới "
+            "đây không có (Azure nhận nhầm thành từ khác), thêm từ đó vào 'mispronounced_words' đúng như chữ "
+            "trong bản ghi lời nói, kèm 'approx_position_sec' — hệ thống sẽ cắt đoạn đó để nghe xác nhận:"
         )
         for e in errors:
             weak = ", ".join(
