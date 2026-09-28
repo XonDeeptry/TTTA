@@ -336,3 +336,30 @@ async def test_audio_grading_passes_the_schema_it_validates_against(pipeline, co
     from grading_worker.grading.schema import build_output_schema
 
     assert grade.await_args.kwargs["schema"] == build_output_schema(RUBRIC)
+
+
+# ─── Bỏ cuộc vào DLQ → đóng bài `processing` (sự cố 16 video treo 2026-09-27) ─────────────
+
+
+async def test_give_up_marks_processing_submission_failed_with_flag(pipeline, core_api):
+    p, _ = pipeline
+    core_api.upsert_submission.return_value = {"id": 115, "status": "processing"}
+
+    await p.mark_failed_after_give_up(base_message(kind="video"), RuntimeError("301 Moved Permanently"))
+
+    # Không gửi status khi upsert — không được tự ghi đè trạng thái trước khi kiểm tra.
+    assert "status" not in core_api.upsert_submission.await_args.args[0]
+    core_api.update_submission.assert_awaited_once_with(115, {"status": "failed"})
+    submission_id, reason = core_api.create_flag.await_args.args
+    assert submission_id == 115 and "DLQ" in reason and "301" in reason
+
+
+@pytest.mark.parametrize("status", ["awaiting_review", "sent", "received", "failed"])
+async def test_give_up_leaves_non_processing_submission_alone(pipeline, core_api, status):
+    p, _ = pipeline
+    core_api.upsert_submission.return_value = {"id": 1, "status": status}
+
+    await p.mark_failed_after_give_up(base_message(), RuntimeError("boom"))
+
+    core_api.update_submission.assert_not_called()
+    core_api.create_flag.assert_not_called()

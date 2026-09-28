@@ -36,6 +36,7 @@ export const IELTS_SPEAKING_SEED: RubricTemplateSeed = deepFreeze({
     dimensions: [
       {
         key: 'fluency_coherence',
+        criterion_key: 'FLUENCY',  // bộ tiêu chí chung của trung tâm (D27)
         label: 'Fluency and coherence',
         weight: 1,
         bands: {},
@@ -43,6 +44,7 @@ export const IELTS_SPEAKING_SEED: RubricTemplateSeed = deepFreeze({
       },
       {
         key: 'lexical_resource',
+        criterion_key: 'VOCABULARY',  // bộ tiêu chí chung của trung tâm (D27)
         label: 'Lexical resources',
         weight: 1,
         bands: {},
@@ -50,6 +52,7 @@ export const IELTS_SPEAKING_SEED: RubricTemplateSeed = deepFreeze({
       },
       {
         key: 'grammatical_range',
+        criterion_key: 'GRAMMAR',  // bộ tiêu chí chung của trung tâm (D27)
         label: 'Grammatical range and accuracy',
         weight: 1,
         bands: {},
@@ -59,6 +62,7 @@ export const IELTS_SPEAKING_SEED: RubricTemplateSeed = deepFreeze({
         // Dimension BẮT BUỘC (kiến trúc mục 3.10). Ở IELTS nó đứng thứ tư đúng như thứ tự PDF —
         // vị trí không quan trọng, SỰ CÓ MẶT mới là điều `assertAuthorableRubric` kiểm.
         key: 'pronunciation',
+        criterion_key: 'PRONUNCIATION',  // bộ tiêu chí chung của trung tâm (D27)
         label: 'Pronunciation',
         weight: 1,
         bands: {},

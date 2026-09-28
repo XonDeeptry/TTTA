@@ -12,6 +12,7 @@ __pycache__/
 # Env & secrets
 .env
 .env.local
+CLAUDE.local.md
 
 # Runtime data
 /data/

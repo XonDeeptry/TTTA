@@ -50,6 +50,15 @@ export interface RubricDimensionV2 {
   bands: Record<string, string[]>;
   /** luôn có mặt; [] nếu không dùng */
   sub_factors: RubricSubFactor[];
+  /**
+   * Tiêu chí trong BỘ TIÊU CHÍ CHUNG CỦA TRUNG TÂM mà chiều này đo (ILM-Clone D27/D41).
+   * Rubric được SOẠN TỪ bộ tiêu chí chung chứ không định nghĩa song song với nó — nhờ vậy
+   * một kết quả quiz và một điểm nói rơi vào cùng một tiêu chí của cùng một học viên.
+   *
+   * `null` = chưa ánh xạ được. KHÔNG bị bỏ đi: điểm vẫn tồn tại và chảy xuống kho phân tích
+   * dưới thành viên `UNMAPPED`, để độ lớn của lỗ hổng nhìn thấy được thay vì im lặng.
+   */
+  criterion_key: string | null;
 }
 
 export interface CommentBankEntry {
@@ -92,6 +101,29 @@ export interface RubricV2 {
 
 /** Dimension bắt buộc (mục 3.10) — hai cổng chặn (upload + lúc chấm) đều dựa vào hằng này. */
 export const PRONUNCIATION_DIMENSION = 'pronunciation';
+
+/**
+ * Ánh xạ mặc định: khóa chiều → tiêu chí trong bộ tiêu chí chung của trung tâm.
+ *
+ * Chín chiều của hai mẫu được seed (`cambridge_yl_a0_a2`, `ielts_speaking`) gộp lại còn TÁM
+ * khóa duy nhất và KHÔNG xung đột — `pronunciation` xuất hiện ở cả hai mẫu và đo cùng một
+ * tiêu chí. Nhờ vậy hàm chuẩn hóa KHÔNG cần biết rubric thuộc mẫu nào.
+ *
+ * Đây chỉ là lưới đỡ cho rubric đã soạn TRƯỚC khi có `criterion_key`. Rubric soạn mới ghi
+ * thẳng giá trị, và giá trị có sẵn LUÔN thắng bảng này.
+ *
+ * ⚠ Bản Python `rubric_schema.py` có bảng y hệt. Sửa một bên phải sửa bên kia cùng commit.
+ */
+export const DEFAULT_CRITERION_BY_DIMENSION: Readonly<Record<string, string>> = Object.freeze({
+  pronunciation: 'PRONUNCIATION',
+  intonation: 'INTONATION',
+  ending_sounds: 'ENDING_SOUNDS',
+  word_stress: 'WORD_STRESS',
+  fluency: 'FLUENCY',
+  fluency_coherence: 'FLUENCY',
+  lexical_resource: 'VOCABULARY',
+  grammatical_range: 'GRAMMAR',
+});
 
 /** Thang mặc định DUY NHẤT toàn repo (BR-06): khớp docx-parser `0-3`, schema.py `[0,3]`,
  * reports.service.ts `DEFAULT_BAND_MAX = 3`. Không ai được bịa fallback khác. */
@@ -228,12 +260,18 @@ function normalizeDimension(raw: Record<string, unknown>, isV2: boolean): Rubric
   const key = (isV2 ? (rawKey ?? rawLabel ?? name) : (name ?? rawKey ?? rawLabel)) ?? '';
   const label = (isV2 ? (rawLabel ?? name) : (name ?? rawLabel)) ?? key;
 
+  // Giá trị đã soạn LUÔN thắng; bảng mặc định chỉ đỡ cho rubric cũ. Không tra được ⇒ null,
+  // và null là một trạng thái HỢP LỆ, không phải lỗi (D41).
+  const rawCriterion = asString(raw.criterion_key);
+  const criterion_key = rawCriterion ?? DEFAULT_CRITERION_BY_DIMENSION[key] ?? null;
+
   return {
     key,
     label,
     weight: asFiniteNumber(raw.weight) ?? 1,
     bands: normalizeBands(raw.bands),
     sub_factors: normalizeSubFactors(raw.sub_factors),
+    criterion_key,
   };
 }
 

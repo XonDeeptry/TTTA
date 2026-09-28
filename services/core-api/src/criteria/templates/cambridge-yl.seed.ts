@@ -41,6 +41,7 @@ export const CAMBRIDGE_YL_SEED: RubricTemplateSeed = deepFreeze({
       {
         // Dimension BẮT BUỘC (kiến trúc mục 3.10) — luôn đứng đầu danh sách.
         key: 'pronunciation',
+        criterion_key: 'PRONUNCIATION',  // bộ tiêu chí chung của trung tâm (D27)
         label: 'Pronunciation (Âm chính)',
         weight: 1,
         bands: {
@@ -51,6 +52,7 @@ export const CAMBRIDGE_YL_SEED: RubricTemplateSeed = deepFreeze({
       },
       {
         key: 'intonation',
+        criterion_key: 'INTONATION',  // bộ tiêu chí chung của trung tâm (D27)
         label: 'Intonation (Ngữ điệu)',
         weight: 1,
         bands: {
@@ -61,6 +63,7 @@ export const CAMBRIDGE_YL_SEED: RubricTemplateSeed = deepFreeze({
       },
       {
         key: 'ending_sounds',
+        criterion_key: 'ENDING_SOUNDS',  // bộ tiêu chí chung của trung tâm (D27)
         label: 'Ending sounds (Âm đuôi)',
         weight: 1,
         bands: {
@@ -71,6 +74,7 @@ export const CAMBRIDGE_YL_SEED: RubricTemplateSeed = deepFreeze({
       },
       {
         key: 'word_stress',
+        criterion_key: 'WORD_STRESS',  // bộ tiêu chí chung của trung tâm (D27)
         label: 'Word Stress (Trọng âm từ/cụm)',
         weight: 1,
         bands: {
@@ -81,6 +85,7 @@ export const CAMBRIDGE_YL_SEED: RubricTemplateSeed = deepFreeze({
       },
       {
         key: 'fluency',
+        criterion_key: 'FLUENCY',  // bộ tiêu chí chung của trung tâm (D27)
         label: 'Fluency (Trôi chảy)',
         weight: 1,
         bands: {

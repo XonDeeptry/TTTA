@@ -44,7 +44,7 @@ async def main() -> None:
 
     logger.info("grading-worker listening on queue '%s'", Q_SUBMISSIONS)
     try:
-        await rabbit.consume(Q_SUBMISSIONS, pipeline.handle)
+        await rabbit.consume(Q_SUBMISSIONS, pipeline.handle, on_give_up=pipeline.mark_failed_after_give_up)
     finally:
         await rabbit.close()
         await core_api.aclose()

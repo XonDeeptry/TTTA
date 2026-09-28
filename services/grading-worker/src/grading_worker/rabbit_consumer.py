@@ -19,6 +19,9 @@ from .contracts import DLX, EXCHANGE, MAX_RETRIES, Q_OUTBOUND, Q_SUBMISSIONS, RE
 logger = logging.getLogger(__name__)
 
 Handler = Callable[[dict[str, Any]], Awaitable[None]]
+# Gọi MỘT lần khi message bị bỏ cuộc vào DLQ — để nghiệp vụ đóng trạng thái (vd. bài nộp
+# `processing` → `failed`), thay vì treo mãi như 16 bài video ngày 2026-09-27.
+GiveUpHandler = Callable[[dict[str, Any], Exception], Awaitable[None]]
 
 
 class RabbitConsumer:
@@ -84,24 +87,44 @@ class RabbitConsumer:
             routing_key=routing_key,
         )
 
-    async def consume(self, queue_name: str, handler: Handler) -> None:
+    async def consume(self, queue_name: str, handler: Handler, on_give_up: GiveUpHandler | None = None) -> None:
         queue = self._queues[queue_name]
         async with queue.iterator() as queue_iter:
             async for message in queue_iter:
-                await self._handle_message(queue_name, message, handler)
+                await self._handle_message(queue_name, message, handler, on_give_up)
 
-    async def _handle_message(self, queue_name: str, message: AbstractIncomingMessage, handler: Handler) -> None:
+    async def _handle_message(
+        self,
+        queue_name: str,
+        message: AbstractIncomingMessage,
+        handler: Handler,
+        on_give_up: GiveUpHandler | None = None,
+    ) -> None:
         headers = dict(message.headers or {})
+        payload: dict[str, Any] | None = None
         try:
             payload = json.loads(message.body.decode("utf-8"))
             await handler(payload)
         except Exception as err:  # noqa: BLE001 - mọi lỗi xử lý đều phải vào retry/DLQ, không được nuốt
-            await self._republish_after_failure(queue_name, message.body, headers, err)
+            gave_up = await self._republish_after_failure(queue_name, message.body, headers, err)
+            if gave_up and on_give_up is not None and payload is not None:
+                await self._run_give_up(queue_name, on_give_up, payload, err)
         await message.ack()
+
+    async def _run_give_up(
+        self, queue_name: str, on_give_up: GiveUpHandler, payload: dict[str, Any], err: Exception
+    ) -> None:
+        # Message ĐÃ nằm an toàn trong DLQ — hook lỗi (core-api sập...) chỉ được log, không được
+        # làm hỏng việc ack hay đẩy message đi đâu thêm.
+        try:
+            await on_give_up(payload, err)
+        except Exception as hook_err:  # noqa: BLE001
+            logger.warning("%s: on_give_up hook failed: %s", queue_name, hook_err)
 
     async def _republish_after_failure(
         self, queue_name: str, body: bytes, headers: dict[str, Any], err: Exception
-    ) -> None:
+    ) -> bool:
+        """True = đã bỏ cuộc, message vào DLQ; False = đẩy vào retry queue."""
         retry_count = int(headers.get("x-retry", 0))
         if retry_count >= MAX_RETRIES:
             logger.error("%s: giving up after %d retries -> DLQ: %s", queue_name, retry_count, err)
@@ -115,6 +138,7 @@ class RabbitConsumer:
                 ),
                 routing_key=queue_name,
             )
+            return True
         else:
             logger.warning("%s: attempt %d failed -> retry queue: %s", queue_name, retry_count + 1, err)
             assert self._retry_exchange is not None
@@ -127,3 +151,4 @@ class RabbitConsumer:
                 ),
                 routing_key=queue_name,
             )
+            return False

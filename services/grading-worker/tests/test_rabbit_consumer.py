@@ -65,6 +65,35 @@ async def test_exhausted_retries_goes_to_dlq_with_last_error(consumer):
     consumer._retry_exchange.publish.assert_not_called()
 
 
+async def test_give_up_hook_runs_only_when_message_goes_to_dlq(consumer):
+    async def failing_handler(_payload):
+        raise RuntimeError("301")
+
+    on_give_up = AsyncMock()
+    retrying = FakeMessage(json.dumps({"x": 1}).encode(), headers={})
+    await consumer._handle_message("submissions", retrying, failing_handler, on_give_up)
+    on_give_up.assert_not_called()
+
+    dead = FakeMessage(json.dumps({"x": 1}).encode(), headers={"x-retry": MAX_RETRIES})
+    await consumer._handle_message("submissions", dead, failing_handler, on_give_up)
+    on_give_up.assert_awaited_once()
+    payload, err = on_give_up.call_args.args
+    assert payload == {"x": 1} and "301" in str(err)
+
+
+async def test_failing_give_up_hook_still_acks(consumer):
+    async def failing_handler(_payload):
+        raise RuntimeError("boom")
+
+    message = FakeMessage(json.dumps({"x": 1}).encode(), headers={"x-retry": MAX_RETRIES})
+    await consumer._handle_message(
+        "submissions", message, failing_handler, AsyncMock(side_effect=RuntimeError("core-api down"))
+    )
+
+    consumer._dlx.publish.assert_awaited_once()
+    message.ack.assert_awaited_once()
+
+
 async def test_publish_requires_connected_exchange(consumer):
     with pytest.raises(AssertionError):
         consumer.publish("outbound", {"zaloUserId": "u1", "text": "hi"})

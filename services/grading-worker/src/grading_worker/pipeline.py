@@ -288,6 +288,28 @@ class SubmissionPipeline:
             await self._core_api.update_submission(submission_id, {"status": "awaiting_review"})
             logger.info("submission %s: awaiting_review (grading %s)", submission_id, grading.get("id"))
 
+    async def mark_failed_after_give_up(self, raw: dict[str, Any], err: Exception) -> None:
+        """Hook `on_give_up` của rabbit_consumer: message đã vào DLQ sau MAX_RETRIES.
+
+        `handle` đặt `processing` TRƯỚC khi tải media; lỗi sau mốc đó (vd. 301 CDN Zalo
+        2026-09-27) để bài treo `processing` mãi trên dashboard. Chỉ đóng bài đang `processing`
+        — bài đã chấm xong (lỗi ở bước sau đó) giữ nguyên trạng thái của nó. Nút retry DLQ trên
+        dashboard đẩy lại message, `handle` sẽ đặt `processing` lần nữa như bình thường.
+        """
+        msg = contracts.SubmissionMessage.from_dict(raw)
+        # Upsert không kèm status ⇒ core-api không đổi status, chỉ trả về dòng hiện tại.
+        submission = await self._core_api.upsert_submission(
+            {"messageId": msg.messageId, "zaloUserId": msg.zaloUserId, "kind": msg.kind, "mediaUrlZalo": msg.mediaUrl}
+        )
+        if submission.get("status") != "processing":
+            return
+        submission_id = submission["id"]
+        await self._core_api.update_submission(submission_id, {"status": "failed"})
+        await self._core_api.create_flag(
+            submission_id, f"Không chấm được sau nhiều lần thử — bài đã vào DLQ, retry được ở trang Giám sát: {err}"[:500]
+        )
+        logger.error("submission %s: bỏ cuộc -> DLQ, status=failed: %s", submission_id, err)
+
     async def _azure_assessment(
         self,
         submission_id: int,

@@ -22,7 +22,7 @@ import { computeTotal, findLevel, maxTotal, validateLevels } from './rubric-scor
  */
 
 function dimension(key: string, weight = 1): RubricDimensionV2 {
-  return { key, label: key, weight, bands: {}, sub_factors: [] };
+  return { key, label: key, weight, bands: {}, sub_factors: [], criterion_key: null };
 }
 
 const KID_RUBRIC: RubricV2 = CAMBRIDGE_YL_SEED.rubric;
@@ -405,8 +405,8 @@ describe('rubric-scoring — FR-05 degenerate input', () => {
       dimensions: [
         null as never,
         'x' as never,
-        { key: '', label: '', weight: 1, bands: {}, sub_factors: [] },
-        { key: 42 as unknown as string, label: '', weight: 1, bands: {}, sub_factors: [] },
+        { key: '', label: '', weight: 1, bands: {}, sub_factors: [], criterion_key: null },
+        { key: 42 as unknown as string, label: '', weight: 1, bands: {}, sub_factors: [], criterion_key: null },
         dimension('a'),
         dimension('b'),
       ],

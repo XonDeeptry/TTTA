@@ -40,6 +40,20 @@ async def test_download_original_falls_back_to_default_extension_by_kind(media_r
     assert relative_path.endswith("original.mp4")
 
 
+async def test_download_original_follows_cdn_redirect(media_root):
+    # Ca thật 2026-09-27: video-stal-48.dlmd.me → 301 → video-stal-48.mdchat.me.
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host.endswith("dlmd.me"):
+            return httpx.Response(301, headers={"Location": "https://video-stal-48.mdchat.me/gr/abc/xyz"})
+        return httpx.Response(200, content=b"video-bytes")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        relative_path = await downloader.download_original(client, "https://video-stal-48.dlmd.me/gr/abc/xyz", 115, "video")
+
+    with open(os.path.join(media_root, relative_path), "rb") as f:
+        assert f.read() == b"video-bytes"
+
+
 def test_submission_media_dir_uses_year_month_submission_id_path():
     import datetime
 

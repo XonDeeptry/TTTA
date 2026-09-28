@@ -9,6 +9,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
+import { formatTimestamp, parseTimestamp } from '../lib/timestamp';
 
 /**
  * Từ phát âm sai. Với bài chấm bằng Azure (D149), `word`/`heard_as`/`approx_position_sec` là SỐ ĐO
@@ -143,12 +144,6 @@ export function SubmissionDetail() {
     }
   }
 
-  function formatTimestamp(seconds: number): string {
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m}:${String(s).padStart(2, '0')}`;
-  }
-
   function load(): void {
     void api.get<SubmissionDetailData>(`/submissions/${id}`).then((d) => {
       setData(d);
@@ -176,6 +171,15 @@ export function SubmissionDetail() {
     });
   }
 
+  /**
+   * ILM 09-22: mốc giờ của từ giáo viên thêm gõ tay được. Ghi cả `start_sec` (core-api dùng để tra số đo
+   * Azure khi ghi log `added`) lẫn `approx_position_sec` (nút ▶ và dòng "• 1:29 — …" trong tin học viên).
+   */
+  function setWordTime(key: string, index: number, seconds: number | undefined): void {
+    patchWord(key, index, { start_sec: seconds, approx_position_sec: seconds });
+  }
+
+  /** Gắn sai (từ AI) và Xóa (từ giáo viên thêm) cùng bỏ dòng khỏi bản nháp — khác nhau ở ý nghĩa khi ghi log. */
   function removeWord(key: string, index: number): void {
     setScoresDraft((s) => ({
       ...s,
@@ -314,7 +318,23 @@ export function SubmissionDetail() {
                         <p className="text-muted-foreground">{t('submissions.mispronouncedHint')}</p>
                         {(words ?? []).map((w, i) => (
                           <div key={`${key}-${i}`} className="flex flex-wrap items-center gap-2">
-                            {typeof w.approx_position_sec === 'number' ? (
+                            {w.source === 'teacher' && !sent ? (
+                              <TimeInput
+                                value={w.approx_position_sec}
+                                maxSec={audioRef.current && Number.isFinite(audioRef.current.duration) ? audioRef.current.duration : undefined}
+                                onCommit={(sec) => setWordTime(key, i, sec)}
+                                onPlay={(sec) => seekTo(sec)}
+                                onTakeAudioTime={
+                                  data.mediaPath && !data.mediaDeletedAt
+                                    ? () => {
+                                        const el = audioRef.current;
+                                        if (el) setWordTime(key, i, Math.round(el.currentTime * 100) / 100);
+                                      }
+                                    : undefined
+                                }
+                                playDisabled={!data.mediaPath || Boolean(data.mediaDeletedAt)}
+                              />
+                            ) : typeof w.approx_position_sec === 'number' ? (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -352,11 +372,16 @@ export function SubmissionDetail() {
                               disabled={sent}
                               onChange={(e) => patchWord(key, i, { suggestion: e.target.value })}
                             />
-                            {!sent && (
-                              <Button size="sm" variant="outline" onClick={() => removeWord(key, i)} title={t('submissions.removeWordHint')}>
-                                {t('submissions.removeWord')}
-                              </Button>
-                            )}
+                            {!sent &&
+                              (w.source === 'teacher' ? (
+                                <Button size="sm" variant="outline" onClick={() => removeWord(key, i)} title={t('submissions.deleteWordHint')}>
+                                  {t('submissions.deleteWord')}
+                                </Button>
+                              ) : (
+                                <Button size="sm" variant="outline" onClick={() => removeWord(key, i)} title={t('submissions.removeWordHint')}>
+                                  {t('submissions.removeWord')}
+                                </Button>
+                              ))}
                           </div>
                         ))}
                         {!sent && (
@@ -400,6 +425,85 @@ export function SubmissionDetail() {
         </div>
       )}
     </main>
+  );
+}
+
+/**
+ * ILM 09-22: ô mốc giờ cho từ giáo viên thêm. Gõ tự do, chỉ ghi vào bản nháp khi rời ô hoặc bấm Enter —
+ * ghi theo từng phím thì "1:" (đang gõ dở) sẽ bị coi là sai. Gõ sai dạng thì giữ mốc cũ và báo đỏ.
+ */
+function TimeInput({
+  value,
+  maxSec,
+  onCommit,
+  onPlay,
+  onTakeAudioTime,
+  playDisabled,
+}: {
+  value: number | undefined;
+  maxSec?: number;
+  onCommit: (seconds: number | undefined) => void;
+  onPlay: (seconds: number) => void;
+  onTakeAudioTime?: () => void;
+  playDisabled: boolean;
+}) {
+  const { t } = useTranslation();
+  const shown = typeof value === 'number' ? formatTimestamp(value) : '';
+  const [text, setText] = useState(shown);
+  const [invalid, setInvalid] = useState(false);
+
+  // Mốc đổi từ ngoài (nút "lấy mốc đang phát", tải lại bài) ⇒ ô hiện theo.
+  useEffect(() => {
+    setText(shown);
+    setInvalid(false);
+  }, [shown]);
+
+  function commit(): void {
+    const parsed = parseTimestamp(text, maxSec);
+    if (parsed === undefined) {
+      setInvalid(true);
+      return;
+    }
+    setInvalid(false);
+    onCommit(parsed ?? undefined);
+    setText(parsed === null ? '' : formatTimestamp(parsed));
+  }
+
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      <Button
+        size="sm"
+        variant="outline"
+        className="tabular-nums"
+        onClick={() => typeof value === 'number' && onPlay(value)}
+        disabled={playDisabled || typeof value !== 'number'}
+        aria-label={t('submissions.playAt')}
+      >
+        ▶
+      </Button>
+      <Input
+        className={'w-20 tabular-nums' + (invalid ? ' border-destructive focus-visible:ring-destructive' : '')}
+        placeholder="m:ss"
+        value={text}
+        aria-label={t('submissions.timeLabel')}
+        aria-invalid={invalid}
+        title={invalid ? t('submissions.timeInvalid') : t('submissions.timeHint')}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+          }
+        }}
+      />
+      {onTakeAudioTime && (
+        <Button size="sm" variant="ghost" onClick={onTakeAudioTime} title={t('submissions.timeFromAudioHint')}>
+          {t('submissions.timeFromAudio')}
+        </Button>
+      )}
+      {invalid && <span className="text-caption text-destructive">{t('submissions.timeInvalid')}</span>}
+    </span>
   );
 }
 

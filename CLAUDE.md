@@ -2,9 +2,29 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> ## ⚠ Position in the ILM platform — decided 2026-09-11, read first
+>
+> **The main application is ILM** (`D:\Docs\Project\ILM`). SuiteCRM, Moodle and TTTA all
+> serve it (ILM-Clone Decisions Log D71). **TTTA is the grading service**: the platform
+> takes a clone of this repository and adapts it to run behind ILM, and **TTTA has no
+> accounts of its own** — every identity comes from ILM, which calls TTTA with a service
+> token and the acting ILM user (D72; ILM-Clone Foundation §4.2 #9).
+>
+> - **Never add ILM's accounts, permission tables or screens to this repository.** They
+>   were built here once by mistake on 2026-09-11 and moved out the same day.
+> - In the adapted clone, `dashboard_users`, the login, and `SessionAuthGuard` /
+>   `RolesGuard` / `PrivilegeGuard` (18 controllers today) go; `InternalTokenGuard` is the
+>   pattern that replaces them. Counted in ILM-Clone `20260909-Spec-Grading-TTTA.md`.
+> - `Idea/20260903-NenTangILM.md` and the *Branching* section below predate this. Where
+>   they disagree, `D:\Docs\Project\ILM-Clone\20260910-Foundation.md` wins.
+
 ## Commands
 
-> ### ⛔ DO NOT start Docker on the dev machine — build and test on the VPS (`10.0.6.250`)
+> ### ⛔ DO NOT start Docker on the dev machine — build and test on the server
+>
+> **Server = the pilot, `root@learn.ilm.edu.vn`, since 2026-09-28.** The old test VPS
+> (`sonbui@10.0.6.250`) is **retired** — every command below that still says
+> `sonbui@10.0.6.250` means `root@learn.ilm.edu.vn` now (see *Pilot server* below).
 >
 > Node/npm are not run directly on the dev box (owner's constraint), and **Docker Desktop there is
 > not reliable for this project**: it stopped mid-session twice on 2026-09-06, and a jest worker has
@@ -126,7 +146,35 @@ the sync change: revert one commit and rebuild core-api).
 Never commit `.env`, MariaDB passwords, Moodle web-service tokens, `crm.client_secret`, Zalo App
 Secret / OA Secret, or any access/refresh token. Update `.env.example` with variable names only.
 
-## Dev/test environment (VPS)
+## Pilot server — the ONLY server (from 2026-09-28)
+
+> All work happens on the **pilot** server. The test VPS below is retired. Real teachers and real
+> students use it, so the "disposable box, experiment freely" rule of the test VPS **does not
+> apply here**: no wiping volumes, re-seeding or casual container restarts without the owner's OK.
+
+| | |
+|---|---|
+| URL | `https://learn.ilm.edu.vn/` (dashboard; API under `/api`) |
+| Public IP | `27.71.17.210` — ports **22, 80, 443 all face the internet** (unlike the test VPS) |
+| SSH user | `root` — **password auth**; the password lives in `CLAUDE.local.md` (gitignored), never here |
+| Repo path on box | **`/opt/ttta`** (not a git repo — files are copied in; compose in `/opt/ttta/infra`, containers `ilm-bot-*`). Commands below that say `~/TTTA` mean `/opt/ttta` |
+| Neighbours | the ILM stack (`ilm-api`, `ilm-caddy`, `ilm-postgres`, …, source in `/opt/ilm`) runs on the same box — leave it alone |
+
+- **SSH key installed 2026-09-28**: `ssh -i "$HOME/.ssh/ttta_vps" -o BatchMode=yes root@learn.ilm.edu.vn '<command>'`.
+  (`ssh-copy-id` does not exist in PowerShell — Git's copy is at `C:\Program Files\Git\usr\bin\ssh-copy-id`.)
+- The files on the box are **CRLF**; compare with `tr -d '\r' | md5sum`, not a plain `md5sum`.
+- SSH on 22 is internet-facing with root password login — harden it (key-only,
+  `PermitRootLogin prohibit-password`) once the key is installed.
+- The Zalo-token trap below still applies: **only one gateway may run against the OA** — never
+  start a second one (local or anywhere else) alongside the pilot.
+- It is also the **build machine** now (the old VPS used to be): builds share CPU/RAM with the
+  live pilot, so run jest with `--maxWorkers=2` and rebuild only the affected services.
+
+## Dev/test environment (VPS) — ⚠ RETIRED 2026-09-28, kept for history
+
+**This box (`10.0.6.250` / `ilm-ttta.duckdns.org`) is no longer used.** The table and SSH details
+below are historical. The *Zalo OA state* and *Operational traps* subsections are still valid —
+they describe the OA and the code, not the box.
 
 A dedicated **test** VPS exercises the real Zalo OA path end to end. Not production.
 
@@ -217,6 +265,12 @@ needs a student row plus an active `zalo_bindings` entry, otherwise the pipeline
   skips verification entirely when the secret is empty (`if (secret && appId)`), which is what makes
   this two-step possible — and also means an empty secret leaves the endpoint open to forged events,
   so never leave it blank longer than the registration itself.
+- **Zalo's video CDN redirects (found on the pilot 2026-09-27).** `video-stal-*.dlmd.me` answers
+  `301` → `*.mdchat.me`. `httpx` does not follow redirects by default, so every video went to the
+  DLQ while audio kept working. `downloader.py` now passes `follow_redirects=True`. And because
+  the pipeline sets `processing` *before* downloading, a DLQ'd submission used to sit in
+  `processing` forever with no media. `RabbitConsumer.consume(on_give_up=…)` now flips it to
+  `failed` and adds a flag.
 - **Scripting the VPS over SSH: `docker compose exec -T` reads stdin.** When the script is piped in
   via `ssh ... 'bash -s' <<'EOF'`, an `exec -T` swallows the remaining script lines and everything
   after it silently vanishes. Always append `< /dev/null` to `docker compose exec` in such scripts.

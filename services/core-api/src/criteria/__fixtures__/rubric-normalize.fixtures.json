@@ -7,9 +7,19 @@
       "name": "v1_minimal",
       "input": {
         "course_key": "basic",
-        "band_scale": [0, 3],
+        "band_scale": [
+          0,
+          3
+        ],
         "dimensions": [
-          { "name": "pronunciation", "weight": 1, "bands": { "0": "kém", "3": "tốt" } }
+          {
+            "name": "pronunciation",
+            "weight": 1,
+            "bands": {
+              "0": "kém",
+              "3": "tốt"
+            }
+          }
         ]
       },
       "expected": {
@@ -18,17 +28,34 @@
         "task_type": "speaking_clip",
         "tone": "khích lệ",
         "feedback_language": "vi",
-        "scale": { "min": 0, "max": 3, "step": 1 },
-        "aggregation": { "method": "average", "round": "none" },
+        "scale": {
+          "min": 0,
+          "max": 3,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "average",
+          "round": "none"
+        },
         "levels": [],
-        "output_fields": ["comment"],
+        "output_fields": [
+          "comment"
+        ],
         "dimensions": [
           {
             "key": "pronunciation",
             "label": "pronunciation",
             "weight": 1,
-            "bands": { "0": ["kém"], "3": ["tốt"] },
-            "sub_factors": []
+            "bands": {
+              "0": [
+                "kém"
+              ],
+              "3": [
+                "tốt"
+              ]
+            },
+            "sub_factors": [],
+            "criterion_key": "PRONUNCIATION"
           }
         ],
         "comment_bank": [],
@@ -40,24 +67,36 @@
       "input": {
         "course_key": "basic",
         "task_type": "speaking_clip",
-        "band_scale": [0, 3],
+        "band_scale": [
+          0,
+          3
+        ],
         "feedback_language": "vi",
         "tone": "khích lệ",
         "dimensions": [
           {
             "name": "fluency",
             "weight": 0.25,
-            "bands": { "0": "Nói rời rạc", "3": "Nói trôi chảy tự nhiên" }
+            "bands": {
+              "0": "Nói rời rạc",
+              "3": "Nói trôi chảy tự nhiên"
+            }
           },
           {
             "name": "vocabulary",
             "weight": 0.25,
-            "bands": { "0": "Từ vựng nghèo nàn", "3": "Từ vựng phong phú" }
+            "bands": {
+              "0": "Từ vựng nghèo nàn",
+              "3": "Từ vựng phong phú"
+            }
           },
           {
             "name": "pronunciation",
             "weight": 0.5,
-            "bands": { "0": "Khó nghe", "3": "Phát âm chuẩn" }
+            "bands": {
+              "0": "Khó nghe",
+              "3": "Phát âm chuẩn"
+            }
           }
         ],
         "few_shot_examples": [
@@ -71,31 +110,64 @@
         "task_type": "speaking_clip",
         "tone": "khích lệ",
         "feedback_language": "vi",
-        "scale": { "min": 0, "max": 3, "step": 1 },
-        "aggregation": { "method": "average", "round": "none" },
+        "scale": {
+          "min": 0,
+          "max": 3,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "average",
+          "round": "none"
+        },
         "levels": [],
-        "output_fields": ["comment"],
+        "output_fields": [
+          "comment"
+        ],
         "dimensions": [
           {
             "key": "fluency",
             "label": "fluency",
             "weight": 0.25,
-            "bands": { "0": ["Nói rời rạc"], "3": ["Nói trôi chảy tự nhiên"] },
-            "sub_factors": []
+            "bands": {
+              "0": [
+                "Nói rời rạc"
+              ],
+              "3": [
+                "Nói trôi chảy tự nhiên"
+              ]
+            },
+            "sub_factors": [],
+            "criterion_key": "FLUENCY"
           },
           {
             "key": "vocabulary",
             "label": "vocabulary",
             "weight": 0.25,
-            "bands": { "0": ["Từ vựng nghèo nàn"], "3": ["Từ vựng phong phú"] },
-            "sub_factors": []
+            "bands": {
+              "0": [
+                "Từ vựng nghèo nàn"
+              ],
+              "3": [
+                "Từ vựng phong phú"
+              ]
+            },
+            "sub_factors": [],
+            "criterion_key": null
           },
           {
             "key": "pronunciation",
             "label": "pronunciation",
             "weight": 0.5,
-            "bands": { "0": ["Khó nghe"], "3": ["Phát âm chuẩn"] },
-            "sub_factors": []
+            "bands": {
+              "0": [
+                "Khó nghe"
+              ],
+              "3": [
+                "Phát âm chuẩn"
+              ]
+            },
+            "sub_factors": [],
+            "criterion_key": "PRONUNCIATION"
           }
         ],
         "comment_bank": [
@@ -104,7 +176,11 @@
             "intent": null,
             "text": "Em nói khá trôi chảy, cần chú ý phát âm âm cuối."
           },
-          { "dimension": null, "intent": null, "text": "Bài làm tốt, từ vựng phong phú." }
+          {
+            "dimension": null,
+            "intent": null,
+            "text": "Bài làm tốt, từ vựng phong phú."
+          }
         ],
         "student_reply": null
       }
@@ -113,7 +189,15 @@
       "name": "v1_missing_band_scale",
       "input": {
         "course_key": "no-scale",
-        "dimensions": [{ "name": "pronunciation", "weight": 1, "bands": { "0": "kém" } }]
+        "dimensions": [
+          {
+            "name": "pronunciation",
+            "weight": 1,
+            "bands": {
+              "0": "kém"
+            }
+          }
+        ]
       },
       "expected": {
         "schema_version": 2,
@@ -121,17 +205,31 @@
         "task_type": "speaking_clip",
         "tone": "khích lệ",
         "feedback_language": "vi",
-        "scale": { "min": 0, "max": 3, "step": 1 },
-        "aggregation": { "method": "average", "round": "none" },
+        "scale": {
+          "min": 0,
+          "max": 3,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "average",
+          "round": "none"
+        },
         "levels": [],
-        "output_fields": ["comment"],
+        "output_fields": [
+          "comment"
+        ],
         "dimensions": [
           {
             "key": "pronunciation",
             "label": "pronunciation",
             "weight": 1,
-            "bands": { "0": ["kém"] },
-            "sub_factors": []
+            "bands": {
+              "0": [
+                "kém"
+              ]
+            },
+            "sub_factors": [],
+            "criterion_key": "PRONUNCIATION"
           }
         ],
         "comment_bank": [],
@@ -142,8 +240,18 @@
       "name": "v1_malformed_band_scale",
       "input": {
         "course_key": "bad-scale",
-        "band_scale": ["a", null],
-        "dimensions": [{ "name": "pronunciation", "bands": { "0": "kém" } }]
+        "band_scale": [
+          "a",
+          null
+        ],
+        "dimensions": [
+          {
+            "name": "pronunciation",
+            "bands": {
+              "0": "kém"
+            }
+          }
+        ]
       },
       "expected": {
         "schema_version": 2,
@@ -151,17 +259,31 @@
         "task_type": "speaking_clip",
         "tone": "khích lệ",
         "feedback_language": "vi",
-        "scale": { "min": 0, "max": 3, "step": 1 },
-        "aggregation": { "method": "average", "round": "none" },
+        "scale": {
+          "min": 0,
+          "max": 3,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "average",
+          "round": "none"
+        },
         "levels": [],
-        "output_fields": ["comment"],
+        "output_fields": [
+          "comment"
+        ],
         "dimensions": [
           {
             "key": "pronunciation",
             "label": "pronunciation",
             "weight": 1,
-            "bands": { "0": ["kém"] },
-            "sub_factors": []
+            "bands": {
+              "0": [
+                "kém"
+              ]
+            },
+            "sub_factors": [],
+            "criterion_key": "PRONUNCIATION"
           }
         ],
         "comment_bank": [],
@@ -177,10 +299,19 @@
         "task_type": "speaking_clip",
         "tone": "khích lệ",
         "feedback_language": "vi",
-        "scale": { "min": 0, "max": 3, "step": 1 },
-        "aggregation": { "method": "average", "round": "none" },
+        "scale": {
+          "min": 0,
+          "max": 3,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "average",
+          "round": "none"
+        },
         "levels": [],
-        "output_fields": ["comment"],
+        "output_fields": [
+          "comment"
+        ],
         "dimensions": [],
         "comment_bank": [],
         "student_reply": null
@@ -190,19 +321,35 @@
       "name": "v1_unknown_extra_keys",
       "input": {
         "course_key": "extra",
-        "band_scale": [0, 5],
+        "band_scale": [
+          0,
+          5
+        ],
         "legacy_note": "ghi chú cũ không còn dùng",
-        "created_by": { "email": "teacher@example.com" },
+        "created_by": {
+          "email": "teacher@example.com"
+        },
         "dimensions": [
           {
             "name": "pronunciation",
             "weight": 1,
-            "bands": { "0": "kém", "5": "tốt" },
+            "bands": {
+              "0": "kém",
+              "5": "tốt"
+            },
             "ignored_field": "sẽ bị loại",
-            "legacy_hint": [1, 2, 3]
+            "legacy_hint": [
+              1,
+              2,
+              3
+            ]
           }
         ],
-        "few_shot_examples": ["Bài tốt.", "   ", ""]
+        "few_shot_examples": [
+          "Bài tốt.",
+          "   ",
+          ""
+        ]
       },
       "expected": {
         "schema_version": 2,
@@ -210,20 +357,43 @@
         "task_type": "speaking_clip",
         "tone": "khích lệ",
         "feedback_language": "vi",
-        "scale": { "min": 0, "max": 5, "step": 1 },
-        "aggregation": { "method": "average", "round": "none" },
+        "scale": {
+          "min": 0,
+          "max": 5,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "average",
+          "round": "none"
+        },
         "levels": [],
-        "output_fields": ["comment"],
+        "output_fields": [
+          "comment"
+        ],
         "dimensions": [
           {
             "key": "pronunciation",
             "label": "pronunciation",
             "weight": 1,
-            "bands": { "0": ["kém"], "5": ["tốt"] },
-            "sub_factors": []
+            "bands": {
+              "0": [
+                "kém"
+              ],
+              "5": [
+                "tốt"
+              ]
+            },
+            "sub_factors": [],
+            "criterion_key": "PRONUNCIATION"
           }
         ],
-        "comment_bank": [{ "dimension": null, "intent": null, "text": "Bài tốt." }],
+        "comment_bank": [
+          {
+            "dimension": null,
+            "intent": null,
+            "text": "Bài tốt."
+          }
+        ],
         "student_reply": null
       }
     },
@@ -235,23 +405,56 @@
         "task_type": "speaking_clip",
         "tone": "khích lệ",
         "feedback_language": "vi",
-        "scale": { "min": 0, "max": 5, "step": 1 },
-        "aggregation": { "method": "sum", "round": "none" },
+        "scale": {
+          "min": 0,
+          "max": 5,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "sum",
+          "round": "none"
+        },
         "levels": [
-          { "min": 0, "max": 10, "code": "A0", "label": "Pre-starter (A0) ~ Tiny Rabbit" },
-          { "min": 11, "max": 15, "code": "A1-", "label": "Starter (A1-) ~ Little Fox" },
-          { "min": 16, "max": 20, "code": "A1", "label": "Mover (A1) ~ Junior Panda" },
-          { "min": 21, "max": 25, "code": "A2", "label": "Flyer (A2) ~ Great Big Dino" }
+          {
+            "min": 0,
+            "max": 10,
+            "code": "A0",
+            "label": "Pre-starter (A0) ~ Tiny Rabbit"
+          },
+          {
+            "min": 11,
+            "max": 15,
+            "code": "A1-",
+            "label": "Starter (A1-) ~ Little Fox"
+          },
+          {
+            "min": 16,
+            "max": 20,
+            "code": "A1",
+            "label": "Mover (A1) ~ Junior Panda"
+          },
+          {
+            "min": 21,
+            "max": 25,
+            "code": "A2",
+            "label": "Flyer (A2) ~ Great Big Dino"
+          }
         ],
-        "output_fields": ["comment"],
+        "output_fields": [
+          "comment"
+        ],
         "dimensions": [
           {
             "key": "pronunciation",
             "label": "Pronunciation (Âm chính)",
             "weight": 1,
             "bands": {
-              "0": ["Không phát âm được, khó hiểu."],
-              "5": ["Phát âm rõ ràng, dễ hiểu, gần chuẩn người bản ngữ."]
+              "0": [
+                "Không phát âm được, khó hiểu."
+              ],
+              "5": [
+                "Phát âm rõ ràng, dễ hiểu, gần chuẩn người bản ngữ."
+              ]
             },
             "sub_factors": []
           },
@@ -260,8 +463,12 @@
             "label": "Vocabulary (Từ vựng)",
             "weight": 1,
             "bands": {
-              "0": ["Không nhớ từ nào."],
-              "5": ["Dùng từ đa dạng, đúng ngữ cảnh."]
+              "0": [
+                "Không nhớ từ nào."
+              ],
+              "5": [
+                "Dùng từ đa dạng, đúng ngữ cảnh."
+              ]
             },
             "sub_factors": []
           },
@@ -270,8 +477,12 @@
             "label": "Grammar (Ngữ pháp)",
             "weight": 1,
             "bands": {
-              "0": ["Không tạo được câu."],
-              "5": ["Câu đúng cấu trúc, ít lỗi."]
+              "0": [
+                "Không tạo được câu."
+              ],
+              "5": [
+                "Câu đúng cấu trúc, ít lỗi."
+              ]
             },
             "sub_factors": []
           },
@@ -280,8 +491,12 @@
             "label": "Fluency (Độ trôi chảy)",
             "weight": 1,
             "bands": {
-              "0": ["Ngắt quãng liên tục."],
-              "5": ["Nói liền mạch, tự nhiên."]
+              "0": [
+                "Ngắt quãng liên tục."
+              ],
+              "5": [
+                "Nói liền mạch, tự nhiên."
+              ]
             },
             "sub_factors": []
           },
@@ -290,22 +505,36 @@
             "label": "Interaction (Tương tác)",
             "weight": 1,
             "bands": {
-              "0": ["Không phản hồi."],
-              "5": ["Phản hồi nhanh, đúng trọng tâm."]
+              "0": [
+                "Không phản hồi."
+              ],
+              "5": [
+                "Phản hồi nhanh, đúng trọng tâm."
+              ]
             },
             "sub_factors": []
           }
         ],
         "comment_bank": [
-          { "dimension": "pronunciation", "intent": "khen", "text": "Con phát âm rõ ràng lắm!" }
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": "Con phát âm rõ ràng lắm!"
+          }
         ],
         "student_reply": {
           "show_total": true,
           "show_level": true,
           "template": "Tổng: {total}/{max} — {level}",
           "buttons": [
-            { "title": "Em đã xem", "action": "ack" },
-            { "title": "Nhờ cô giải thích thêm", "action": "request_advisor" }
+            {
+              "title": "Em đã xem",
+              "action": "ack"
+            },
+            {
+              "title": "Nhờ cô giải thích thêm",
+              "action": "request_advisor"
+            }
           ]
         }
       },
@@ -315,77 +544,141 @@
         "task_type": "speaking_clip",
         "tone": "khích lệ",
         "feedback_language": "vi",
-        "scale": { "min": 0, "max": 5, "step": 1 },
-        "aggregation": { "method": "sum", "round": "none" },
+        "scale": {
+          "min": 0,
+          "max": 5,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "sum",
+          "round": "none"
+        },
         "levels": [
-          { "min": 0, "max": 10, "code": "A0", "label": "Pre-starter (A0) ~ Tiny Rabbit" },
-          { "min": 11, "max": 15, "code": "A1-", "label": "Starter (A1-) ~ Little Fox" },
-          { "min": 16, "max": 20, "code": "A1", "label": "Mover (A1) ~ Junior Panda" },
-          { "min": 21, "max": 25, "code": "A2", "label": "Flyer (A2) ~ Great Big Dino" }
+          {
+            "min": 0,
+            "max": 10,
+            "code": "A0",
+            "label": "Pre-starter (A0) ~ Tiny Rabbit"
+          },
+          {
+            "min": 11,
+            "max": 15,
+            "code": "A1-",
+            "label": "Starter (A1-) ~ Little Fox"
+          },
+          {
+            "min": 16,
+            "max": 20,
+            "code": "A1",
+            "label": "Mover (A1) ~ Junior Panda"
+          },
+          {
+            "min": 21,
+            "max": 25,
+            "code": "A2",
+            "label": "Flyer (A2) ~ Great Big Dino"
+          }
         ],
-        "output_fields": ["comment"],
+        "output_fields": [
+          "comment"
+        ],
         "dimensions": [
           {
             "key": "pronunciation",
             "label": "Pronunciation (Âm chính)",
             "weight": 1,
             "bands": {
-              "0": ["Không phát âm được, khó hiểu."],
-              "5": ["Phát âm rõ ràng, dễ hiểu, gần chuẩn người bản ngữ."]
+              "0": [
+                "Không phát âm được, khó hiểu."
+              ],
+              "5": [
+                "Phát âm rõ ràng, dễ hiểu, gần chuẩn người bản ngữ."
+              ]
             },
-            "sub_factors": []
+            "sub_factors": [],
+            "criterion_key": "PRONUNCIATION"
           },
           {
             "key": "vocabulary",
             "label": "Vocabulary (Từ vựng)",
             "weight": 1,
             "bands": {
-              "0": ["Không nhớ từ nào."],
-              "5": ["Dùng từ đa dạng, đúng ngữ cảnh."]
+              "0": [
+                "Không nhớ từ nào."
+              ],
+              "5": [
+                "Dùng từ đa dạng, đúng ngữ cảnh."
+              ]
             },
-            "sub_factors": []
+            "sub_factors": [],
+            "criterion_key": null
           },
           {
             "key": "grammar",
             "label": "Grammar (Ngữ pháp)",
             "weight": 1,
             "bands": {
-              "0": ["Không tạo được câu."],
-              "5": ["Câu đúng cấu trúc, ít lỗi."]
+              "0": [
+                "Không tạo được câu."
+              ],
+              "5": [
+                "Câu đúng cấu trúc, ít lỗi."
+              ]
             },
-            "sub_factors": []
+            "sub_factors": [],
+            "criterion_key": null
           },
           {
             "key": "fluency",
             "label": "Fluency (Độ trôi chảy)",
             "weight": 1,
             "bands": {
-              "0": ["Ngắt quãng liên tục."],
-              "5": ["Nói liền mạch, tự nhiên."]
+              "0": [
+                "Ngắt quãng liên tục."
+              ],
+              "5": [
+                "Nói liền mạch, tự nhiên."
+              ]
             },
-            "sub_factors": []
+            "sub_factors": [],
+            "criterion_key": "FLUENCY"
           },
           {
             "key": "interaction",
             "label": "Interaction (Tương tác)",
             "weight": 1,
             "bands": {
-              "0": ["Không phản hồi."],
-              "5": ["Phản hồi nhanh, đúng trọng tâm."]
+              "0": [
+                "Không phản hồi."
+              ],
+              "5": [
+                "Phản hồi nhanh, đúng trọng tâm."
+              ]
             },
-            "sub_factors": []
+            "sub_factors": [],
+            "criterion_key": null
           }
         ],
         "comment_bank": [
-          { "dimension": "pronunciation", "intent": "khen", "text": "Con phát âm rõ ràng lắm!" }
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": "Con phát âm rõ ràng lắm!"
+          }
         ],
         "student_reply": {
           "show_total": true,
           "show_level": true,
           "template": "Tổng: {total}/{max} — {level}",
           "buttons": [
-            { "title": "Em đã xem", "action": "ack" },
-            { "title": "Nhờ cô giải thích thêm", "action": "request_advisor" }
+            {
+              "title": "Em đã xem",
+              "action": "ack"
+            },
+            {
+              "title": "Nhờ cô giải thích thêm",
+              "action": "request_advisor"
+            }
           ]
         }
       }
@@ -398,19 +691,36 @@
         "task_type": "speaking_clip",
         "tone": "chuyên nghiệp",
         "feedback_language": "bilingual",
-        "scale": { "min": 0, "max": 9, "step": 1 },
-        "aggregation": { "method": "average", "round": "nearest_int" },
+        "scale": {
+          "min": 0,
+          "max": 9,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "average",
+          "round": "nearest_int"
+        },
         "levels": [],
-        "output_fields": ["comment", "fix"],
+        "output_fields": [
+          "comment",
+          "fix"
+        ],
         "dimensions": [
           {
             "key": "fluency_coherence",
             "label": "Fluency and Coherence",
             "weight": 1,
             "bands": {
-              "4": ["Nói chậm, lặp nhiều.", "Ngắt quãng rõ rệt."],
-              "6": ["Nói dài được nhưng còn tự sửa."],
-              "8": ["Nói trôi chảy, mạch lạc."]
+              "4": [
+                "Nói chậm, lặp nhiều.",
+                "Ngắt quãng rõ rệt."
+              ],
+              "6": [
+                "Nói dài được nhưng còn tự sửa."
+              ],
+              "8": [
+                "Nói trôi chảy, mạch lạc."
+              ]
             },
             "sub_factors": []
           },
@@ -419,9 +729,15 @@
             "label": "Lexical Resource",
             "weight": 1,
             "bands": {
-              "4": ["Vốn từ hạn chế cho chủ đề quen thuộc."],
-              "6": ["Đủ từ để bàn luận dài."],
-              "8": ["Dùng từ linh hoạt, chính xác."]
+              "4": [
+                "Vốn từ hạn chế cho chủ đề quen thuộc."
+              ],
+              "6": [
+                "Đủ từ để bàn luận dài."
+              ],
+              "8": [
+                "Dùng từ linh hoạt, chính xác."
+              ]
             },
             "sub_factors": []
           },
@@ -430,9 +746,15 @@
             "label": "Grammatical Range and Accuracy",
             "weight": 1,
             "bands": {
-              "4": ["Chủ yếu câu đơn."],
-              "6": ["Kết hợp câu đơn và câu phức."],
-              "8": ["Đa dạng cấu trúc, hầu như không lỗi."]
+              "4": [
+                "Chủ yếu câu đơn."
+              ],
+              "6": [
+                "Kết hợp câu đơn và câu phức."
+              ],
+              "8": [
+                "Đa dạng cấu trúc, hầu như không lỗi."
+              ]
             },
             "sub_factors": []
           },
@@ -441,9 +763,15 @@
             "label": "Pronunciation",
             "weight": 1,
             "bands": {
-              "4": ["Người nghe phải gắng sức."],
-              "6": ["Nhìn chung dễ hiểu."],
-              "8": ["Dễ hiểu xuyên suốt."]
+              "4": [
+                "Người nghe phải gắng sức."
+              ],
+              "6": [
+                "Nhìn chung dễ hiểu."
+              ],
+              "8": [
+                "Dễ hiểu xuyên suốt."
+              ]
             },
             "sub_factors": [
               {
@@ -482,7 +810,11 @@
             "intent": "góp ý",
             "text": "Thử thay 'very good' bằng một tính từ mạnh hơn."
           },
-          { "dimension": null, "intent": null, "text": "Cô nhận bài của em rồi nhé." }
+          {
+            "dimension": null,
+            "intent": null,
+            "text": "Cô nhận bài của em rồi nhé."
+          }
         ],
         "student_reply": null
       },
@@ -492,52 +824,90 @@
         "task_type": "speaking_clip",
         "tone": "chuyên nghiệp",
         "feedback_language": "bilingual",
-        "scale": { "min": 0, "max": 9, "step": 1 },
-        "aggregation": { "method": "average", "round": "nearest_int" },
+        "scale": {
+          "min": 0,
+          "max": 9,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "average",
+          "round": "nearest_int"
+        },
         "levels": [],
-        "output_fields": ["comment", "fix"],
+        "output_fields": [
+          "comment",
+          "fix"
+        ],
         "dimensions": [
           {
             "key": "fluency_coherence",
             "label": "Fluency and Coherence",
             "weight": 1,
             "bands": {
-              "4": ["Nói chậm, lặp nhiều.", "Ngắt quãng rõ rệt."],
-              "6": ["Nói dài được nhưng còn tự sửa."],
-              "8": ["Nói trôi chảy, mạch lạc."]
+              "4": [
+                "Nói chậm, lặp nhiều.",
+                "Ngắt quãng rõ rệt."
+              ],
+              "6": [
+                "Nói dài được nhưng còn tự sửa."
+              ],
+              "8": [
+                "Nói trôi chảy, mạch lạc."
+              ]
             },
-            "sub_factors": []
+            "sub_factors": [],
+            "criterion_key": "FLUENCY"
           },
           {
             "key": "lexical_resource",
             "label": "Lexical Resource",
             "weight": 1,
             "bands": {
-              "4": ["Vốn từ hạn chế cho chủ đề quen thuộc."],
-              "6": ["Đủ từ để bàn luận dài."],
-              "8": ["Dùng từ linh hoạt, chính xác."]
+              "4": [
+                "Vốn từ hạn chế cho chủ đề quen thuộc."
+              ],
+              "6": [
+                "Đủ từ để bàn luận dài."
+              ],
+              "8": [
+                "Dùng từ linh hoạt, chính xác."
+              ]
             },
-            "sub_factors": []
+            "sub_factors": [],
+            "criterion_key": "VOCABULARY"
           },
           {
             "key": "grammatical_range",
             "label": "Grammatical Range and Accuracy",
             "weight": 1,
             "bands": {
-              "4": ["Chủ yếu câu đơn."],
-              "6": ["Kết hợp câu đơn và câu phức."],
-              "8": ["Đa dạng cấu trúc, hầu như không lỗi."]
+              "4": [
+                "Chủ yếu câu đơn."
+              ],
+              "6": [
+                "Kết hợp câu đơn và câu phức."
+              ],
+              "8": [
+                "Đa dạng cấu trúc, hầu như không lỗi."
+              ]
             },
-            "sub_factors": []
+            "sub_factors": [],
+            "criterion_key": "GRAMMAR"
           },
           {
             "key": "pronunciation",
             "label": "Pronunciation",
             "weight": 1,
             "bands": {
-              "4": ["Người nghe phải gắng sức."],
-              "6": ["Nhìn chung dễ hiểu."],
-              "8": ["Dễ hiểu xuyên suốt."]
+              "4": [
+                "Người nghe phải gắng sức."
+              ],
+              "6": [
+                "Nhìn chung dễ hiểu."
+              ],
+              "8": [
+                "Dễ hiểu xuyên suốt."
+              ]
             },
             "sub_factors": [
               {
@@ -557,7 +927,8 @@
                   "8": "Easy to understand"
                 }
               }
-            ]
+            ],
+            "criterion_key": "PRONUNCIATION"
           }
         ],
         "comment_bank": [
@@ -576,7 +947,11 @@
             "intent": "góp ý",
             "text": "Thử thay 'very good' bằng một tính từ mạnh hơn."
           },
-          { "dimension": null, "intent": null, "text": "Cô nhận bài của em rồi nhé." }
+          {
+            "dimension": null,
+            "intent": null,
+            "text": "Cô nhận bài của em rồi nhé."
+          }
         ],
         "student_reply": null
       }
@@ -589,13 +964,24 @@
         "task_type": "speaking_clip",
         "tone": "khích lệ",
         "feedback_language": "vi",
-        "scale": { "min": 0, "max": 5, "step": 0.5 },
+        "scale": {
+          "min": 0,
+          "max": 5,
+          "step": 0.5
+        },
         "dimensions": [
           {
             "key": "pronunciation",
             "label": "Pronunciation",
             "weight": 1,
-            "bands": { "0": ["kém"], "5": ["tốt"] }
+            "bands": {
+              "0": [
+                "kém"
+              ],
+              "5": [
+                "tốt"
+              ]
+            }
           }
         ]
       },
@@ -605,17 +991,34 @@
         "task_type": "speaking_clip",
         "tone": "khích lệ",
         "feedback_language": "vi",
-        "scale": { "min": 0, "max": 5, "step": 0.5 },
-        "aggregation": { "method": "average", "round": "none" },
+        "scale": {
+          "min": 0,
+          "max": 5,
+          "step": 0.5
+        },
+        "aggregation": {
+          "method": "average",
+          "round": "none"
+        },
         "levels": [],
-        "output_fields": ["comment"],
+        "output_fields": [
+          "comment"
+        ],
         "dimensions": [
           {
             "key": "pronunciation",
             "label": "Pronunciation",
             "weight": 1,
-            "bands": { "0": ["kém"], "5": ["tốt"] },
-            "sub_factors": []
+            "bands": {
+              "0": [
+                "kém"
+              ],
+              "5": [
+                "tốt"
+              ]
+            },
+            "sub_factors": [],
+            "criterion_key": "PRONUNCIATION"
           }
         ],
         "comment_bank": [],
@@ -627,8 +1030,15 @@
       "input": {
         "schema_version": 2,
         "course_key": "ARRAYS",
-        "scale": { "min": 0, "max": 3, "step": 1 },
-        "aggregation": { "method": "weighted_average", "round": "none" },
+        "scale": {
+          "min": 0,
+          "max": 3,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "weighted_average",
+          "round": "none"
+        },
         "levels": [],
         "output_fields": [],
         "dimensions": [
@@ -636,7 +1046,15 @@
             "key": "pronunciation",
             "label": "Pronunciation",
             "weight": 0.5,
-            "bands": { "0": ["a", "b"], "3": ["c"] },
+            "bands": {
+              "0": [
+                "a",
+                "b"
+              ],
+              "3": [
+                "c"
+              ]
+            },
             "sub_factors": []
           }
         ],
@@ -649,8 +1067,15 @@
         "task_type": "speaking_clip",
         "tone": "khích lệ",
         "feedback_language": "vi",
-        "scale": { "min": 0, "max": 3, "step": 1 },
-        "aggregation": { "method": "weighted_average", "round": "none" },
+        "scale": {
+          "min": 0,
+          "max": 3,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "weighted_average",
+          "round": "none"
+        },
         "levels": [],
         "output_fields": [],
         "dimensions": [
@@ -658,8 +1083,17 @@
             "key": "pronunciation",
             "label": "Pronunciation",
             "weight": 0.5,
-            "bands": { "0": ["a", "b"], "3": ["c"] },
-            "sub_factors": []
+            "bands": {
+              "0": [
+                "a",
+                "b"
+              ],
+              "3": [
+                "c"
+              ]
+            },
+            "sub_factors": [],
+            "criterion_key": "PRONUNCIATION"
           }
         ],
         "comment_bank": [],
@@ -671,13 +1105,36 @@
       "input": {
         "schema_version": 2,
         "course_key": "MIXED",
-        "band_scale": [0, 5],
-        "dimensions": [
-          { "name": "pronunciation", "weight": 1, "bands": { "0": "kém", "5": "tốt" } },
-          { "key": "fluency", "weight": 1, "bands": { "0": ["kém"] } },
-          { "label": "Vocabulary", "bands": {} }
+        "band_scale": [
+          0,
+          5
         ],
-        "few_shot_examples": ["Ví dụ cũ vẫn phải giữ."]
+        "dimensions": [
+          {
+            "name": "pronunciation",
+            "weight": 1,
+            "bands": {
+              "0": "kém",
+              "5": "tốt"
+            }
+          },
+          {
+            "key": "fluency",
+            "weight": 1,
+            "bands": {
+              "0": [
+                "kém"
+              ]
+            }
+          },
+          {
+            "label": "Vocabulary",
+            "bands": {}
+          }
+        ],
+        "few_shot_examples": [
+          "Ví dụ cũ vẫn phải giữ."
+        ]
       },
       "expected": {
         "schema_version": 2,
@@ -685,34 +1142,63 @@
         "task_type": "speaking_clip",
         "tone": "khích lệ",
         "feedback_language": "vi",
-        "scale": { "min": 0, "max": 5, "step": 1 },
-        "aggregation": { "method": "average", "round": "none" },
+        "scale": {
+          "min": 0,
+          "max": 5,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "average",
+          "round": "none"
+        },
         "levels": [],
-        "output_fields": ["comment"],
+        "output_fields": [
+          "comment"
+        ],
         "dimensions": [
           {
             "key": "pronunciation",
             "label": "pronunciation",
             "weight": 1,
-            "bands": { "0": ["kém"], "5": ["tốt"] },
-            "sub_factors": []
+            "bands": {
+              "0": [
+                "kém"
+              ],
+              "5": [
+                "tốt"
+              ]
+            },
+            "sub_factors": [],
+            "criterion_key": "PRONUNCIATION"
           },
           {
             "key": "fluency",
             "label": "fluency",
             "weight": 1,
-            "bands": { "0": ["kém"] },
-            "sub_factors": []
+            "bands": {
+              "0": [
+                "kém"
+              ]
+            },
+            "sub_factors": [],
+            "criterion_key": "FLUENCY"
           },
           {
             "key": "Vocabulary",
             "label": "Vocabulary",
             "weight": 1,
             "bands": {},
-            "sub_factors": []
+            "sub_factors": [],
+            "criterion_key": null
           }
         ],
-        "comment_bank": [{ "dimension": null, "intent": null, "text": "Ví dụ cũ vẫn phải giữ." }],
+        "comment_bank": [
+          {
+            "dimension": null,
+            "intent": null,
+            "text": "Ví dụ cũ vẫn phải giữ."
+          }
+        ],
         "student_reply": null
       }
     },
@@ -720,16 +1206,54 @@
       "name": "v1_null_comment_text",
       "input": {
         "course_key": "NULLTEXT",
-        "band_scale": [0, 3],
-        "dimensions": [{ "name": "pronunciation", "weight": 1, "bands": { "0": "kém" } }],
+        "band_scale": [
+          0,
+          3
+        ],
+        "dimensions": [
+          {
+            "name": "pronunciation",
+            "weight": 1,
+            "bands": {
+              "0": "kém"
+            }
+          }
+        ],
         "comment_bank": [
-          { "dimension": "pronunciation", "intent": "khen", "text": null },
-          { "dimension": "pronunciation", "intent": "khen" },
-          { "dimension": "pronunciation", "intent": "khen", "text": "   " },
-          { "dimension": "pronunciation", "intent": "khen", "text": "" },
-          { "dimension": "pronunciation", "intent": "khen", "text": false },
-          { "dimension": "pronunciation", "intent": "khen", "text": 0 },
-          { "dimension": "pronunciation", "intent": "khen", "text": "  giữ lại  " }
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": null
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen"
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": "   "
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": ""
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": false
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": 0
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": "  giữ lại  "
+          }
         ]
       },
       "expected": {
@@ -738,23 +1262,49 @@
         "task_type": "speaking_clip",
         "tone": "khích lệ",
         "feedback_language": "vi",
-        "scale": { "min": 0, "max": 3, "step": 1 },
-        "aggregation": { "method": "average", "round": "none" },
+        "scale": {
+          "min": 0,
+          "max": 3,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "average",
+          "round": "none"
+        },
         "levels": [],
-        "output_fields": ["comment"],
+        "output_fields": [
+          "comment"
+        ],
         "dimensions": [
           {
             "key": "pronunciation",
             "label": "pronunciation",
             "weight": 1,
-            "bands": { "0": ["kém"] },
-            "sub_factors": []
+            "bands": {
+              "0": [
+                "kém"
+              ]
+            },
+            "sub_factors": [],
+            "criterion_key": "PRONUNCIATION"
           }
         ],
         "comment_bank": [
-          { "dimension": "pronunciation", "intent": "khen", "text": "false" },
-          { "dimension": "pronunciation", "intent": "khen", "text": "0" },
-          { "dimension": "pronunciation", "intent": "khen", "text": "giữ lại" }
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": "false"
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": "0"
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": "giữ lại"
+          }
         ],
         "student_reply": null
       }
@@ -764,8 +1314,24 @@
       "input": {
         "schema_version": 2,
         "course_key": "NONSTRING",
-        "scale": { "min": 0, "max": 3, "step": 1 },
-        "output_fields": ["comment", 7, true, null, ["", "fix"], { "a": 1 }],
+        "scale": {
+          "min": 0,
+          "max": 3,
+          "step": 1
+        },
+        "output_fields": [
+          "comment",
+          7,
+          true,
+          null,
+          [
+            "",
+            "fix"
+          ],
+          {
+            "a": 1
+          }
+        ],
         "dimensions": [
           {
             "key": "pronunciation",
@@ -775,29 +1341,87 @@
               "0": 7,
               "1": true,
               "2": null,
-              "3": ["a", "b"],
-              "4": { "a": 1 },
-              "5": 1e21,
-              "6": 1.1920928955078125e-7,
-              "7": [1, null, ["x", "y"], { "b": 2 }, "  c  ", "   "],
+              "3": [
+                "a",
+                "b"
+              ],
+              "4": {
+                "a": 1
+              },
+              "5": 1e+21,
+              "6": 1.1920928955078125e-07,
+              "7": [
+                1,
+                null,
+                [
+                  "x",
+                  "y"
+                ],
+                {
+                  "b": 2
+                },
+                "  c  ",
+                "   "
+              ],
               "8": 2.5,
               "9": ""
             },
             "sub_factors": [
               {
                 "label": "Phạm vi",
-                "by_band": { "0": 4, "3": true, "5": null, "6": ["a", "b"], "8": { "a": 1 }, "9": 1e21 }
+                "by_band": {
+                  "0": 4,
+                  "3": true,
+                  "5": null,
+                  "6": [
+                    "a",
+                    "b"
+                  ],
+                  "8": {
+                    "a": 1
+                  },
+                  "9": 1e+21
+                }
               }
             ]
           }
         ],
         "comment_bank": [
-          { "dimension": "pronunciation", "intent": "khen", "text": 7 },
-          { "dimension": "pronunciation", "intent": "khen", "text": ["a", "b"] },
-          { "dimension": "pronunciation", "intent": "khen", "text": { "a": 1 } },
-          { "dimension": "pronunciation", "intent": "khen", "text": true },
-          { "dimension": "pronunciation", "intent": "khen", "text": 1e21 },
-          { "dimension": "pronunciation", "intent": "khen", "text": [] }
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": 7
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": [
+              "a",
+              "b"
+            ]
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": {
+              "a": 1
+            }
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": true
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": 1e+21
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": []
+          }
         ]
       },
       "expected": {
@@ -806,25 +1430,62 @@
         "task_type": "speaking_clip",
         "tone": "khích lệ",
         "feedback_language": "vi",
-        "scale": { "min": 0, "max": 3, "step": 1 },
-        "aggregation": { "method": "average", "round": "none" },
+        "scale": {
+          "min": 0,
+          "max": 3,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "average",
+          "round": "none"
+        },
         "levels": [],
-        "output_fields": ["comment", "7", "true", "null", ",fix", "[object Object]"],
+        "output_fields": [
+          "comment",
+          "7",
+          "true",
+          "null",
+          ",fix",
+          "[object Object]"
+        ],
         "dimensions": [
           {
             "key": "pronunciation",
             "label": "Pronunciation",
             "weight": 1,
             "bands": {
-              "0": ["7"],
-              "1": ["true"],
-              "2": ["null"],
-              "3": ["a", "b"],
-              "4": ["[object Object]"],
-              "5": ["1e+21"],
-              "6": ["1.1920928955078125e-7"],
-              "7": ["1", "null", "x,y", "[object Object]", "c"],
-              "8": ["2.5"],
+              "0": [
+                "7"
+              ],
+              "1": [
+                "true"
+              ],
+              "2": [
+                "null"
+              ],
+              "3": [
+                "a",
+                "b"
+              ],
+              "4": [
+                "[object Object]"
+              ],
+              "5": [
+                "1e+21"
+              ],
+              "6": [
+                "1.1920928955078125e-7"
+              ],
+              "7": [
+                "1",
+                "null",
+                "x,y",
+                "[object Object]",
+                "c"
+              ],
+              "8": [
+                "2.5"
+              ],
               "9": []
             },
             "sub_factors": [
@@ -839,15 +1500,36 @@
                   "9": "1e+21"
                 }
               }
-            ]
+            ],
+            "criterion_key": "PRONUNCIATION"
           }
         ],
         "comment_bank": [
-          { "dimension": "pronunciation", "intent": "khen", "text": "7" },
-          { "dimension": "pronunciation", "intent": "khen", "text": "a,b" },
-          { "dimension": "pronunciation", "intent": "khen", "text": "[object Object]" },
-          { "dimension": "pronunciation", "intent": "khen", "text": "true" },
-          { "dimension": "pronunciation", "intent": "khen", "text": "1e+21" }
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": "7"
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": "a,b"
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": "[object Object]"
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": "true"
+          },
+          {
+            "dimension": "pronunciation",
+            "intent": "khen",
+            "text": "1e+21"
+          }
         ],
         "student_reply": null
       }
@@ -856,9 +1538,34 @@
       "name": "v1_non_string_few_shot_examples",
       "input": {
         "course_key": "FEWSHOT",
-        "band_scale": [0, 3],
-        "dimensions": [{ "name": "pronunciation", "bands": { "0": "kém" } }],
-        "few_shot_examples": ["  Bài tốt.  ", null, 12, ["a", "b"], { "a": 1 }, "", "   ", true, 1e21]
+        "band_scale": [
+          0,
+          3
+        ],
+        "dimensions": [
+          {
+            "name": "pronunciation",
+            "bands": {
+              "0": "kém"
+            }
+          }
+        ],
+        "few_shot_examples": [
+          "  Bài tốt.  ",
+          null,
+          12,
+          [
+            "a",
+            "b"
+          ],
+          {
+            "a": 1
+          },
+          "",
+          "   ",
+          true,
+          1e+21
+        ]
       },
       "expected": {
         "schema_version": 2,
@@ -866,27 +1573,69 @@
         "task_type": "speaking_clip",
         "tone": "khích lệ",
         "feedback_language": "vi",
-        "scale": { "min": 0, "max": 3, "step": 1 },
-        "aggregation": { "method": "average", "round": "none" },
+        "scale": {
+          "min": 0,
+          "max": 3,
+          "step": 1
+        },
+        "aggregation": {
+          "method": "average",
+          "round": "none"
+        },
         "levels": [],
-        "output_fields": ["comment"],
+        "output_fields": [
+          "comment"
+        ],
         "dimensions": [
           {
             "key": "pronunciation",
             "label": "pronunciation",
             "weight": 1,
-            "bands": { "0": ["kém"] },
-            "sub_factors": []
+            "bands": {
+              "0": [
+                "kém"
+              ]
+            },
+            "sub_factors": [],
+            "criterion_key": "PRONUNCIATION"
           }
         ],
         "comment_bank": [
-          { "dimension": null, "intent": null, "text": "Bài tốt." },
-          { "dimension": null, "intent": null, "text": "null" },
-          { "dimension": null, "intent": null, "text": "12" },
-          { "dimension": null, "intent": null, "text": "a,b" },
-          { "dimension": null, "intent": null, "text": "[object Object]" },
-          { "dimension": null, "intent": null, "text": "true" },
-          { "dimension": null, "intent": null, "text": "1e+21" }
+          {
+            "dimension": null,
+            "intent": null,
+            "text": "Bài tốt."
+          },
+          {
+            "dimension": null,
+            "intent": null,
+            "text": "null"
+          },
+          {
+            "dimension": null,
+            "intent": null,
+            "text": "12"
+          },
+          {
+            "dimension": null,
+            "intent": null,
+            "text": "a,b"
+          },
+          {
+            "dimension": null,
+            "intent": null,
+            "text": "[object Object]"
+          },
+          {
+            "dimension": null,
+            "intent": null,
+            "text": "true"
+          },
+          {
+            "dimension": null,
+            "intent": null,
+            "text": "1e+21"
+          }
         ],
         "student_reply": null
       }
@@ -907,18 +1656,18 @@
             "label": "Pronunciation",
             "weight": 1,
             "bands": {
-              "0": "\ufeffx\ufeff",
-              "1": "\ufeff",
-              "2": "\u0085x\u0085",
-              "3": "\u0085",
+              "0": "﻿x﻿",
+              "1": "﻿",
+              "2": "x",
+              "3": "",
               "4": "\u001cx\u001c",
-              "5": "\u00a0\u3000x\u3000\u00a0",
-              "6": "\u00a0\u3000",
-              "7": "\u200bx\u200b",
+              "5": " 　x　 ",
+              "6": " 　",
+              "7": "​x​",
               "8": [
-                "\ufeffa\ufeff",
-                "\ufeff",
-                "\u0085",
+                "﻿a﻿",
+                "﻿",
+                "",
                 " b ",
                 "   "
               ]
@@ -927,7 +1676,7 @@
               {
                 "label": "Phạm vi",
                 "by_band": {
-                  "0": "\ufeffgiữ nguyên\ufeff"
+                  "0": "﻿giữ nguyên﻿"
                 }
               }
             ]
@@ -937,17 +1686,17 @@
           {
             "dimension": "pronunciation",
             "intent": "khen",
-            "text": "\ufeffgiữ lại\ufeff"
+            "text": "﻿giữ lại﻿"
           },
           {
             "dimension": "pronunciation",
             "intent": "khen",
-            "text": "\ufeff"
+            "text": "﻿"
           },
           {
             "dimension": "pronunciation",
             "intent": "khen",
-            "text": "\u0085"
+            "text": ""
           }
         ]
       },
@@ -981,10 +1730,10 @@
               ],
               "1": [],
               "2": [
-                "\u0085x\u0085"
+                "x"
               ],
               "3": [
-                "\u0085"
+                ""
               ],
               "4": [
                 "\u001cx\u001c"
@@ -994,11 +1743,11 @@
               ],
               "6": [],
               "7": [
-                "\u200bx\u200b"
+                "​x​"
               ],
               "8": [
                 "a",
-                "\u0085",
+                "",
                 "b"
               ]
             },
@@ -1006,10 +1755,11 @@
               {
                 "label": "Phạm vi",
                 "by_band": {
-                  "0": "\ufeffgiữ nguyên\ufeff"
+                  "0": "﻿giữ nguyên﻿"
                 }
               }
-            ]
+            ],
+            "criterion_key": "PRONUNCIATION"
           }
         ],
         "comment_bank": [
@@ -1021,7 +1771,7 @@
           {
             "dimension": "pronunciation",
             "intent": "khen",
-            "text": "\u0085"
+            "text": ""
           }
         ],
         "student_reply": null

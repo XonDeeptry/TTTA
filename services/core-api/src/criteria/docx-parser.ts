@@ -1,6 +1,11 @@
 import mammoth from 'mammoth';
 import { BadRequestException } from '@nestjs/common';
-import { PRONUNCIATION_DIMENSION, RubricDimensionV2, RubricV2 } from './rubric-schema';
+import {
+  DEFAULT_CRITERION_BY_DIMENSION,
+  PRONUNCIATION_DIMENSION,
+  RubricDimensionV2,
+  RubricV2,
+} from './rubric-schema';
 
 /**
  * Bóc .docx theo template chuẩn (mục 3.9) — 4 heading bắt buộc, mỗi heading dùng một
@@ -131,12 +136,21 @@ function parseScale(raw: string | undefined): RubricV2['scale'] {
 function toV2Dimension(parsed: ParsedDimension): RubricDimensionV2 {
   const bands: Record<string, string[]> = {};
   for (const [band, desc] of Object.entries(parsed.bands)) bands[band] = [desc];
+  const key = parsed.name.trim().toLowerCase();
   return {
-    key: parsed.name.trim().toLowerCase(),
+    key,
     label: parsed.name.trim(),
     weight: Number.isFinite(parsed.weight) ? parsed.weight : 1,
     bands,
     sub_factors: [],
+    // Một file .docx không mang tiêu chí trung tâm — giáo viên chỉ gõ tên chiều. Tra cùng
+    // BẢNG MẶC ĐỊNH mà `normalizeRubric` dùng, nên rubric bóc từ file gắn đúng tiêu chí mà
+    // giáo viên không cần biết tới khái niệm này.
+    //
+    // Phải tra Ở ĐÂY chứ không để normalize điền hộ: đầu ra của parser là ĐIỂM BẤT ĐỘNG của
+    // normalizeRubric (spec "produces output that is already a normalizeRubric fixed point").
+    // Trả `null` rồi để normalize đổi thành 'PRONUNCIATION' sẽ phá đúng bất biến đó.
+    criterion_key: DEFAULT_CRITERION_BY_DIMENSION[key] ?? null,
   };
 }
 

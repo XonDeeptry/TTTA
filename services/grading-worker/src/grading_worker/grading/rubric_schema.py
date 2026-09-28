@@ -33,6 +33,26 @@ from typing import Any, TypedDict
 # Dimension bắt buộc (mục 3.10) — hằng gốc; `schema.py` import lại từ đây để chỉ có MỘT chỗ khai báo.
 PRONUNCIATION_DIMENSION = "pronunciation"
 
+# Ánh xạ mặc định: khóa chiều → tiêu chí trong bộ tiêu chí chung của trung tâm.
+#
+# Chín chiều của hai mẫu được seed (`cambridge_yl_a0_a2`, `ielts_speaking`) gộp lại còn TÁM
+# khóa duy nhất và KHÔNG xung đột — `pronunciation` có ở cả hai mẫu và đo cùng một tiêu chí.
+# Nhờ vậy hàm chuẩn hóa KHÔNG cần biết rubric thuộc mẫu nào.
+#
+# Chỉ là lưới đỡ cho rubric soạn TRƯỚC khi có `criterion_key`; giá trị có sẵn LUÔN thắng.
+#
+# ⚠ Bản TypeScript `rubric-schema.ts` có bảng y hệt. Sửa một bên phải sửa bên kia cùng commit.
+DEFAULT_CRITERION_BY_DIMENSION: dict[str, str] = {
+    "pronunciation": "PRONUNCIATION",
+    "intonation": "INTONATION",
+    "ending_sounds": "ENDING_SOUNDS",
+    "word_stress": "WORD_STRESS",
+    "fluency": "FLUENCY",
+    "fluency_coherence": "FLUENCY",
+    "lexical_resource": "VOCABULARY",
+    "grammatical_range": "GRAMMAR",
+}
+
 
 class RubricScale(TypedDict):
     min: int | float
@@ -63,6 +83,10 @@ class RubricDimensionV2(TypedDict):
     weight: int | float
     bands: dict[str, list[str]]  # band -> danh sách gạch đầu dòng
     sub_factors: list[RubricSubFactor]  # luôn có mặt; [] nếu không dùng
+    # Tiêu chí trong BỘ TIÊU CHÍ CHUNG CỦA TRUNG TÂM mà chiều này đo (ILM-Clone D27/D41).
+    # None = chưa ánh xạ được — điểm vẫn tồn tại và xuống kho phân tích dưới `UNMAPPED`,
+    # KHÔNG bị bỏ đi, để độ lớn của lỗ hổng nhìn thấy được.
+    criterion_key: str | None
 
 
 class CommentBankEntry(TypedDict):
@@ -351,12 +375,21 @@ def _normalize_dimension(raw: dict[str, Any], is_v2: bool) -> RubricDimensionV2:
     label = label if label is not None else key
 
     weight = _as_finite_number(raw.get("weight"))
+
+    # Giá trị đã soạn LUÔN thắng; bảng mặc định chỉ đỡ cho rubric cũ. Không tra được ⇒ None,
+    # và None là một trạng thái HỢP LỆ, không phải lỗi (D41).
+    raw_criterion = _as_string(raw.get("criterion_key"))
+    criterion_key = (
+        raw_criterion if raw_criterion is not None else DEFAULT_CRITERION_BY_DIMENSION.get(key)
+    )
+
     return {
         "key": key,
         "label": label,
         "weight": weight if weight is not None else 1,
         "bands": _normalize_bands(raw.get("bands")),
         "sub_factors": _normalize_sub_factors(raw.get("sub_factors")),
+        "criterion_key": criterion_key,
     }
 
 

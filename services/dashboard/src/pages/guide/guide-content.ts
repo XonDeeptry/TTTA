@@ -79,8 +79,11 @@ export interface GuideContent {
     content: GuideSection;
     structure: GuideSection;
     criteriaTrouble: GuideSection;
+    queue: GuideSection;
+    focus: GuideSection;
     after: GuideSection;
     wordLabels: GuideSection;
+    wordActions: GuideSection;
     gradingTrouble: GuideSection;
   };
 }
@@ -91,7 +94,7 @@ export type GuideSectionId = keyof GuideContent['sections'];
 export const GUIDE_TABS: Record<GuideTabId, readonly GuideSectionId[]> = {
   features: ['overview', 'pages'],
   criteria: ['concepts', 'who', 'content', 'structure', 'criteriaTrouble'],
-  grading: ['after', 'wordLabels', 'gradingTrouble'],
+  grading: ['queue', 'focus', 'after', 'wordLabels', 'wordActions', 'gradingTrouble'],
 };
 
 const IMG = {
@@ -477,6 +480,116 @@ export const guideVi: GuideContent = {
       },
     },
 
+    queue: {
+      heading: 'Màn Bài nộp — đọc danh sách và trạng thái',
+      intro: [
+        'Mỗi dòng là MỘT TIN học viên gửi vào Zalo OA của trung tâm — không phải dòng nào cũng là bài nói. Việc của giáo viên nằm ở các dòng "awaiting_review"; phần lớn dòng còn lại chỉ để tra cứu.',
+        'Bấm "Xem" trên bất kỳ dòng nào để mở chi tiết. Bài không chấm được thì cuối trang chi tiết có mục "Ghi chú (flags)" nói rõ lý do.',
+      ],
+      terms: [
+        {
+          term: 'Cột Học viên hiện "—"',
+          desc: 'Hệ thống chưa biết tin này của học viên nào: Zalo gửi tin chưa được kích hoạt (xem mục Onboarding), hoặc một Zalo dùng chung cho nhiều học viên mà phụ huynh chưa chọn bài này của bạn nào. Tin loại follow/text luôn có thể hiện "—" — bình thường.',
+        },
+        {
+          term: 'Cột Loại',
+          desc: 'audio / video: ghi âm hoặc quay trực tiếp trong Zalo — được chấm. file: tệp đính kèm (học viên thu bằng app khác rồi gửi) — được chấm nếu tệp đúng là âm thanh/video. text: tin chữ. image: ảnh. follow: học viên vừa bấm "Quan tâm" Zalo OA — không phải bài nộp. Hệ thống KHÔNG chấm và KHÔNG trả lời text, image, follow.',
+        },
+        {
+          term: 'received (xám) — Đã nhận, chưa chấm',
+          desc: 'Bình thường với text, image, follow: dừng ở đây, không cần làm gì. Cần để ý khi Loại là audio/video/file mà Học viên là "—": học viên chưa được kích hoạt nên bài chưa được chấm. Kích hoạt ở mục Onboarding rồi nhờ học viên gửi lại — bài cũ KHÔNG tự chấm lại sau khi kích hoạt.',
+        },
+        {
+          term: 'processing — Đang chấm',
+          desc: 'Hệ thống đang tải file, đo phát âm và viết nhận xét — thường xong trong vài phút, clip dài lâu hơn. Nếu một bài đứng ở trạng thái này quá lâu (ví dụ sau 15 phút vẫn chưa đổi), hệ thống đã thử lại mà không chấm được: báo quản trị viên kèm tên học viên và giờ nhận.',
+        },
+        {
+          term: 'awaiting_review (cam) — Chờ giáo viên duyệt',
+          desc: 'AI đã chấm xong. ĐÂY LÀ VIỆC CỦA BẠN. Học viên CHƯA nhận được gì cho tới khi có người bấm "Gửi cho học viên". Hạn là 48 giờ kể từ lúc học viên nhắn.',
+        },
+        {
+          term: 'sent (xanh) — Đã gửi',
+          desc: 'Tin nhận xét đã đi. Hoặc do giáo viên bấm Gửi, hoặc lớp được cài tự gửi không qua duyệt. Bài đã gửi thì mọi ô khóa lại, không sửa hay gửi lại được.',
+        },
+        {
+          term: 'failed (đỏ) — Không chấm được',
+          desc: 'Bấm Xem, đọc "Ghi chú (flags)" ở cuối trang. Lý do hay gặp: học viên chưa được gán khóa học (sửa ở màn Học viên); khóa chưa có bộ tiêu chí (tab Tạo tiêu chí); clip dài quá giới hạn — mặc định 7 phút, học viên đã tự nhận tin nhờ gửi clip ngắn hơn; tệp đính kèm không phải âm thanh. Sửa xong nguyên nhân thì nhờ học viên gửi lại — bài lỗi không tự chấm lại.',
+        },
+      ],
+      steps: [
+        {
+          title: 'Thứ tự làm mỗi lần mở màn Bài nộp',
+          body: [
+            '1. Lọc Trạng thái = "awaiting_review". Làm bài CŨ NHẤT trước (danh sách xếp mới nhất ở trên, nên làm từ dưới lên) — hạn 48 giờ tính từ lúc học viên nhắn, không phải lúc bạn mở bài.',
+            '2. Lọc "failed": xem ghi chú, sửa nguyên nhân nếu thuộc phần việc của bạn, hoặc báo quản trị viên.',
+            '3. Lọc "received": nếu có dòng audio/video/file mà Học viên là "—", báo tư vấn/quản trị viên kích hoạt tài khoản rồi nhờ học viên gửi lại.',
+          ],
+          uiKeys: ['nav.submissions', 'submissions.filterStatus', 'submissions.filterClass', 'submissions.view'],
+        },
+      ],
+      example: {
+        title: 'Ví dụ đọc một đoạn danh sách',
+        text:
+          '— · follow · received → học viên mới bấm Quan tâm OA. Không cần làm gì.\n' +
+          '— · file · received → một Zalo chưa kích hoạt gửi tệp. Cần kích hoạt rồi nhờ gửi lại.\n' +
+          'Bùi Quang Vũ · file · failed (4:29 PM), rồi Bùi Quang Vũ · file · sent (4:31 PM) → lần đầu không chấm được, học viên gửi lại và bài mới đã được gửi nhận xét.\n' +
+          'Bùi Văn Sơn (PILOT-TEST) · file · awaiting_review → việc của giáo viên: bấm Xem để duyệt.',
+      },
+    },
+
+    focus: {
+      heading: 'Khi duyệt một bài, tập trung vào đâu',
+      intro: [
+        'Học viên nhận ĐÚNG những gì nằm trong các ô chữ trên trang chi tiết — không kèm điểm số. Vì vậy thời gian nên dồn vào những gì học viên đọc và làm theo, theo thứ tự dưới đây.',
+      ],
+      steps: [
+        {
+          title: 'Danh sách từ phát âm sai — ưu tiên số 1',
+          body: [
+            'Đây là phần học viên dùng trực tiếp để luyện, và là phần máy hay sai nhất. Nghe trước các từ có nhãn vàng "Cần giáo viên nghe lại", rồi các từ "Gemini phát hiện (Azure bỏ sót)", sau cùng là từ không nhãn.',
+            'Với mỗi từ, trả lời một câu: học viên đọc từ này sai thật không? Sai → giữ. Đúng → "Gắn sai". Nghe thấy lỗi mà máy không có → "+ Thêm từ AI bỏ sót". Chi tiết từng nút ở mục "Gắn sai và Thêm từ — bấm xong chuyện gì xảy ra".',
+          ],
+          uiKeys: ['submissions.wordNeedsReview', 'submissions.wordFromGemini', 'submissions.removeWord', 'submissions.addWord'],
+        },
+        {
+          title: 'Hướng sửa từng từ — đúng và làm theo được',
+          body: [
+            'Kiểm tra phiên âm trong hướng sửa có đúng từ điển không, và lời khuyên có chỉ ra CỤ THỂ phải làm gì với miệng, lưỡi, âm nào.',
+            'Tốt: "Khép môi phát âm rõ âm cuối /v/ trong /lʌv/, tránh đọc thành âm /s/." Chưa tốt: "Chú ý phát âm từ này hơn." — học viên không biết phải sửa gì.',
+            'Hướng sửa phải khớp với lỗi: dòng "express — nghe thành /t/ thay vì /s/" thì hướng sửa phải nói về âm /s/ cuối, không phải về trọng âm.',
+          ],
+        },
+        {
+          title: 'Nhận xét chung ở đầu tin',
+          body: [
+            'Đây là đoạn học viên (và phụ huynh) đọc đầu tiên. Kiểm tra: xưng hô thống nhất với cả tin; không nhắc điểm số hay "band"; khen/góp ý đúng với bài này chứ không chung chung.',
+            'Mở "Nhận xét AI (gốc)" ngay dưới ô nếu muốn so với bản ban đầu.',
+          ],
+          uiKeys: ['submissions.overallFeedback', 'submissions.llmFeedback'],
+        },
+        {
+          title: 'Nhận xét và Hướng sửa từng tiêu chí',
+          body: [
+            'AI đôi khi trích một câu hay một từ KHÔNG có trong bài. Mọi ví dụ AI trích ("em nói it require…") phải nghe thấy được trong audio — không nghe thấy thì xóa hoặc thay bằng ví dụ thật.',
+            'Sau khi "Gắn sai" một từ, đọc lại nhận xét phát âm: nếu câu nhận xét vẫn nhắc tới từ đó, sửa luôn câu đó — "Gắn sai" chỉ bỏ dòng trong danh sách từ, không sửa chữ trong nhận xét.',
+          ],
+          uiKeys: ['submissions.comment', 'submissions.scoreFix'],
+        },
+        {
+          title: 'Điểm — sửa khi lệch rõ, không cần tinh chỉnh',
+          body: [
+            'Học viên không thấy điểm; điểm dùng cho báo cáo và để đo AI lệch giáo viên bao nhiêu. Sửa khi bạn chắc AI lệch rõ (ví dụ AI cho 4, bạn chấm 2). Không cần mất thời gian cân nhắc chênh lệch nhỏ.',
+            'Tổng điểm và "Số liệu đo bằng Azure" (0–100) chỉ để tham khảo, không sửa được và không gửi cho học viên.',
+          ],
+          uiKeys: ['submissions.dimensionScore', 'submissions.azureTitle'],
+        },
+      ],
+      callout: {
+        kind: 'warn',
+        text: 'Chỉnh sửa CHƯA được lưu cho tới khi bạn bấm Lưu hoặc Gửi. Rời trang, tải lại trang (F5) hay đóng tab là mất hết phần đang sửa. Duyệt dở mà phải đi việc khác thì bấm Lưu trước.',
+      },
+    },
+
     after: {
       heading: 'Duyệt bài và gửi nhận xét cho học viên',
       intro: ['Bài chấm xong không tự gửi — giáo viên đọc lại rồi mới gửi.'],
@@ -499,9 +612,7 @@ export const guideVi: GuideContent = {
           title: 'Sửa trực tiếp mọi thứ học viên sẽ nhận',
           body: [
             'Sửa được tất cả: nhận xét chung ở đầu tin, điểm từng tiêu chí, nhận xét, hướng sửa, và gợi ý cho từng từ phát âm sai.',
-            'Nghe lại một từ (bấm ▶ cạnh từ) mà thấy học viên đọc ĐÚNG — máy đánh dấu nhầm — thì bấm "Gắn sai" cạnh từ đó. Chỉ RIÊNG từ đó bị bỏ khỏi tin gửi học viên; các từ khác, điểm và nhận xét giữ nguyên. Bản AI vẫn được lưu. Từ có nhãn "Cần giáo viên nghe lại" là từ nên nghe trước.',
-            'Nghe thấy học viên đọc sai một từ mà máy KHÔNG đánh dấu: dừng audio đúng chỗ đó, bấm "+ Thêm từ AI bỏ sót", gõ từ và hướng sửa.',
-            'Khi bấm Gửi, hệ thống ghi lại từ nào bạn giữ, gắn sai hay thêm để đánh giá độ chính xác của máy chấm. Hãy gắn sai và thêm từ đúng như bạn nghe — đừng giữ một từ chỉ vì máy đã đánh dấu.',
+            'Từ học viên đọc ĐÚNG mà máy đánh dấu nhầm → "Gắn sai". Từ học viên đọc sai mà máy bỏ sót → dừng audio đúng chỗ, bấm "+ Thêm từ AI bỏ sót". Bấm xong chuyện gì xảy ra: xem mục "Gắn sai và Thêm từ — bấm xong chuyện gì xảy ra".',
             'Điểm bạn sửa khác điểm AI thì cạnh ô hiện nhãn "AI: …" để đối chiếu. Bản gốc của AI luôn được giữ lại — dùng để đo AI lệch giáo viên bao nhiêu.',
             'Học viên KHÔNG nhận điểm số: điểm chỉ dùng cho báo cáo. Nếu điểm hay nhận xét của một tiêu chí lệch nhiều so với cách bạn chấm, báo người phụ trách bộ tiêu chí (tab Tạo tiêu chí).',
           ],
@@ -566,8 +677,8 @@ export const guideVi: GuideContent = {
           desc: 'Azure chấm từ này là đúng, nhưng Gemini nghe cả bài thấy sai và đã nghe lại đoạn cắt để xác nhận. Nghe lại trước khi giữ.',
         },
         {
-          term: 'Nhãn "Giáo viên thêm"',
-          desc: 'Từ bạn tự thêm bằng "+ Thêm từ AI bỏ sót". Gõ từ và hướng sửa; từ để trống sẽ tự bị bỏ khi lưu.',
+          term: 'Nhãn "AI nhận diện thiếu"',
+          desc: 'Từ học viên đọc sai mà máy bỏ sót — do bạn tự thêm bằng "+ Thêm từ AI bỏ sót". Sửa được từ, mốc giờ và hướng sửa; bấm "Xóa" để bỏ dòng. Từ để trống sẽ tự bị bỏ khi lưu.',
         },
         {
           term: 'Chữ trong ngoặc và "Nghe thành"',
@@ -584,9 +695,122 @@ export const guideVi: GuideContent = {
       },
     },
 
+    wordActions: {
+      heading: 'Gắn sai và Thêm từ — bấm xong chuyện gì xảy ra',
+      intro: [
+        'Hai nút này chỉ thay đổi DANH SÁCH TỪ trong tin gửi học viên. Không nút nào tự đổi điểm, tự sửa nhận xét, hay gửi gì đi ngay. Mọi thứ chỉ được lưu khi bạn bấm Lưu hoặc Gửi.',
+      ],
+      steps: [
+        {
+          title: '"Gắn sai" — nghĩa là "học viên đọc từ này ĐÚNG, máy đánh dấu nhầm"',
+          body: [
+            'Ngay khi bấm: dòng của từ đó biến mất khỏi danh sách trên màn hình. Chưa có gì được lưu hay gửi.',
+            'Tin học viên nhận: không còn dòng của từ đó trong phần "Em chú ý phát âm các từ sau". Các từ khác, nhận xét, hướng sửa và điểm giữ nguyên.',
+            'Điểm phát âm: KHÔNG đổi. Gắn sai nhiều từ đến mức điểm không còn hợp lý thì tự sửa ô Điểm.',
+            'Nhận xét phát âm: KHÔNG đổi. Câu nhận xét còn nhắc tới từ vừa gắn sai thì sửa tay câu đó.',
+            'Bản chấm gốc của AI: vẫn giữ nguyên trong hệ thống, không mất.',
+            'Khi bấm Gửi: hệ thống ghi lại "giáo viên gắn sai từ này" (một lần, ở lần gửi). Số liệu này dùng để đo máy đánh dấu đúng được bao nhiêu phần — càng nhiều từ bị gắn sai, càng cho thấy máy cần chỉnh.',
+          ],
+          uiKeys: ['submissions.removeWord'],
+          callout: {
+            kind: 'warn',
+            text: 'Chỉ bấm "Gắn sai" khi học viên đọc ĐÚNG. Nếu học viên đọc sai thật nhưng bạn muốn tin ngắn bớt, đừng dùng nút này — hệ thống sẽ tính là máy đánh dấu nhầm và làm lệch số đo độ chính xác. Hãy giữ từ lại, hoặc báo người phụ trách nếu tin thường quá dài.',
+          },
+        },
+        {
+          title: 'Lỡ bấm "Gắn sai" nhầm từ',
+          body: [
+            'Không có nút hoàn tác.',
+            '• CHƯA bấm Lưu: tải lại trang (F5). Trang về đúng bản đã lưu gần nhất — từ vừa gắn sai quay lại, nhưng MỌI chỉnh sửa khác chưa lưu cũng mất.',
+            '• ĐÃ bấm Lưu: dừng audio đúng chỗ từ đó, bấm "+ Thêm từ AI bỏ sót", gõ lại từ và hướng sửa. Học viên vẫn nhận đủ dòng đó; hệ thống sẽ ghi nhận thành một lần gắn sai và một từ giáo viên thêm.',
+            '• ĐÃ Gửi: không sửa được nữa.',
+          ],
+          callout: {
+            kind: 'tip',
+            text: 'Thói quen an toàn: nghe và quyết định hết danh sách từ trước, rồi mới sửa nhận xét và bấm Lưu.',
+          },
+        },
+        {
+          title: '"+ Thêm từ AI bỏ sót" — học viên đọc sai một từ mà máy không đánh dấu',
+          body: [
+            'Trước khi bấm: phát audio và DỪNG đúng chỗ học viên đọc sai. Mốc giờ của dòng mới lấy đúng vị trí audio đang dừng (chưa phát audio thì là 0:00). Mốc này sửa tay được — xem bước "Sửa mốc giờ" bên dưới.',
+            'Ngay khi bấm: một dòng mới xuất hiện cuối danh sách, gồm nút ▶, ô mốc giờ, nút "Lấy mốc đang phát", ô "Từ", nhãn "AI nhận diện thiếu", ô hướng sửa và nút "Xóa".',
+            'Điền: ô "Từ" = đúng từ học viên đọc sai (một từ hoặc cụm ngắn). Ô dài = hướng sửa, nên kèm phiên âm. Không có ô "nghe thành" — muốn nói học viên đọc thành gì thì viết luôn vào hướng sửa.',
+            'Để trống ô "Từ": dòng tự bị bỏ khi Lưu/Gửi, học viên không thấy.',
+            'Tin học viên nhận: thêm một dòng "• mốc giờ — "từ" → hướng sửa".',
+            'Điểm và nhận xét: KHÔNG đổi. Thêm nhiều lỗi mà điểm AI cho quá cao thì tự sửa ô Điểm.',
+            'Khi bấm Gửi: hệ thống ghi lại "giáo viên thêm từ này" — dùng để đo máy bỏ sót bao nhiêu lỗi giáo viên nghe thấy.',
+            'Thêm nhầm? Bấm "Xóa" trên chính dòng đó. Dòng biến mất và không bị tính là máy đánh dấu nhầm. (Từ giáo viên thêm không có nút "Gắn sai" — nút đó chỉ dành cho từ máy đánh dấu.)',
+          ],
+          uiKeys: ['submissions.addWord', 'submissions.wordFromTeacher'],
+          example: {
+            title: 'Ví dụ — thêm từ "vegetable" học viên đọc sai ở phút 1:24',
+            text:
+              'Phát audio, dừng ở 1:24 → bấm "+ Thêm từ AI bỏ sót"\n' +
+              'Ô Từ: vegetable\n' +
+              'Ô hướng sửa: Em đọc 3 âm tiết /ˈvedʒ.tə.bəl/, không đọc thành 4 âm tiết "ve-ge-ta-ble" nhé.\n\n' +
+              'Học viên nhận:\n' +
+              '• 1:24 — "vegetable" → Em đọc 3 âm tiết /ˈvedʒ.tə.bəl/, không đọc thành 4 âm tiết "ve-ge-ta-ble" nhé.',
+          },
+        },
+        {
+          title: 'Sửa mốc giờ của từ bạn đã thêm',
+          body: [
+            'Gõ mốc vào ô mốc giờ theo dạng phút:giây, ví dụ 1:29 (gõ 89 cũng được, tính là 89 giây), rồi bấm Enter hoặc bấm ra ngoài ô. Hệ thống ghi nhận ngay; bấm ▶ để nghe lại chỗ đó (tua lùi 2 giây để nghe cả câu dẫn).',
+            'Hoặc phát audio tới đúng chỗ rồi bấm "Lấy mốc đang phát" — ô tự điền vị trí audio.',
+            'Gõ sai dạng (ví dụ "1:75") hoặc vượt độ dài bài: ô viền đỏ, hệ thống giữ mốc cũ. Xóa trống ô: dòng gửi học viên sẽ không có mốc giờ.',
+            'Học viên thấy đúng mốc này: "• 1:29 — "từ" → hướng sửa". Mốc giờ của từ MÁY đánh dấu thì không sửa được.',
+          ],
+          uiKeys: ['submissions.timeFromAudio'],
+        },
+        {
+          title: 'Chỉ sửa hướng sửa, không gắn sai',
+          body: [
+            'Máy đánh dấu đúng từ nhưng hướng sửa chưa hay: sửa thẳng trong ô hướng sửa. Từ đó vẫn được tính là "giáo viên giữ" — máy đánh dấu đúng.',
+            'Chữ của từ và mốc giờ do máy đánh dấu thì KHÔNG sửa được. Máy ghi sai tên từ (ví dụ từ khác hẳn) thì "Gắn sai" dòng đó rồi "+ Thêm từ" với từ đúng.',
+          ],
+        },
+        {
+          title: 'Lưu và Gửi khác nhau thế nào',
+          body: [
+            'Lưu: giữ bản đang sửa để làm tiếp sau, bài vẫn ở "awaiting_review", học viên chưa nhận gì, chưa ghi nhận giữ/gắn sai/thêm.',
+            'Gửi cho học viên: lưu bản đang sửa, gửi đúng bản đó qua Zalo, ghi nhận giữ/gắn sai/thêm cho từng từ, chuyển bài sang "sent" và khóa mọi ô.',
+          ],
+          uiKeys: ['students.save', 'submissions.send'],
+        },
+      ],
+      example: {
+        title: 'Ví dụ — danh sách trên màn hình và phần học viên nhận',
+        text:
+          'Trên màn hình (máy đánh dấu 3 từ):\n' +
+          '  ▶ 3:17 express — nghe thành /t/ thay vì /s/\n' +
+          '  ▶ 2:13 away  [Cần giáo viên nghe lại]\n' +
+          '  ▶ 4:43 love — nghe thành /s/ thay vì /v/\n\n' +
+          'Giáo viên nghe: "away" học viên đọc đúng → Gắn sai. Nghe thêm thấy "vegetable" ở 1:24 đọc sai → Thêm từ.\n\n' +
+          'Học viên nhận:\n' +
+          'Em chú ý phát âm các từ sau:\n' +
+          '• 3:17 — "express" em đọc thành "/t/ thay vì /s/" → Chú ý bật rõ âm /s/ ở cuối từ /ɪkˈspres/.\n' +
+          '• 4:43 — "love" em đọc thành "/s/ thay vì /v/" → Khép môi phát âm rõ âm cuối /v/ trong /lʌv/.\n' +
+          '• 1:24 — "vegetable" → Em đọc 3 âm tiết /ˈvedʒ.tə.bəl/ nhé.\n\n' +
+          'Hệ thống ghi nhận: express, love = giữ · away = gắn sai · vegetable = giáo viên thêm.',
+      },
+    },
+
     gradingTrouble: {
       heading: 'Khi gặp vấn đề lúc chấm bài',
       terms: [
+        {
+          term: 'Lỡ bấm "Gắn sai" nhầm',
+          desc: 'Chưa Lưu: tải lại trang (F5) — mất cả các chỉnh sửa khác chưa lưu. Đã Lưu: thêm lại từ đó bằng "+ Thêm từ AI bỏ sót". Xem mục "Gắn sai và Thêm từ".',
+        },
+        {
+          term: 'Sửa xong, quay lại thì mất hết',
+          desc: 'Chỉnh sửa chỉ được giữ khi bấm Lưu hoặc Gửi. Rời trang hay tải lại trang trước đó là mất. Duyệt dở thì bấm Lưu.',
+        },
+        {
+          term: 'Bài "failed" hoặc audio/file "received" mà cột Học viên là "—"',
+          desc: 'Xem mục "Màn Bài nộp — đọc danh sách và trạng thái": mở bài, đọc "Ghi chú (flags)", sửa nguyên nhân, rồi nhờ học viên gửi lại.',
+        },
         {
           term: 'Nút "Gửi cho học viên" bị mờ, ghi "Đã gửi"',
           desc: 'Bài này đã được gửi đi rồi. Nếu học viên báo không nhận được, báo quản trị viên kèm tên học viên và giờ gửi — nguyên nhân hay gặp nhất là gửi quá 48 giờ sau khi học viên nhắn.',
@@ -805,6 +1029,90 @@ export const guideEn: GuideContent = {
       callout: { kind: 'warn', text: '"Reset to original" on a built-in structure also removes the reply template — ask an admin to re-enter it.' },
     },
 
+    queue: {
+      heading: 'The Submissions screen — reading the list and statuses',
+      intro: [
+        'Each row is ONE MESSAGE a student sent to the centre\'s Zalo OA — not every row is a speaking clip. Your work is the "awaiting_review" rows; most others are for reference.',
+        'Click "View" on any row for details. If a submission could not be graded, "Flags" at the bottom of the detail page says why.',
+      ],
+      terms: [
+        { term: 'Student column shows "—"', desc: 'The system does not know which student sent it: the Zalo account is not activated yet (see Onboarding), or one Zalo account is shared by several students and the parent has not picked which one. follow/text rows often show "—" — that is normal.' },
+        { term: 'Kind column', desc: 'audio / video: recorded in Zalo — graded. file: an attachment recorded in another app — graded if it really is audio/video. text, image: not graded. follow: the student just followed the OA — not a submission. The system neither grades nor replies to text, image or follow.' },
+        { term: 'received (grey) — Received, not graded', desc: 'Normal for text, image, follow. Watch for audio/video/file rows with "—" as the student: the account is not activated, so nothing was graded. Activate it in Onboarding and ask the student to send again — old submissions are NOT re-graded after activation.' },
+        { term: 'processing — Being graded', desc: 'Downloading, measuring pronunciation and writing feedback — usually a few minutes, longer for long clips. If a row stays here for a long time (e.g. still unchanged after 15 minutes), the system retried and gave up: tell an admin the student name and time received.' },
+        { term: 'awaiting_review (orange) — Waiting for a teacher', desc: 'The AI has finished. THIS IS YOUR WORK. The student has received nothing until someone clicks "Send to student". Deadline: 48 hours from the student\'s message.' },
+        { term: 'sent (green) — Sent', desc: 'Sent by a teacher, or automatically for a class set to auto-send. Fields are locked; it cannot be edited or re-sent.' },
+        { term: 'failed (red) — Could not be graded', desc: 'Click View and read "Flags". Usual causes: student has no course (fix on Students); course has no rubric (Build criteria tab); clip longer than the limit — 7 minutes by default, and the student was already asked to send a shorter one; attachment is not audio. After fixing the cause, ask the student to send again — failed work is not re-graded.' },
+      ],
+      steps: [
+        {
+          title: 'Order of work each time you open Submissions',
+          body: [
+            '1. Filter Status = "awaiting_review". Do the OLDEST first (the list shows newest at the top, so work from the bottom) — the 48 hours run from the student\'s message, not from when you open it.',
+            '2. Filter "failed": read the notes, fix the cause if it is yours, or tell an admin.',
+            '3. Filter "received": for audio/video/file rows with "—" as the student, ask an advisor/admin to activate the account, then ask the student to resend.',
+          ],
+          uiKeys: ['nav.submissions', 'submissions.filterStatus', 'submissions.filterClass', 'submissions.view'],
+        },
+      ],
+      example: {
+        title: 'Example — reading part of the list',
+        text:
+          '— · follow · received → a new follower. Nothing to do.\n' +
+          '— · file · received → an unactivated Zalo account sent a file. Activate, then ask for a resend.\n' +
+          'Bùi Quang Vũ · file · failed (4:29 PM), then Bùi Quang Vũ · file · sent (4:31 PM) → the first attempt failed; the student resent and the new one was sent.\n' +
+          'Bùi Văn Sơn (PILOT-TEST) · file · awaiting_review → teacher work: click View.',
+      },
+    },
+
+    focus: {
+      heading: 'What to focus on when reviewing',
+      intro: ['The student receives EXACTLY what is in the text fields of the detail page — never scores. Spend your time on what the student reads and acts on, in this order.'],
+      steps: [
+        {
+          title: 'The mispronounced-word list — priority 1',
+          body: [
+            'This is what students practise from, and where the machine is most often wrong. Listen first to yellow "Teacher should listen" words, then "Found by Gemini", then unlabelled words.',
+            'For each word ask one question: did the student really say it wrong? Yes → keep. No → "Wrong flag". Heard an error the machine missed → "+ Add a word the AI missed". See "Wrong flag and Add word — what happens".',
+          ],
+          uiKeys: ['submissions.wordNeedsReview', 'submissions.wordFromGemini', 'submissions.removeWord', 'submissions.addWord'],
+        },
+        {
+          title: 'Each word\'s fix — correct and actionable',
+          body: [
+            'Check the phonetics against a dictionary, and that the advice says SPECIFICALLY what to do with the mouth, tongue, which sound.',
+            'Good: "Close the lips and clearly say the final /v/ in /lʌv/, not /s/." Weak: "Pay more attention to this word."',
+            'The fix must match the error: "express — heard /t/ instead of /s/" needs advice about the final /s/, not about stress.',
+          ],
+        },
+        {
+          title: 'The opening comment',
+          body: [
+            'The first thing the student (and parent) reads. Check consistent forms of address, no scores or bands, and praise/advice specific to this piece of work.',
+            'Open "AI feedback (original)" below the field to compare with the first draft.',
+          ],
+          uiKeys: ['submissions.overallFeedback', 'submissions.llmFeedback'],
+        },
+        {
+          title: 'Comment and Fix for each criterion',
+          body: [
+            'The AI sometimes quotes a phrase that is NOT in the recording. Every quoted example must be audible — if not, delete it or replace it with a real one.',
+            'After a "Wrong flag", re-read the pronunciation comment: if it still mentions that word, edit the sentence — "Wrong flag" only removes the word from the list.',
+          ],
+          uiKeys: ['submissions.comment', 'submissions.scoreFix'],
+        },
+        {
+          title: 'Scores — fix clear misses, do not fine-tune',
+          body: [
+            'Students never see scores; they feed reports and measure how far the AI is from teachers. Change a score when the AI is clearly off (AI 4, you 2). Small differences are not worth your time.',
+            'The total and the "Azure measurements" (0–100) are for reference only — not editable, not sent.',
+          ],
+          uiKeys: ['submissions.dimensionScore', 'submissions.azureTitle'],
+        },
+      ],
+      callout: { kind: 'warn', text: 'Edits are NOT saved until you click Save or Send. Leaving the page, reloading (F5) or closing the tab loses them. Interrupted mid-review? Click Save first.' },
+    },
+
     after: {
       heading: 'Reviewing and sending feedback',
       steps: [
@@ -821,8 +1129,7 @@ export const guideEn: GuideContent = {
           title: 'Edit everything the student will receive',
           body: [
             'Opening comment, each score, comment, fix, and the suggestion for each mispronounced word. An "AI: …" badge shows the original score; the AI version is always kept. Students never receive scores.',
-            'If you replay a word (▶) and the student said it correctly, press "Wrong flag": ONLY that word leaves the student message; the AI version is kept. If the machine missed a word, pause the audio there and press "+ Add a word the AI missed".',
-            'On Send, which words you kept, flagged as wrong or added is recorded to evaluate the machine grader. Flag and add words exactly as you hear them — do not keep a word just because the machine flagged it.',
+            'Said correctly but flagged → "Wrong flag". Said wrongly but missed → pause the audio there and press "+ Add a word the AI missed". What each button does: see "Wrong flag and Add word — what happens".',
           ],
           uiKeys: ['submissions.overallFeedback', 'submissions.dimensionScore', 'submissions.comment', 'submissions.removeWord', 'submissions.addWord'],
         },
@@ -850,16 +1157,92 @@ export const guideEn: GuideContent = {
         { term: 'No label', desc: 'Azure flagged it and Gemini\'s re-hearing agreed (or could not re-hear it). Usually a real error — replay if unsure.' },
         { term: 'Yellow "Teacher should listen"', desc: 'The machines disagree: Azure flagged it, Gemini heard it as acceptable. You decide — replay; said correctly → "Wrong flag"; said wrongly → keep. Listen to these first.' },
         { term: '"Found by Gemini (Azure missed it)"', desc: 'Azure scored the word as correct, but Gemini heard an error and confirmed it on the clip. Replay before keeping.' },
-        { term: '"Added by teacher"', desc: 'A word you added with "+ Add a word the AI missed". Type the word and the fix; empty words are dropped on save.' },
+        { term: '"Missed by AI"', desc: 'A word the student got wrong that the machine missed, added by you with "+ Add a word the AI missed". Word, time and fix are editable; "Delete" removes the row. Empty words are dropped on save.' },
         { term: 'Text in brackets and "Heard as"', desc: 'The bracketed text is the specific error Gemini heard (e.g. "/θ/ said as /t/") — teachers only. "Heard as" is how the student actually said it, in phonetics. The student receives the time, the word, what they said and the fix.' },
       ],
       example: { title: 'Example — one line the student receives on Zalo', text: '• 0:43 — "genres" em đọc thành "jurns" → Em đọc âm đầu /ʒ/ nhẹ, không bật như /dʒ/ nhé.' },
       callout: { kind: 'warn', text: '"Wrong flag" only removes the word from the student message — it does NOT change the pronunciation score. If many words go, adjust that criterion\'s Score too.' },
     },
 
+    wordActions: {
+      heading: 'Wrong flag and Add word — what happens',
+      intro: ['Both buttons only change the WORD LIST in the student message. Neither changes a score, edits a comment or sends anything. Nothing is stored until you click Save or Send.'],
+      steps: [
+        {
+          title: '"Wrong flag" — meaning "the student said this word CORRECTLY; the machine was wrong"',
+          body: [
+            'Immediately: the word\'s row disappears from the list. Nothing is saved or sent yet.',
+            'Student message: that word\'s line is gone from "Em chú ý phát âm các từ sau". Other words, comments, fixes and scores stay.',
+            'Pronunciation score: NOT changed — adjust it yourself if many words go.',
+            'Pronunciation comment: NOT changed — edit any sentence that still mentions the word.',
+            'The AI\'s original grading: kept in the system.',
+            'On Send: "teacher flagged this word as wrong" is recorded (once). This measures how often the machine flags correctly.',
+          ],
+          uiKeys: ['submissions.removeWord'],
+          callout: { kind: 'warn', text: 'Use "Wrong flag" only when the student said the word CORRECTLY. Removing a real error just to shorten the message is counted as a machine mistake and skews the accuracy figures — keep it, or tell the academic lead if messages are routinely too long.' },
+        },
+        {
+          title: 'Pressed "Wrong flag" by mistake',
+          body: [
+            'There is no undo.',
+            '• NOT saved yet: reload the page (F5). It returns to the last saved version — the word comes back, but ALL other unsaved edits are lost too.',
+            '• Already saved: pause the audio on that word, press "+ Add a word the AI missed" and type it again. The student still gets the line; it is recorded as one wrong flag plus one teacher-added word.',
+            '• Already sent: cannot be changed.',
+          ],
+          callout: { kind: 'tip', text: 'Safe habit: decide the whole word list first, then edit comments, then Save.' },
+        },
+        {
+          title: '"+ Add a word the AI missed" — the student got a word wrong and the machine missed it',
+          body: [
+            'Before pressing: play the audio and PAUSE on the error. The new row takes its time from where the audio is paused (0:00 if never played). You can retype it — see "Editing the time" below.',
+            'Immediately: a new row appears at the end with ▶, a time field, "Use playing time", a "Word" field, a "Missed by AI" badge, a fix field and "Delete".',
+            'Fill in: "Word" = exactly the word said wrongly (one word or a short phrase). The long field = the fix, ideally with phonetics. There is no "heard as" field — put that in the fix if needed.',
+            'Empty "Word": the row is dropped on Save/Send; the student never sees it.',
+            'Student message: one more line "• time — "word" → fix".',
+            'Score and comments: NOT changed.',
+            'On Send: "teacher added this word" is recorded — this measures how many errors the machine misses.',
+            'Added by mistake? Press "Delete" on that row. It is not counted as a machine mistake. (Teacher-added words have no "Wrong flag" — that button is only for machine-flagged words.)',
+          ],
+          uiKeys: ['submissions.addWord', 'submissions.wordFromTeacher'],
+          example: {
+            title: 'Example — adding "vegetable" at 1:24',
+            text: 'Play, pause at 1:24 → "+ Add a word the AI missed"\nWord: vegetable\nFix: Em đọc 3 âm tiết /ˈvedʒ.tə.bəl/, không đọc thành 4 âm tiết "ve-ge-ta-ble" nhé.\n\nThe student receives:\n• 1:24 — "vegetable" → Em đọc 3 âm tiết /ˈvedʒ.tə.bəl/, không đọc thành 4 âm tiết "ve-ge-ta-ble" nhé.',
+          },
+        },
+        {
+          title: 'Editing the time of a word you added',
+          body: [
+            'Type min:sec in the time field, e.g. 1:29 (89 also works, as seconds), then Enter or click away. It is recorded at once; press ▶ to replay there (it rewinds 2 seconds for the lead-in).',
+            'Or play the audio to the right spot and press "Use playing time".',
+            'A wrong format (e.g. "1:75") or a time past the end turns the field red and keeps the old time. An empty field means no time in the student line.',
+            'The student sees this time: "• 1:29 — "word" → fix". Times of machine-flagged words cannot be edited.',
+          ],
+          uiKeys: ['submissions.timeFromAudio'],
+        },
+        {
+          title: 'Editing only the fix',
+          body: [
+            'Right word, weak advice: edit the fix field. The word still counts as "kept" — the machine was right.',
+            'The word text and time of a machine-flagged word cannot be edited. If the machine named the wrong word, "Wrong flag" it and add the right one.',
+          ],
+        },
+        {
+          title: 'Save vs Send',
+          body: [
+            'Save: keeps your edits for later; still "awaiting_review"; the student receives nothing; kept/flagged/added not recorded yet.',
+            'Send to student: saves, sends exactly that version on Zalo, records kept/flagged/added per word, sets "sent" and locks the fields.',
+          ],
+          uiKeys: ['students.save', 'submissions.send'],
+        },
+      ],
+    },
+
     gradingTrouble: {
       heading: 'Problems while grading',
       terms: [
+        { term: 'Pressed "Wrong flag" by mistake', desc: 'Not saved: reload (F5) — other unsaved edits are lost too. Saved: add the word back with "+ Add a word the AI missed".' },
+        { term: 'My edits disappeared', desc: 'Edits are kept only after Save or Send; leaving or reloading the page before that loses them.' },
+        { term: '"failed", or audio/file "received" with "—" as the student', desc: 'See "The Submissions screen": open it, read "Flags", fix the cause, ask the student to resend.' },
         { term: 'Send button greyed out, "Sent"', desc: 'Already sent. If the student got nothing, tell an admin the student name and send time — the usual cause is sending more than 48 hours after the student\'s message.' },
         { term: 'Send shows an error', desc: 'Usually an expired session (8 hours); nothing was sent. Log in again in a new tab, reopen the submission, check your edits are there, Send.' },
         { term: 'Student says they sent work but it is not in Submissions', desc: 'Their Zalo may not be activated. Go to Onboarding, enter the student\'s phone, click "Activate", and ask them to send again.' },

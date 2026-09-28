@@ -35,7 +35,9 @@ async def download_original(client: httpx.AsyncClient, url: str, submission_id: 
     ext = _guess_extension(url, kind)
     absolute_path = os.path.join(directory, f"original.{ext}")
 
-    async with client.stream("GET", url) as response:
+    # follow_redirects: httpx mặc định KHÔNG theo redirect. Từ 2026-09-27 CDN video Zalo trả
+    # 301 từ `*.dlmd.me` sang `*.mdchat.me` — thiếu cờ này mọi bài video rơi vào DLQ.
+    async with client.stream("GET", url, follow_redirects=True) as response:
         response.raise_for_status()
         with open(absolute_path, "wb") as f:
             async for chunk in response.aiter_bytes():
