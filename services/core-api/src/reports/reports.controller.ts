@@ -1,6 +1,7 @@
-import { BadRequestException, Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
-import type { Response } from 'express';
+import { BadRequestException, Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
+import { canSeeEngine, CostTotals, mergeCostAcrossProviders } from '../lib/hide-engine';
 import { parseRange } from './date-range';
 import { toCsv, toXlsxBuffer } from './report-export';
 import { CostRow, ReportsService, SubmissionRateRow } from './reports.service';
@@ -55,21 +56,27 @@ export class ReportsController {
     await respondExport(res, format, rows as unknown as Record<string, unknown>[], 'ty-le-nop-bai');
   }
 
-  @Get('cost')
-  async cost(@Query('from') from?: string, @Query('to') to?: string): Promise<CostRow[]> {
+  // Staff thấy tổng chi phí theo ngày nhưng KHÔNG thấy provider nào (lib/hide-engine.ts).
+  private async costFor(req: Request, from?: string, to?: string): Promise<CostRow[] | CostTotals[]> {
     const range = parseRange(from, to);
-    return this.reports.cost(range.from, range.to);
+    const rows = await this.reports.cost(range.from, range.to);
+    return canSeeEngine(req.session.user?.role) ? rows : mergeCostAcrossProviders(rows);
+  }
+
+  @Get('cost')
+  cost(@Req() req: Request, @Query('from') from?: string, @Query('to') to?: string): Promise<CostRow[] | CostTotals[]> {
+    return this.costFor(req, from, to);
   }
 
   @Get('cost/export')
   async exportCost(
+    @Req() req: Request,
     @Res() res: Response,
     @Query('format') format?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
   ): Promise<void> {
-    const range = parseRange(from, to);
-    const rows = await this.reports.cost(range.from, range.to);
+    const rows = await this.costFor(req, from, to);
     await respondExport(res, format, rows as unknown as Record<string, unknown>[], 'chi-phi-llm');
   }
 

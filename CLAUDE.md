@@ -381,6 +381,15 @@ Architecture precedence: `20260719-KienTrucMicroservices.md` > `UpdateFoundation
 
 ## Product boundaries (hard rules from the spec)
 
+- **Staff never see which engine grades (owner, 2026-09-28).** Every staff-visible string (dashboard
+  labels, the in-app guide, flag reasons) says **"hệ thống chấm" / "the grading system"**, never
+  Azure / Gemini / OpenAI / LLM / AI. The two pronunciation passes are "lượt đo phát âm" (Azure)
+  and "lượt nghe lại" (Gemini on the cut clips). Only admin-only screens (Cấu hình, Giám sát,
+  Khóa học, Test Upload) keep the real names. The API enforces it too: `lib/hide-engine.ts`
+  strips `llmConfig` from `GET /courses` and `provider` from `/reports/cost*` for non-admins.
+  Flag reasons carry no raw error text (it can name the vendor); errors go to the worker log.
+  Keep the wording **neutral and true**: never claim or imply that people did the automatic grading.
+
 - The bot does **not converse** with students (scope narrowed 2026-07-19, architecture doc v1.1): it only receives submissions, verifies student identity, and returns grading feedback via fixed system templates. Any other student text (questions, fees, complaints) is flagged to human advisors ("tư vấn") — the bot must NOT reply.
 - Bot never messages parents and never nags students to submit; advisors handle both via the end-of-day missing-submission report.
 - Daily AI feedback is practice, not official teacher grading (the update doc adds a manual-override review step before results are sent).

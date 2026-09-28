@@ -181,7 +181,9 @@ def test_clip_listening_failure_keeps_the_azure_list_and_flags(core_api):
     assert [w["word"] for w in payload["scores"]["pronunciation"]["mispronounced_words"]] == ["gate"]
     assert payload["assessment"]["clip_analysis"]["error"] == "503 overloaded"
     reasons = [c.args[1] for c in core_api.create_flag.await_args_list]
-    assert any("nghe lại" in r and "503" in r for r in reasons)
+    assert any("nghe lại" in r for r in reasons)
+    # Staff đọc cờ: không tên engine, không lỗi thô (lỗi vẫn lưu ở assessment/log cho admin).
+    assert not any("Gemini" in r or "Azure" in r or "503" in r for r in reasons)
 
 
 def test_no_reading_text_runs_unscripted_and_flags_the_submission(core_api):
@@ -205,7 +207,8 @@ def test_azure_failure_never_loses_the_submission_gemini_grades_and_it_is_flagge
     assert "assessment" not in payload
     clips.assert_not_awaited()
     reasons = [c.args[1] for c in core_api.create_flag.await_args_list]
-    assert any("Azure" in r and "401" in r for r in reasons)
+    assert any("đo phát âm" in r for r in reasons)
+    assert not any("Gemini" in r or "Azure" in r or "401" in r for r in reasons)
 
 
 def test_without_azure_settings_the_pipeline_is_unchanged(core_api):

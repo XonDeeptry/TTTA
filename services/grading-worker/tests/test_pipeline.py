@@ -351,7 +351,8 @@ async def test_give_up_marks_processing_submission_failed_with_flag(pipeline, co
     assert "status" not in core_api.upsert_submission.await_args.args[0]
     core_api.update_submission.assert_awaited_once_with(115, {"status": "failed"})
     submission_id, reason = core_api.create_flag.await_args.args
-    assert submission_id == 115 and "DLQ" in reason and "301" in reason
+    assert submission_id == 115 and "Giám sát" in reason
+    assert "301" not in reason  # lỗi thô chỉ ở log/DLQ — staff đọc cờ này
 
 
 @pytest.mark.parametrize("status", ["awaiting_review", "sent", "received", "failed"])

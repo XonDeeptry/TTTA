@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { buttonVariants } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -15,7 +16,8 @@ interface SubmissionRateRow {
 
 interface CostRow {
   date: string;
-  provider: string;
+  /** Chỉ admin nhận được — API gộp các provider lại cho staff (core-api lib/hide-engine.ts). */
+  provider?: string;
   totalUsd: number;
   inputTokens: number;
   outputTokens: number;
@@ -29,6 +31,8 @@ function daysAgo(n: number): string {
 
 export function Reports() {
   const { t } = useTranslation();
+  // Cột engine (Gemini/OpenAI) chỉ dành cho admin — học thuật không cần biết cái gì chạy phía sau.
+  const isAdmin = useAuth().user?.role === 'admin';
   const [from, setFrom] = useState(daysAgo(30));
   const [to, setTo] = useState(daysAgo(0));
   const [rateRows, setRateRows] = useState<SubmissionRateRow[]>([]);
@@ -116,15 +120,15 @@ export function Reports() {
             <TableHeader>
               <TableRow>
                 <TableHead scope="col">{t('reports.date')}</TableHead>
-                <TableHead scope="col">{t('reports.provider')}</TableHead>
+                {isAdmin && <TableHead scope="col">{t('reports.provider')}</TableHead>}
                 <TableHead scope="col">{t('reports.totalUsd')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {costRows.map((r) => (
-                <TableRow key={`${r.date}-${r.provider}`}>
+                <TableRow key={`${r.date}-${r.provider ?? ''}`}>
                   <TableCell>{r.date}</TableCell>
-                  <TableCell>{r.provider}</TableCell>
+                  {isAdmin && <TableCell>{r.provider}</TableCell>}
                   <TableCell className="tabular-nums">${r.totalUsd.toFixed(4)}</TableCell>
                 </TableRow>
               ))}

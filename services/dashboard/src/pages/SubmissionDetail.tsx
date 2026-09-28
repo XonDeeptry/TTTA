@@ -248,7 +248,7 @@ export function SubmissionDetail() {
           <CardContent className="space-y-5">
             {grading.totalScore !== null && grading.totalMax !== null ? (
               <p>
-                {t('submissions.total')} (AI):{' '}
+                {t('submissions.total')} ({t('submissions.aiOriginal')}):{' '}
                 <span className="font-medium tabular-nums">
                   {grading.totalScore}/{grading.totalMax}
                 </span>

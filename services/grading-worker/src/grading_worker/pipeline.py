@@ -305,8 +305,9 @@ class SubmissionPipeline:
             return
         submission_id = submission["id"]
         await self._core_api.update_submission(submission_id, {"status": "failed"})
+        # Staff đọc cờ này: không kèm lỗi thô (có thể chứa tên engine) — lỗi nằm ở log và DLQ.
         await self._core_api.create_flag(
-            submission_id, f"Không chấm được sau nhiều lần thử — bài đã vào DLQ, retry được ở trang Giám sát: {err}"[:500]
+            submission_id, "Không chấm được sau nhiều lần thử — quản trị viên chấm lại được ở trang Giám sát"
         )
         logger.error("submission %s: bỏ cuộc -> DLQ, status=failed: %s", submission_id, err)
 
@@ -335,14 +336,18 @@ class SubmissionPipeline:
             segments = await asyncio.to_thread(azure_pa.run_assessment, wav_path, settings, reference, timeout)
         except Exception as err:  # noqa: BLE001 — mọi lỗi Azure đều rơi về Gemini, không retry cả bài
             logger.warning("submission %s: Azure lỗi (%s) — chấm bằng Gemini", submission_id, err)
-            await self._core_api.create_flag(submission_id, f"Azure lỗi, bài được chấm bằng Gemini: {err}"[:500])
+            # Cờ hiện cho staff (Ghi chú trên trang bài nộp) — KHÔNG nêu tên engine, KHÔNG kèm lỗi thô
+            # (thân lỗi có thể chứa tên nhà cung cấp); lỗi chi tiết nằm ở log cho admin.
+            await self._core_api.create_flag(
+                submission_id, "Lượt đo phát âm không chạy được — bài được chấm không có số đo phát âm"
+            )
             return None, {}, None
 
         facts = azure_pa.summarize(segments, scripted=reference is not None)
         if reference is None and not azure_pa.is_ielts(rubric):
             await self._core_api.create_flag(
                 submission_id,
-                "Lớp không có bài đọc mẫu — Azure chấm nói tự do, điểm phát âm của trẻ kém tin cậy (D151)",
+                "Lớp không có bài đọc mẫu — hệ thống chấm phải chấm nói tự do, điểm phát âm của trẻ kém tin cậy",
             )
         overrides = azure_pa.parse_thresholds(await self._config.get("azure.score_thresholds_json"))
         return facts, azure_pa.measure_bands(rubric, facts, overrides), wav_path
@@ -369,7 +374,7 @@ class SubmissionPipeline:
         except Exception as err:  # noqa: BLE001 — nghe lại là phần làm giàu, không được chặn việc chấm
             logger.warning("submission %s: nghe lại đoạn lỗi thất bại (%s) — giữ danh sách Azure", submission_id, err)
             await self._core_api.create_flag(
-                submission_id, f"Không nghe lại được các đoạn lỗi bằng Gemini — giữ danh sách Azure: {err}"[:500]
+                submission_id, "Lượt nghe lại các đoạn lỗi không chạy được — giữ danh sách của lượt đo phát âm"
             )
             return graded, {"error": str(err)[:300], "candidates": len(candidates)}
 

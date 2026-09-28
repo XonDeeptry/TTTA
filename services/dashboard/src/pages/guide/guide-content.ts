@@ -119,11 +119,11 @@ export const guideVi: GuideContent = {
     overview: {
       heading: 'Toàn cảnh trong một phút',
       intro: [
-        'Học viên gửi bài nói qua Zalo. AI nghe và chấm theo bộ tiêu chí của khóa học. Giáo viên đọc lại, sửa nếu cần, rồi bấm gửi. Học viên nhận nhận xét qua Zalo.',
+        'Học viên gửi bài nói qua Zalo. Hệ thống chấm nghe và chấm theo bộ tiêu chí của khóa học. Giáo viên đọc lại, sửa nếu cần, rồi bấm gửi. Học viên nhận nhận xét qua Zalo.',
       ],
       terms: [
         { term: 'Bước 1 — Học viên gửi bài', desc: 'Học viên gửi file ghi âm vào Zalo OA của trung tâm. Hệ thống tự nhận, không ai phải bấm gì.' },
-        { term: 'Bước 2 — AI chấm', desc: 'AI chấm theo bộ tiêu chí của khóa học mà học viên đang học. AI chấm sát hay không phụ thuộc vào việc bộ tiêu chí viết rõ đến đâu — đó là phần việc của đội học thuật (tab Tạo tiêu chí).' },
+        { term: 'Bước 2 — Hệ thống chấm cho điểm', desc: 'Hệ thống chấm cho điểm theo bộ tiêu chí của khóa học mà học viên đang học. Điểm sát hay không phụ thuộc vào việc bộ tiêu chí viết rõ đến đâu — đó là phần việc của đội học thuật (tab Tạo tiêu chí).' },
         { term: 'Bước 3 — Giáo viên duyệt', desc: 'Bài chấm xong nằm chờ ở màn Bài nộp. Giáo viên nghe lại, đọc nhận xét, sửa nếu cần (tab Chấm bài).' },
         { term: 'Bước 4 — Gửi cho học viên', desc: 'Giáo viên bấm "Gửi cho học viên". Nhận xét đi theo đúng khung "Bảng chấm chữa bài Speaking" của trung tâm: với mỗi tiêu chí có Nhận xét và Hướng sửa bài.' },
       ],
@@ -158,7 +158,7 @@ export const guideVi: GuideContent = {
         },
         {
           term: 'Tiêu chí',
-          desc: 'Ba tab: "Khóa & phiên bản" — mỗi khóa đang chấm bằng phiên bản tiêu chí nào; "Cấu hình theo lớp" — lớp nào dùng bộ nào, và bài đọc của lớp thiếu nhi; "Tiêu chí & Prompt" — các cấu trúc chấm điểm và đoạn văn AI nhận. Chi tiết ở tab Tạo tiêu chí.',
+          desc: 'Ba tab: "Khóa & phiên bản" — mỗi khóa đang chấm bằng phiên bản tiêu chí nào; "Cấu hình theo lớp" — lớp nào dùng bộ nào, và bài đọc của lớp thiếu nhi; "Tiêu chí & Chỉ dẫn chấm" — các cấu trúc chấm điểm và đoạn chỉ dẫn hệ thống chấm dùng. Chi tiết ở tab Tạo tiêu chí.',
         },
         {
           term: 'Báo cáo',
@@ -197,7 +197,7 @@ export const guideVi: GuideContent = {
       terms: [
         { term: 'Tiêu chí', desc: 'Một khía cạnh được chấm. Lớp KID có 5: Pronunciation, Intonation, Ending sounds, Word Stress, Fluency. IELTS có 4: Fluency and coherence, Lexical resources, Grammatical range and accuracy, Pronunciation.' },
         { term: 'Thang điểm', desc: 'Lớp KID: 0 đến 5 điểm mỗi tiêu chí. IELTS: band 0 đến 9.' },
-        { term: 'Mô tả mức điểm', desc: 'Chữ trong từng ô của bảng. Ví dụ Pronunciation 3 điểm: "Phát âm đúng đa số từ quen thuộc, đôi lúc gây nhầm." AI dựa vào những câu này để quyết định cho mấy điểm.' },
+        { term: 'Mô tả mức điểm', desc: 'Chữ trong từng ô của bảng. Ví dụ Pronunciation 3 điểm: "Phát âm đúng đa số từ quen thuộc, đôi lúc gây nhầm." Hệ thống chấm dựa vào những câu này để quyết định cho mấy điểm.' },
         { term: 'Cách tính tổng', desc: 'Lớp KID CỘNG 5 tiêu chí (tối đa 25 điểm) rồi quy ra cấp độ: 0–10 Pre-starter (Tiny Rabbit), 11–15 Starter (Little Fox), 16–20 Mover (Junior Panda), 21–25 Flyer (Great Big Dino). IELTS lấy TRUNG BÌNH 4 tiêu chí, không có số lẻ.' },
       ],
       steps: [
@@ -250,7 +250,7 @@ export const guideVi: GuideContent = {
         {
           title: 'Lớp thiếu nhi: nhập bài đọc hiện tại',
           body: [
-            'Vì sao cần: có bài đọc, Azure đối chiếu từng từ học viên nói với văn bản nên chấm phát âm chính xác, và biết học viên có đọc đủ bài không. Không có, Azure phải tự đoán trẻ nói gì — với giọng trẻ em nó hay đoán sai (đã đo: nghe "the ladder" thành "tornado"), bài bị gắn nhãn vàng để giáo viên nghe kỹ.',
+            'Vì sao cần: có bài đọc, hệ thống chấm đối chiếu từng từ học viên nói với văn bản nên chấm phát âm chính xác, và biết học viên có đọc đủ bài không. Không có, hệ thống chấm phải tự đoán trẻ nói gì — với giọng trẻ em nó hay đoán sai (đã đo: nghe "the ladder" thành "tornado"), bài bị gắn nhãn vàng để giáo viên nghe kỹ.',
             'Cách làm: trong bảng Cấu hình theo lớp, ở cột "Ghim tiêu chí" của lớp cần nhập, bấm nút "Nhập bài đọc". Một cửa sổ lớn mở ra.',
             'Dán đoạn văn học viên phải đọc trong bài tập hiện tại vào ô soạn. Bên dưới hiện số từ để bạn soát nhanh đã dán đủ chưa. Bấm Lưu — bài đọc được lưu ngay, không cần bấm thêm nút Lưu trên hàng.',
             'Sau khi lưu, trên hàng lớp hiện 2 dòng đầu của bài đọc và nút đổi thành "Sửa bài đọc (… từ)". Sang bài mới thì bấm nút đó, xóa đoạn cũ, dán đoạn mới, Lưu. Lớp chuyển sang nói tự do thì bấm "Xóa bài đọc".',
@@ -295,7 +295,7 @@ export const guideVi: GuideContent = {
           title: 'Kiểm tra mô tả từng mức điểm — phần quan trọng nhất',
           body: [
             'Mỗi tiêu chí có một ô cho mỗi mức điểm: thang 0–5 có 6 ô, thang 0–9 có 10 ô. Đối chiếu từng ô với bảng trong file rubric.',
-            'Mỗi lần xuống dòng trong ô là một gạch đầu dòng. Viết càng cụ thể, AI càng chấm sát: "Phát âm khá rõ, lỗi nhỏ không ảnh hưởng hiểu" tốt hơn nhiều so với "Tạm được".',
+            'Mỗi lần xuống dòng trong ô là một gạch đầu dòng. Viết càng cụ thể, hệ thống chấm càng chấm sát: "Phát âm khá rõ, lỗi nhỏ không ảnh hưởng hiểu" tốt hơn nhiều so với "Tạm được".',
           ],
           uiKeys: ['authoring.bands'],
           example: {
@@ -323,8 +323,8 @@ export const guideVi: GuideContent = {
         {
           title: 'Yếu tố con — là gì, điền thế nào, khi nào dùng (tùy chọn)',
           body: [
-            'Yếu tố con chia MỘT tiêu chí thành vài khía cạnh nhỏ, và ghi TỪ KHÓA NGẮN cho từng mức điểm. Mục đích duy nhất: giúp AI phân biệt hai mức điểm sát nhau, ví dụ band 6 với band 7.',
-            '• KHÔNG tạo thêm điểm: tiêu chí vẫn chỉ có một điểm. Yếu tố con chỉ là ghi chú tham khảo cho AI khi chấm tiêu chí đó.',
+            'Yếu tố con chia MỘT tiêu chí thành vài khía cạnh nhỏ, và ghi TỪ KHÓA NGẮN cho từng mức điểm. Mục đích duy nhất: giúp hệ thống chấm phân biệt hai mức điểm sát nhau, ví dụ band 6 với band 7.',
+            '• KHÔNG tạo thêm điểm: tiêu chí vẫn chỉ có một điểm. Yếu tố con chỉ là ghi chú tham khảo cho hệ thống chấm khi chấm tiêu chí đó.',
             '• Học viên KHÔNG thấy phần này.',
             '• Để trống cũng được: yếu tố con không có nội dung sẽ tự bị bỏ đi khi Lưu.',
             'Cách điền: ngay dưới phần "Mô tả từng mức điểm" của tiêu chí, bấm "Thêm yếu tố con". Mỗi yếu tố con có một ô "Tên yếu tố con" và một ô nhỏ cho mỗi mức điểm. Ô rất nhỏ — chỉ gõ vài chữ khóa. Mức nào không cần thì để trống.',
@@ -351,14 +351,14 @@ export const guideVi: GuideContent = {
           },
           callout: {
             kind: 'tip',
-            text: 'Khi nào dùng: lớp thiếu nhi (Cambridge) CHƯA cần — mô tả 0–5 điểm đã đủ rõ. Với IELTS, chỉ thêm khi thấy AI chấm lệch lặp lại giữa hai band liền nhau (giáo viên cho 6, AI liên tục cho 7), và chỉ thêm cho ĐÚNG tiêu chí bị lệch — rồi chấm thử lại bằng Test Upload. Đừng điền cho mọi tiêu chí ngay từ đầu: nhiều chữ hơn không làm AI chấm sát hơn.',
+            text: 'Khi nào dùng: lớp thiếu nhi (Cambridge) CHƯA cần — mô tả 0–5 điểm đã đủ rõ. Với IELTS, chỉ thêm khi thấy hệ thống chấm lệch lặp lại giữa hai band liền nhau (giáo viên cho 6, hệ thống chấm liên tục cho 7), và chỉ thêm cho ĐÚNG tiêu chí bị lệch — rồi chấm thử lại bằng Test Upload. Đừng điền cho mọi tiêu chí ngay từ đầu: nhiều chữ hơn không làm hệ thống chấm sát hơn.',
           },
         },
         {
-          title: 'Nạp câu nhận xét mẫu để AI viết giống giáo viên',
+          title: 'Nạp câu nhận xét mẫu để hệ thống chấm viết giống giáo viên',
           body: [
             'Ở Kho nhận xét, bấm Thêm nhận xét, dán một câu giáo viên vẫn hay viết, chọn nó thuộc tiêu chí nào và ý định là khen hay góp ý. Chỗ tên học viên hoặc từ cụ thể cứ để "…".',
-            'AI bắt chước giọng văn của những câu này. Nên có ít nhất một câu khen và một câu góp ý cho mỗi tiêu chí hay gặp.',
+            'Hệ thống chấm bắt chước giọng văn của những câu này. Nên có ít nhất một câu khen và một câu góp ý cho mỗi tiêu chí hay gặp.',
           ],
           uiKeys: ['authoring.commentBank', 'authoring.addComment', 'authoring.cbDimension', 'authoring.cbIntent'],
           figures: [
@@ -379,7 +379,7 @@ export const guideVi: GuideContent = {
         {
           title: 'Đọc thử phần xem trước rồi lưu',
           body: [
-            'Khung Xem trước prompt gửi AI hiện đúng đoạn văn AI sẽ nhận. Đọc lướt một lượt: bạn thấy khó hiểu thì AI cũng vậy.',
+            'Khung Xem trước chỉ dẫn cho hệ thống chấm hiện đúng đoạn chỉ dẫn sẽ được dùng. Đọc lướt một lượt: bạn thấy khó hiểu thì hệ thống chấm cũng vậy.',
             'Bấm Lưu. Hệ thống báo "Đã lưu phiên bản …". Từ lúc này, bài nộp mới của khóa sẽ chấm theo phiên bản vừa lưu (trừ lớp đang Ghim riêng phiên bản cũ).',
           ],
           uiKeys: ['authoring.preview', 'criteria.save'],
@@ -387,7 +387,7 @@ export const guideVi: GuideContent = {
         {
           title: 'Chấm thử trước khi dùng thật',
           body: [
-            'Mục Test Upload chỉ quản trị viên thấy — nhờ quản trị viên làm cùng: chọn một học viên thử (ví dụ lớp PILOT-TEST) và tải lên một file ghi âm. Bài được chấm như thật nhưng KHÔNG gửi cho ai — mở màn Bài nộp để xem AI cho điểm và nhận xét có sát với cách giáo viên chấm không.',
+            'Mục Test Upload chỉ quản trị viên thấy — nhờ quản trị viên làm cùng: chọn một học viên thử (ví dụ lớp PILOT-TEST) và tải lên một file ghi âm. Bài được chấm như thật nhưng KHÔNG gửi cho ai — mở màn Bài nộp để xem hệ thống chấm cho điểm và nhận xét có sát với cách giáo viên chấm không.',
           ],
           uiKeys: ['nav.testUpload', 'nav.submissions'],
         },
@@ -407,7 +407,7 @@ export const guideVi: GuideContent = {
         {
           title: 'Nhân bản một cấu trúc có sẵn',
           body: [
-            'Vào Tiêu chí, tab "Tiêu chí & Prompt": bảng "Cấu trúc chấm điểm hiện có" cho thấy các khung đang có và bao nhiêu khóa đang dùng mỗi khung. Bấm Cấu trúc chấm điểm, tìm cấu trúc gần giống nhất rồi bấm Nhân bản — nhanh và ít sai hơn tạo mới. Đặt Khóa mới là mã ngắn không dấu, không đổi được về sau (ví dụ "kid_speaking_2027").',
+            'Vào Tiêu chí, tab "Tiêu chí & Chỉ dẫn chấm": bảng "Cấu trúc chấm điểm hiện có" cho thấy các khung đang có và bao nhiêu khóa đang dùng mỗi khung. Bấm Cấu trúc chấm điểm, tìm cấu trúc gần giống nhất rồi bấm Nhân bản — nhanh và ít sai hơn tạo mới. Đặt Khóa mới là mã ngắn không dấu, không đổi được về sau (ví dụ "kid_speaking_2027").',
           ],
           uiKeys: ['templates.open', 'templates.duplicate', 'templates.new'],
         },
@@ -426,7 +426,7 @@ export const guideVi: GuideContent = {
         {
           title: 'Khai báo tiêu chí',
           body: [
-            'Mỗi hàng của bảng rubric là một tiêu chí. "Khóa tiêu chí" là tên máy (chữ thường, không dấu, nối bằng gạch dưới); "Nhãn hiển thị" là tên giáo viên đọc.',
+            'Mỗi hàng của bảng rubric là một tiêu chí. "Khóa tiêu chí" là tên kỹ thuật (chữ thường, không dấu, nối bằng gạch dưới); "Nhãn hiển thị" là tên giáo viên đọc.',
             'Bắt buộc có một tiêu chí khóa "pronunciation".',
           ],
           uiKeys: ['templates.addDimension', 'templates.dimKey', 'templates.dimLabel'],
@@ -505,7 +505,7 @@ export const guideVi: GuideContent = {
         },
         {
           term: 'awaiting_review (cam) — Chờ giáo viên duyệt',
-          desc: 'AI đã chấm xong. ĐÂY LÀ VIỆC CỦA BẠN. Học viên CHƯA nhận được gì cho tới khi có người bấm "Gửi cho học viên". Hạn là 48 giờ kể từ lúc học viên nhắn.',
+          desc: 'Hệ thống chấm đã chấm xong. ĐÂY LÀ VIỆC CỦA BẠN. Học viên CHƯA nhận được gì cho tới khi có người bấm "Gửi cho học viên". Hạn là 48 giờ kể từ lúc học viên nhắn.',
         },
         {
           term: 'sent (xanh) — Đã gửi',
@@ -546,8 +546,8 @@ export const guideVi: GuideContent = {
         {
           title: 'Danh sách từ phát âm sai — ưu tiên số 1',
           body: [
-            'Đây là phần học viên dùng trực tiếp để luyện, và là phần máy hay sai nhất. Nghe trước các từ có nhãn vàng "Cần giáo viên nghe lại", rồi các từ "Gemini phát hiện (Azure bỏ sót)", sau cùng là từ không nhãn.',
-            'Với mỗi từ, trả lời một câu: học viên đọc từ này sai thật không? Sai → giữ. Đúng → "Gắn sai". Nghe thấy lỗi mà máy không có → "+ Thêm từ AI bỏ sót". Chi tiết từng nút ở mục "Gắn sai và Thêm từ — bấm xong chuyện gì xảy ra".',
+            'Đây là phần học viên dùng trực tiếp để luyện, và là phần hệ thống chấm hay sai nhất. Nghe trước các từ có nhãn vàng "Cần giáo viên nghe lại", rồi các từ "Phát hiện khi nghe lại", sau cùng là từ không nhãn.',
+            'Với mỗi từ, trả lời một câu: học viên đọc từ này sai thật không? Sai → giữ. Đúng → "Gắn sai". Nghe thấy lỗi mà hệ thống chấm không có → "+ Thêm từ hệ thống chấm bỏ sót". Chi tiết từng nút ở mục "Gắn sai và Thêm từ — bấm xong chuyện gì xảy ra".',
           ],
           uiKeys: ['submissions.wordNeedsReview', 'submissions.wordFromGemini', 'submissions.removeWord', 'submissions.addWord'],
         },
@@ -563,14 +563,14 @@ export const guideVi: GuideContent = {
           title: 'Nhận xét chung ở đầu tin',
           body: [
             'Đây là đoạn học viên (và phụ huynh) đọc đầu tiên. Kiểm tra: xưng hô thống nhất với cả tin; không nhắc điểm số hay "band"; khen/góp ý đúng với bài này chứ không chung chung.',
-            'Mở "Nhận xét AI (gốc)" ngay dưới ô nếu muốn so với bản ban đầu.',
+            'Mở "Nhận xét của hệ thống chấm (gốc)" ngay dưới ô nếu muốn so với bản ban đầu.',
           ],
           uiKeys: ['submissions.overallFeedback', 'submissions.llmFeedback'],
         },
         {
           title: 'Nhận xét và Hướng sửa từng tiêu chí',
           body: [
-            'AI đôi khi trích một câu hay một từ KHÔNG có trong bài. Mọi ví dụ AI trích ("em nói it require…") phải nghe thấy được trong audio — không nghe thấy thì xóa hoặc thay bằng ví dụ thật.',
+            'Hệ thống chấm đôi khi trích một câu hay một từ KHÔNG có trong bài. Mọi ví dụ được trích ("em nói it require…") phải nghe thấy được trong audio — không nghe thấy thì xóa hoặc thay bằng ví dụ thật.',
             'Sau khi "Gắn sai" một từ, đọc lại nhận xét phát âm: nếu câu nhận xét vẫn nhắc tới từ đó, sửa luôn câu đó — "Gắn sai" chỉ bỏ dòng trong danh sách từ, không sửa chữ trong nhận xét.',
           ],
           uiKeys: ['submissions.comment', 'submissions.scoreFix'],
@@ -578,8 +578,8 @@ export const guideVi: GuideContent = {
         {
           title: 'Điểm — sửa khi lệch rõ, không cần tinh chỉnh',
           body: [
-            'Học viên không thấy điểm; điểm dùng cho báo cáo và để đo AI lệch giáo viên bao nhiêu. Sửa khi bạn chắc AI lệch rõ (ví dụ AI cho 4, bạn chấm 2). Không cần mất thời gian cân nhắc chênh lệch nhỏ.',
-            'Tổng điểm và "Số liệu đo bằng Azure" (0–100) chỉ để tham khảo, không sửa được và không gửi cho học viên.',
+            'Học viên không thấy điểm; điểm dùng cho báo cáo và để đo hệ thống chấm lệch giáo viên bao nhiêu. Sửa khi bạn chắc hệ thống chấm lệch rõ (ví dụ hệ thống chấm cho 4, bạn chấm 2). Không cần mất thời gian cân nhắc chênh lệch nhỏ.',
+            'Tổng điểm và "Số liệu đo của hệ thống chấm" (0–100) chỉ để tham khảo, không sửa được và không gửi cho học viên.',
           ],
           uiKeys: ['submissions.dimensionScore', 'submissions.azureTitle'],
         },
@@ -602,8 +602,8 @@ export const guideVi: GuideContent = {
         {
           title: 'Nghe bài và xem số liệu đo',
           body: [
-            'Nghe file ghi âm. Khi hệ thống đã bật Azure, khung "Số liệu đo bằng Azure" hiện điểm 0–100 đo từ giọng nói: độ chính xác, trôi chảy, ngữ điệu, âm đuôi, trọng âm — và lời nói Azure nhận dạng được.',
-            'Điểm các tiêu chí đo được bằng giọng nói (phát âm, ngữ điệu, âm đuôi, trọng âm, trôi chảy) là do Azure đo, lần nào chấm lại cũng ra đúng số đó. Nhận xét và hướng sửa do Gemini viết dựa trên số đo. Với IELTS, Từ vựng, Ngữ pháp và phần Mạch lạc vẫn do Gemini chấm.',
+            'Nghe file ghi âm. Khi có lượt đo phát âm, khung "Số liệu đo của hệ thống chấm" hiện điểm 0–100 đo từ giọng nói: độ chính xác, trôi chảy, ngữ điệu, âm đuôi, trọng âm — và lời nói hệ thống chấm nhận dạng được.',
+            'Điểm các tiêu chí đo được bằng giọng nói (phát âm, ngữ điệu, âm đuôi, trọng âm, trôi chảy) là do lượt đo phát âm đo, lần nào chấm lại cũng ra đúng số đó. Nhận xét và hướng sửa do hệ thống chấm viết dựa trên số đo. Với IELTS, hệ thống chấm cho điểm thêm Từ vựng, Ngữ pháp và phần Mạch lạc.',
             'Nhãn vàng "Nói tự do (không có bài đọc)" ở lớp thiếu nhi nghĩa là lớp chưa nhập bài đọc: điểm phát âm kém tin cậy, nghe kỹ trước khi gửi và nhập bài đọc cho lớp (tab Tạo tiêu chí → "Lớp của tôi đang chấm bằng bộ tiêu chí nào?").',
           ],
           uiKeys: ['submissions.azureTitle', 'submissions.azureModeScripted', 'submissions.azureModeUnscripted'],
@@ -612,8 +612,8 @@ export const guideVi: GuideContent = {
           title: 'Sửa trực tiếp mọi thứ học viên sẽ nhận',
           body: [
             'Sửa được tất cả: nhận xét chung ở đầu tin, điểm từng tiêu chí, nhận xét, hướng sửa, và gợi ý cho từng từ phát âm sai.',
-            'Từ học viên đọc ĐÚNG mà máy đánh dấu nhầm → "Gắn sai". Từ học viên đọc sai mà máy bỏ sót → dừng audio đúng chỗ, bấm "+ Thêm từ AI bỏ sót". Bấm xong chuyện gì xảy ra: xem mục "Gắn sai và Thêm từ — bấm xong chuyện gì xảy ra".',
-            'Điểm bạn sửa khác điểm AI thì cạnh ô hiện nhãn "AI: …" để đối chiếu. Bản gốc của AI luôn được giữ lại — dùng để đo AI lệch giáo viên bao nhiêu.',
+            'Từ học viên đọc ĐÚNG mà hệ thống chấm đánh dấu nhầm → "Gắn sai". Từ học viên đọc sai mà hệ thống chấm bỏ sót → dừng audio đúng chỗ, bấm "+ Thêm từ hệ thống chấm bỏ sót". Bấm xong chuyện gì xảy ra: xem mục "Gắn sai và Thêm từ — bấm xong chuyện gì xảy ra".',
+            'Điểm bạn sửa khác điểm gốc thì cạnh ô hiện nhãn "Bản gốc: …" để đối chiếu. Bản gốc của hệ thống chấm luôn được giữ lại — dùng để đo hệ thống chấm lệch giáo viên bao nhiêu.',
             'Học viên KHÔNG nhận điểm số: điểm chỉ dùng cho báo cáo. Nếu điểm hay nhận xét của một tiêu chí lệch nhiều so với cách bạn chấm, báo người phụ trách bộ tiêu chí (tab Tạo tiêu chí).',
           ],
           uiKeys: [
@@ -661,28 +661,28 @@ export const guideVi: GuideContent = {
       heading: 'Đọc các nhãn trên từ phát âm sai',
       intro: [
         'Dưới tiêu chí phát âm là danh sách từ học viên đọc chưa đúng. Cách làm với mỗi từ: bấm ▶ để nghe lại (hệ thống tua lùi 2 giây để bạn nghe cả câu dẫn), rồi quyết định giữ, sửa gợi ý, hay "Gắn sai".',
-        'Máy làm hai lượt: Azure đo từng âm và đánh dấu từ sai; sau đó hệ thống cắt riêng đoạn 1–2 giây quanh mỗi từ cho Gemini nghe lại và viết hướng sửa.',
+        'Hệ thống chấm làm hai lượt: lượt đo phát âm đo từng âm và đánh dấu từ sai; sau đó hệ thống cắt riêng đoạn 1–2 giây quanh mỗi từ cho lượt nghe lại nghe kỹ và viết hướng sửa.',
       ],
       terms: [
         {
           term: 'Từ không có nhãn',
-          desc: 'Azure đánh dấu sai và Gemini nghe lại đoạn cắt cũng thấy sai (hoặc chưa nghe lại được). Thường là lỗi thật — vẫn nên nghe nếu bạn phân vân.',
+          desc: 'Lượt đo phát âm đánh dấu sai và lượt nghe lại đoạn cắt cũng thấy sai (hoặc chưa nghe lại được). Thường là lỗi thật — vẫn nên nghe nếu bạn phân vân.',
         },
         {
           term: 'Nhãn vàng "Cần giáo viên nghe lại"',
-          desc: 'Hai máy bất đồng: Azure đánh dấu sai, nhưng Gemini nghe đoạn cắt thấy chấp nhận được. Bạn là người quyết định — nghe ▶: học viên đọc đúng thì bấm "Gắn sai"; đọc sai thì giữ và sửa gợi ý nếu cần. Nghe những từ này trước.',
+          desc: 'Hai lượt không khớp nhau: lượt đo phát âm đánh dấu sai, nhưng lượt nghe lại đoạn cắt thấy chấp nhận được. Bạn là người quyết định — nghe ▶: học viên đọc đúng thì bấm "Gắn sai"; đọc sai thì giữ và sửa gợi ý nếu cần. Nghe những từ này trước.',
         },
         {
-          term: 'Nhãn "Gemini phát hiện (Azure bỏ sót)"',
-          desc: 'Azure chấm từ này là đúng, nhưng Gemini nghe cả bài thấy sai và đã nghe lại đoạn cắt để xác nhận. Nghe lại trước khi giữ.',
+          term: 'Nhãn "Phát hiện khi nghe lại"',
+          desc: 'Lượt đo phát âm chấm từ này là đúng, nhưng khi nghe cả bài hệ thống chấm thấy sai và đã nghe lại đoạn cắt để xác nhận. Nghe lại trước khi giữ.',
         },
         {
-          term: 'Nhãn "AI nhận diện thiếu"',
-          desc: 'Từ học viên đọc sai mà máy bỏ sót — do bạn tự thêm bằng "+ Thêm từ AI bỏ sót". Sửa được từ, mốc giờ và hướng sửa; bấm "Xóa" để bỏ dòng. Từ để trống sẽ tự bị bỏ khi lưu.',
+          term: 'Nhãn "Hệ thống chấm bỏ sót"',
+          desc: 'Từ học viên đọc sai mà hệ thống chấm bỏ sót — do bạn tự thêm bằng "+ Thêm từ hệ thống chấm bỏ sót". Sửa được từ, mốc giờ và hướng sửa; bấm "Xóa" để bỏ dòng. Từ để trống sẽ tự bị bỏ khi lưu.',
         },
         {
           term: 'Chữ trong ngoặc và "Nghe thành"',
-          desc: 'Chữ trong ngoặc sau từ là lỗi cụ thể Gemini nghe được, ví dụ "/θ/ đọc thành /t/" — chỉ giáo viên thấy. "Nghe thành" là cách học viên thực sự đọc, ghi bằng phiên âm. Học viên nhận: mốc giờ, từ, "em đọc thành …" và hướng sửa.',
+          desc: 'Chữ trong ngoặc sau từ là lỗi cụ thể lượt nghe lại nghe được, ví dụ "/θ/ đọc thành /t/" — chỉ giáo viên thấy. "Nghe thành" là cách học viên thực sự đọc, ghi bằng phiên âm. Học viên nhận: mốc giờ, từ, "em đọc thành …" và hướng sửa.',
         },
       ],
       example: {
@@ -702,19 +702,19 @@ export const guideVi: GuideContent = {
       ],
       steps: [
         {
-          title: '"Gắn sai" — nghĩa là "học viên đọc từ này ĐÚNG, máy đánh dấu nhầm"',
+          title: '"Gắn sai" — nghĩa là "học viên đọc từ này ĐÚNG, hệ thống chấm đánh dấu nhầm"',
           body: [
             'Ngay khi bấm: dòng của từ đó biến mất khỏi danh sách trên màn hình. Chưa có gì được lưu hay gửi.',
             'Tin học viên nhận: không còn dòng của từ đó trong phần "Em chú ý phát âm các từ sau". Các từ khác, nhận xét, hướng sửa và điểm giữ nguyên.',
             'Điểm phát âm: KHÔNG đổi. Gắn sai nhiều từ đến mức điểm không còn hợp lý thì tự sửa ô Điểm.',
             'Nhận xét phát âm: KHÔNG đổi. Câu nhận xét còn nhắc tới từ vừa gắn sai thì sửa tay câu đó.',
-            'Bản chấm gốc của AI: vẫn giữ nguyên trong hệ thống, không mất.',
-            'Khi bấm Gửi: hệ thống ghi lại "giáo viên gắn sai từ này" (một lần, ở lần gửi). Số liệu này dùng để đo máy đánh dấu đúng được bao nhiêu phần — càng nhiều từ bị gắn sai, càng cho thấy máy cần chỉnh.',
+            'Bản chấm gốc của hệ thống chấm: vẫn giữ nguyên trong hệ thống, không mất.',
+            'Khi bấm Gửi: hệ thống ghi lại "giáo viên gắn sai từ này" (một lần, ở lần gửi). Số liệu này dùng để đo hệ thống chấm đánh dấu đúng được bao nhiêu phần — càng nhiều từ bị gắn sai, càng cho thấy hệ thống chấm cần chỉnh.',
           ],
           uiKeys: ['submissions.removeWord'],
           callout: {
             kind: 'warn',
-            text: 'Chỉ bấm "Gắn sai" khi học viên đọc ĐÚNG. Nếu học viên đọc sai thật nhưng bạn muốn tin ngắn bớt, đừng dùng nút này — hệ thống sẽ tính là máy đánh dấu nhầm và làm lệch số đo độ chính xác. Hãy giữ từ lại, hoặc báo người phụ trách nếu tin thường quá dài.',
+            text: 'Chỉ bấm "Gắn sai" khi học viên đọc ĐÚNG. Nếu học viên đọc sai thật nhưng bạn muốn tin ngắn bớt, đừng dùng nút này — hệ thống sẽ tính là hệ thống chấm đánh dấu nhầm và làm lệch số đo độ chính xác. Hãy giữ từ lại, hoặc báo người phụ trách nếu tin thường quá dài.',
           },
         },
         {
@@ -722,7 +722,7 @@ export const guideVi: GuideContent = {
           body: [
             'Không có nút hoàn tác.',
             '• CHƯA bấm Lưu: tải lại trang (F5). Trang về đúng bản đã lưu gần nhất — từ vừa gắn sai quay lại, nhưng MỌI chỉnh sửa khác chưa lưu cũng mất.',
-            '• ĐÃ bấm Lưu: dừng audio đúng chỗ từ đó, bấm "+ Thêm từ AI bỏ sót", gõ lại từ và hướng sửa. Học viên vẫn nhận đủ dòng đó; hệ thống sẽ ghi nhận thành một lần gắn sai và một từ giáo viên thêm.',
+            '• ĐÃ bấm Lưu: dừng audio đúng chỗ từ đó, bấm "+ Thêm từ hệ thống chấm bỏ sót", gõ lại từ và hướng sửa. Học viên vẫn nhận đủ dòng đó; hệ thống sẽ ghi nhận thành một lần gắn sai và một từ giáo viên thêm.',
             '• ĐÃ Gửi: không sửa được nữa.',
           ],
           callout: {
@@ -731,22 +731,22 @@ export const guideVi: GuideContent = {
           },
         },
         {
-          title: '"+ Thêm từ AI bỏ sót" — học viên đọc sai một từ mà máy không đánh dấu',
+          title: '"+ Thêm từ hệ thống chấm bỏ sót" — học viên đọc sai một từ mà hệ thống chấm không đánh dấu',
           body: [
             'Trước khi bấm: phát audio và DỪNG đúng chỗ học viên đọc sai. Mốc giờ của dòng mới lấy đúng vị trí audio đang dừng (chưa phát audio thì là 0:00). Mốc này sửa tay được — xem bước "Sửa mốc giờ" bên dưới.',
-            'Ngay khi bấm: một dòng mới xuất hiện cuối danh sách, gồm nút ▶, ô mốc giờ, nút "Lấy mốc đang phát", ô "Từ", nhãn "AI nhận diện thiếu", ô hướng sửa và nút "Xóa".',
+            'Ngay khi bấm: một dòng mới xuất hiện cuối danh sách, gồm nút ▶, ô mốc giờ, nút "Lấy mốc đang phát", ô "Từ", nhãn "Hệ thống chấm bỏ sót", ô hướng sửa và nút "Xóa".',
             'Điền: ô "Từ" = đúng từ học viên đọc sai (một từ hoặc cụm ngắn). Ô dài = hướng sửa, nên kèm phiên âm. Không có ô "nghe thành" — muốn nói học viên đọc thành gì thì viết luôn vào hướng sửa.',
             'Để trống ô "Từ": dòng tự bị bỏ khi Lưu/Gửi, học viên không thấy.',
             'Tin học viên nhận: thêm một dòng "• mốc giờ — "từ" → hướng sửa".',
-            'Điểm và nhận xét: KHÔNG đổi. Thêm nhiều lỗi mà điểm AI cho quá cao thì tự sửa ô Điểm.',
-            'Khi bấm Gửi: hệ thống ghi lại "giáo viên thêm từ này" — dùng để đo máy bỏ sót bao nhiêu lỗi giáo viên nghe thấy.',
-            'Thêm nhầm? Bấm "Xóa" trên chính dòng đó. Dòng biến mất và không bị tính là máy đánh dấu nhầm. (Từ giáo viên thêm không có nút "Gắn sai" — nút đó chỉ dành cho từ máy đánh dấu.)',
+            'Điểm và nhận xét: KHÔNG đổi. Thêm nhiều lỗi mà điểm hệ thống chấm cho quá cao thì tự sửa ô Điểm.',
+            'Khi bấm Gửi: hệ thống ghi lại "giáo viên thêm từ này" — dùng để đo hệ thống chấm bỏ sót bao nhiêu lỗi giáo viên nghe thấy.',
+            'Thêm nhầm? Bấm "Xóa" trên chính dòng đó. Dòng biến mất và không bị tính là hệ thống chấm đánh dấu nhầm. (Từ giáo viên thêm không có nút "Gắn sai" — nút đó chỉ dành cho từ hệ thống chấm đánh dấu.)',
           ],
           uiKeys: ['submissions.addWord', 'submissions.wordFromTeacher'],
           example: {
             title: 'Ví dụ — thêm từ "vegetable" học viên đọc sai ở phút 1:24',
             text:
-              'Phát audio, dừng ở 1:24 → bấm "+ Thêm từ AI bỏ sót"\n' +
+              'Phát audio, dừng ở 1:24 → bấm "+ Thêm từ hệ thống chấm bỏ sót"\n' +
               'Ô Từ: vegetable\n' +
               'Ô hướng sửa: Em đọc 3 âm tiết /ˈvedʒ.tə.bəl/, không đọc thành 4 âm tiết "ve-ge-ta-ble" nhé.\n\n' +
               'Học viên nhận:\n' +
@@ -766,8 +766,8 @@ export const guideVi: GuideContent = {
         {
           title: 'Chỉ sửa hướng sửa, không gắn sai',
           body: [
-            'Máy đánh dấu đúng từ nhưng hướng sửa chưa hay: sửa thẳng trong ô hướng sửa. Từ đó vẫn được tính là "giáo viên giữ" — máy đánh dấu đúng.',
-            'Chữ của từ và mốc giờ do máy đánh dấu thì KHÔNG sửa được. Máy ghi sai tên từ (ví dụ từ khác hẳn) thì "Gắn sai" dòng đó rồi "+ Thêm từ" với từ đúng.',
+            'Hệ thống chấm đánh dấu đúng từ nhưng hướng sửa chưa hay: sửa thẳng trong ô hướng sửa. Từ đó vẫn được tính là "giáo viên giữ" — hệ thống chấm đánh dấu đúng.',
+            'Chữ của từ và mốc giờ do hệ thống chấm đánh dấu thì KHÔNG sửa được. Hệ thống chấm ghi sai tên từ (ví dụ từ khác hẳn) thì "Gắn sai" dòng đó rồi "+ Thêm từ" với từ đúng.',
           ],
         },
         {
@@ -782,7 +782,7 @@ export const guideVi: GuideContent = {
       example: {
         title: 'Ví dụ — danh sách trên màn hình và phần học viên nhận',
         text:
-          'Trên màn hình (máy đánh dấu 3 từ):\n' +
+          'Trên màn hình (hệ thống chấm đánh dấu 3 từ):\n' +
           '  ▶ 3:17 express — nghe thành /t/ thay vì /s/\n' +
           '  ▶ 2:13 away  [Cần giáo viên nghe lại]\n' +
           '  ▶ 4:43 love — nghe thành /s/ thay vì /v/\n\n' +
@@ -801,7 +801,7 @@ export const guideVi: GuideContent = {
       terms: [
         {
           term: 'Lỡ bấm "Gắn sai" nhầm',
-          desc: 'Chưa Lưu: tải lại trang (F5) — mất cả các chỉnh sửa khác chưa lưu. Đã Lưu: thêm lại từ đó bằng "+ Thêm từ AI bỏ sót". Xem mục "Gắn sai và Thêm từ".',
+          desc: 'Chưa Lưu: tải lại trang (F5) — mất cả các chỉnh sửa khác chưa lưu. Đã Lưu: thêm lại từ đó bằng "+ Thêm từ hệ thống chấm bỏ sót". Xem mục "Gắn sai và Thêm từ".',
         },
         {
           term: 'Sửa xong, quay lại thì mất hết',
@@ -824,7 +824,7 @@ export const guideVi: GuideContent = {
           desc: 'Zalo của học viên có thể chưa được kích hoạt. Vào Onboarding, tìm tài khoản chờ, nhập số điện thoại của học viên rồi bấm "Kích hoạt"; nhờ học viên gửi lại bài.',
         },
         {
-          term: 'Máy đánh dấu sai rất nhiều từ trong một bài',
+          term: 'Hệ thống chấm đánh dấu sai rất nhiều từ trong một bài',
           desc: 'Hay gặp khi học viên nói tự do hoặc lớp thiếu nhi chưa có bài đọc. Nghe và "Gắn sai" từng từ; nếu là lớp thiếu nhi, nhập bài đọc cho lớp để các bài sau chính xác hơn.',
         },
       ],
@@ -838,7 +838,7 @@ export const guideVi: GuideContent = {
           desc: 'Khóa của lớp đó chưa có bộ tiêu chí nào nên bài sẽ không được chấm. Soạn tiêu chí cho khóa đó theo mục "Chỉnh bộ tiêu chí cho một khóa" hoặc báo quản trị viên.',
         },
         {
-          term: 'AI cho điểm lệch nhiều so với giáo viên',
+          term: 'Hệ thống chấm cho điểm lệch nhiều so với giáo viên',
           desc: 'Mở phiên bản đang dùng, viết lại mô tả của các mức bị nhầm cho cụ thể hơn, thêm yếu tố con cho tiêu chí đó, rồi nhờ quản trị viên chấm thử lại bằng Test Upload.',
         },
         {
@@ -871,10 +871,10 @@ export const guideEn: GuideContent = {
   sections: {
     overview: {
       heading: 'The whole flow in one minute',
-      intro: ['A student sends a speaking clip on Zalo. The AI grades it against the course rubric. A teacher reviews, edits if needed, and sends. The student receives the feedback on Zalo.'],
+      intro: ['A student sends a speaking clip on Zalo. The grading system grades it against the course rubric. A teacher reviews, edits if needed, and sends. The student receives the feedback on Zalo.'],
       terms: [
         { term: 'Step 1 — Student submits', desc: 'The student sends an audio file to the centre\'s Zalo OA. Nothing to click.' },
-        { term: 'Step 2 — AI grades', desc: 'Against the rubric of the student\'s course. How close the AI gets depends on how clearly the rubric is written (Build criteria tab).' },
+        { term: 'Step 2 — The grading system scores it', desc: 'Against the rubric of the student\'s course. How close it gets depends on how clearly the rubric is written (Build criteria tab).' },
         { term: 'Step 3 — Teacher reviews', desc: 'Graded work waits on the Submissions screen (Grading tab).' },
         { term: 'Step 4 — Send', desc: 'The message follows the centre\'s "Speaking correction sheet": a comment and a fix for each criterion.' },
       ],
@@ -895,7 +895,7 @@ export const guideEn: GuideContent = {
         { term: 'Onboarding — Pending accounts', desc: 'A student messaging the centre\'s Zalo OA for the first time appears here. Enter the phone number registered at the centre and click "Activate" to bind that Zalo account to the right student. Until then, their submissions are not graded.' },
         { term: 'Students', desc: 'Code, name, phone, class and course. Search by code, name or phone. A student needs the right class and course to be graded against the right rubric.' },
         { term: 'Submissions', desc: 'Everything students sent. Filter by status, class, date; "View" to listen, edit and send — see the Grading tab.' },
-        { term: 'Criteria', desc: 'Three tabs: "Courses & versions" (which rubric version each course uses), "Per-class config" (which rubric each class uses, plus kids\' reading texts) and "Rubrics & prompt" (rubric structures and the text the AI receives). See the Build criteria tab.' },
+        { term: 'Criteria', desc: 'Three tabs: "Courses & versions" (which rubric version each course uses), "Per-class config" (which rubric each class uses, plus kids\' reading texts) and "Rubrics & grading instructions" (rubric structures and the instructions the grading system uses). See the Build criteria tab.' },
         { term: 'Reports', desc: 'Submission rate per class for a date range; export to CSV or Excel.' },
         { term: 'Analytics', desc: 'Submissions, pending reviews, average scores per class and per criterion — to spot which class or criterion needs attention.' },
         { term: 'Guide', desc: 'This page. One tab per job: Features · Build criteria · Grading.' },
@@ -939,7 +939,7 @@ export const guideEn: GuideContent = {
         {
           title: 'Kids classes: add the current reading text',
           body: [
-            'Why: with the text, Azure aligns every spoken word to it — accurate pronunciation scores and a completeness check. Without it Azure guesses what the child said, often wrongly (measured: "the ladder" heard as "tornado"), and the submission gets a yellow flag.',
+            'Why: with the text, the grading system aligns every spoken word to it — accurate pronunciation scores and a completeness check. Without it the grading system guesses what the child said, often wrongly (measured: "the ladder" heard as "tornado"), and the submission gets a yellow flag.',
             'How: in the per-class table, click "Add reading text" under "Pin criteria". A large window opens; paste the passage the students read, check the word count, click Save — it is saved immediately.',
             'Afterwards the row shows the first two lines and the button becomes "Edit reading text (… words)". New assignment: edit, replace, Save. Free speech again: "Clear reading text".',
             'Paste exactly what is read aloud — keep the title if they read it, drop instructions and page numbers. One current text per class. IELTS free-speech classes do not need one.',
@@ -975,7 +975,7 @@ export const guideEn: GuideContent = {
         {
           title: 'Sub-factors — what they are, how to fill them, when to use them (optional)',
           body: [
-            'A sub-factor splits ONE criterion into smaller aspects with SHORT keywords per band. Its only purpose is to help the AI tell adjacent bands apart (e.g. 6 vs 7).',
+            'A sub-factor splits ONE criterion into smaller aspects with SHORT keywords per band. Its only purpose is to help the grading system tell adjacent bands apart (e.g. 6 vs 7).',
             '• It adds NO score — the criterion still has one score.',
             '• Students never see it.',
             '• Empty sub-factors are dropped on Save.',
@@ -995,16 +995,16 @@ export const guideEn: GuideContent = {
           },
           callout: {
             kind: 'tip',
-            text: 'Kids (Cambridge) courses do not need them. For IELTS, add them only for a criterion where the AI repeatedly lands one band off the teacher, then re-test with Test Upload.',
+            text: 'Kids (Cambridge) courses do not need them. For IELTS, add them only for a criterion where the grading system repeatedly lands one band off the teacher, then re-test with Test Upload.',
           },
         },
         {
           title: 'Load sample comments',
-          body: ['Paste comments teachers already write, pick the criterion and intent (praise / suggestion). The AI copies their tone.'],
+          body: ['Paste comments teachers already write, pick the criterion and intent (praise / suggestion). The grading system copies their tone.'],
           uiKeys: ['authoring.commentBank', 'authoring.addComment'],
           figures: [{ src: IMG.ylComments, alt: 'CMT LỚP KIDS-TEEN sample comments', caption: 'Source: "CMT LỚP KIDS-TEEN" in Rubric Speaking A0–C.' }],
         },
-        { title: 'Preview, then save', body: ['Read the prompt preview, then Save. New submissions use the new version.'], uiKeys: ['authoring.preview', 'criteria.save'] },
+        { title: 'Preview, then save', body: ['Read the instructions preview, then Save. New submissions use the new version.'], uiKeys: ['authoring.preview', 'criteria.save'] },
         { title: 'Test before real use', body: ['Test Upload (admins only — ask one to do it with you) grades a clip without sending anything; check the result on Submissions.'], uiKeys: ['nav.testUpload', 'nav.submissions'] },
       ],
       callout: { kind: 'tip', text: 'Editing a rubric never changes grades already given.' },
@@ -1014,7 +1014,7 @@ export const guideEn: GuideContent = {
       heading: 'Building a brand-new rubric',
       intro: ['Only for a programme unlike Cambridge or IELTS. Needs "rubric_template".'],
       steps: [
-        { title: 'Duplicate a structure', body: ['Criteria → "Rubrics & prompt" tab lists the structures in use → Rubric structure → Duplicate the closest one; give it a short key.'], uiKeys: ['templates.open', 'templates.duplicate'] },
+        { title: 'Duplicate a structure', body: ['Criteria → "Rubrics & grading instructions" tab lists the structures in use → Rubric structure → Duplicate the closest one; give it a short key.'], uiKeys: ['templates.open', 'templates.duplicate'] },
         { title: 'Scale and total', body: ['From the file\'s scoring rules.'], uiKeys: ['templates.scale', 'templates.aggregationMethod'], example: { title: 'Example — KID', text: 'Min 0 · Max 5 · Step 1 · Sum → max total 25' } },
         { title: 'Criteria', body: ['One per row of the rubric table; "pronunciation" is required.'], uiKeys: ['templates.addDimension'], example: { title: 'Example — KID', text: 'pronunciation — Pronunciation (Âm chính)\nintonation — Intonation (Ngữ điệu)\nending_sounds — Ending sounds (Âm đuôi)\nword_stress — Word Stress (Trọng âm từ/cụm)\nfluency — Fluency (Trôi chảy)' } },
         { title: 'Levels (if the file maps totals)', body: ['Ranges must be contiguous from 0 to the max total.'], uiKeys: ['templates.levels'], example: { title: 'Example — KID', text: '0–10 A0 · 11–15 A1- · 16–20 A1 · 21–25 A2' } },
@@ -1040,7 +1040,7 @@ export const guideEn: GuideContent = {
         { term: 'Kind column', desc: 'audio / video: recorded in Zalo — graded. file: an attachment recorded in another app — graded if it really is audio/video. text, image: not graded. follow: the student just followed the OA — not a submission. The system neither grades nor replies to text, image or follow.' },
         { term: 'received (grey) — Received, not graded', desc: 'Normal for text, image, follow. Watch for audio/video/file rows with "—" as the student: the account is not activated, so nothing was graded. Activate it in Onboarding and ask the student to send again — old submissions are NOT re-graded after activation.' },
         { term: 'processing — Being graded', desc: 'Downloading, measuring pronunciation and writing feedback — usually a few minutes, longer for long clips. If a row stays here for a long time (e.g. still unchanged after 15 minutes), the system retried and gave up: tell an admin the student name and time received.' },
-        { term: 'awaiting_review (orange) — Waiting for a teacher', desc: 'The AI has finished. THIS IS YOUR WORK. The student has received nothing until someone clicks "Send to student". Deadline: 48 hours from the student\'s message.' },
+        { term: 'awaiting_review (orange) — Waiting for a teacher', desc: 'The grading system has finished. THIS IS YOUR WORK. The student has received nothing until someone clicks "Send to student". Deadline: 48 hours from the student\'s message.' },
         { term: 'sent (green) — Sent', desc: 'Sent by a teacher, or automatically for a class set to auto-send. Fields are locked; it cannot be edited or re-sent.' },
         { term: 'failed (red) — Could not be graded', desc: 'Click View and read "Flags". Usual causes: student has no course (fix on Students); course has no rubric (Build criteria tab); clip longer than the limit — 7 minutes by default, and the student was already asked to send a shorter one; attachment is not audio. After fixing the cause, ask the student to send again — failed work is not re-graded.' },
       ],
@@ -1072,8 +1072,8 @@ export const guideEn: GuideContent = {
         {
           title: 'The mispronounced-word list — priority 1',
           body: [
-            'This is what students practise from, and where the machine is most often wrong. Listen first to yellow "Teacher should listen" words, then "Found by Gemini", then unlabelled words.',
-            'For each word ask one question: did the student really say it wrong? Yes → keep. No → "Wrong flag". Heard an error the machine missed → "+ Add a word the AI missed". See "Wrong flag and Add word — what happens".',
+            'This is what students practise from, and where the grading system is most often wrong. Listen first to yellow "Teacher should listen" words, then "Found on re-listen", then unlabelled words.',
+            'For each word ask one question: did the student really say it wrong? Yes → keep. No → "Wrong flag". Heard an error the grading system missed → "+ Add a word the grading system missed". See "Wrong flag and Add word — what happens".',
           ],
           uiKeys: ['submissions.wordNeedsReview', 'submissions.wordFromGemini', 'submissions.removeWord', 'submissions.addWord'],
         },
@@ -1089,14 +1089,14 @@ export const guideEn: GuideContent = {
           title: 'The opening comment',
           body: [
             'The first thing the student (and parent) reads. Check consistent forms of address, no scores or bands, and praise/advice specific to this piece of work.',
-            'Open "AI feedback (original)" below the field to compare with the first draft.',
+            'Open "Grading system feedback (original)" below the field to compare with the first draft.',
           ],
           uiKeys: ['submissions.overallFeedback', 'submissions.llmFeedback'],
         },
         {
           title: 'Comment and Fix for each criterion',
           body: [
-            'The AI sometimes quotes a phrase that is NOT in the recording. Every quoted example must be audible — if not, delete it or replace it with a real one.',
+            'The grading system sometimes quotes a phrase that is NOT in the recording. Every quoted example must be audible — if not, delete it or replace it with a real one.',
             'After a "Wrong flag", re-read the pronunciation comment: if it still mentions that word, edit the sentence — "Wrong flag" only removes the word from the list.',
           ],
           uiKeys: ['submissions.comment', 'submissions.scoreFix'],
@@ -1104,8 +1104,8 @@ export const guideEn: GuideContent = {
         {
           title: 'Scores — fix clear misses, do not fine-tune',
           body: [
-            'Students never see scores; they feed reports and measure how far the AI is from teachers. Change a score when the AI is clearly off (AI 4, you 2). Small differences are not worth your time.',
-            'The total and the "Azure measurements" (0–100) are for reference only — not editable, not sent.',
+            'Students never see scores; they feed reports and measure how far the grading system is from teachers. Change a score when it is clearly off (it gave 4, you 2). Small differences are not worth your time.',
+            'The total and the "Grading system measurements" (0–100) are for reference only — not editable, not sent.',
           ],
           uiKeys: ['submissions.dimensionScore', 'submissions.azureTitle'],
         },
@@ -1120,7 +1120,7 @@ export const guideEn: GuideContent = {
         {
           title: 'Listen and check the measurements',
           body: [
-            'With Azure on, "Azure measurements" shows 0–100 scores measured from the voice (accuracy, fluency, intonation, ending sounds, word stress) and the recognised speech. Those criteria are scored by Azure; comments and fixes are written by Gemini. IELTS lexical, grammar and coherence are still scored by Gemini.',
+            'With the measuring pass on, "Grading system measurements" shows 0–100 scores measured from the voice (accuracy, fluency, intonation, ending sounds, word stress) and the recognised speech. Those criteria are scored by the measuring pass; the grading system writes the comments and fixes from those measurements, and for IELTS it also scores lexical, grammar and coherence.',
             'A yellow "Free speech (no reading text)" badge on a kids class means no reading text was entered — pronunciation scores are unreliable; listen carefully and add the text (Build criteria tab → "Which rubric is my class using?").',
           ],
           uiKeys: ['submissions.azureTitle', 'submissions.azureModeUnscripted'],
@@ -1128,8 +1128,8 @@ export const guideEn: GuideContent = {
         {
           title: 'Edit everything the student will receive',
           body: [
-            'Opening comment, each score, comment, fix, and the suggestion for each mispronounced word. An "AI: …" badge shows the original score; the AI version is always kept. Students never receive scores.',
-            'Said correctly but flagged → "Wrong flag". Said wrongly but missed → pause the audio there and press "+ Add a word the AI missed". What each button does: see "Wrong flag and Add word — what happens".',
+            'Opening comment, each score, comment, fix, and the suggestion for each mispronounced word. An "Original: …" badge shows the original score; the original is always kept. Students never receive scores.',
+            'Said correctly but flagged → "Wrong flag". Said wrongly but missed → pause the audio there and press "+ Add a word the grading system missed". What each button does: see "Wrong flag and Add word — what happens".',
           ],
           uiKeys: ['submissions.overallFeedback', 'submissions.dimensionScore', 'submissions.comment', 'submissions.removeWord', 'submissions.addWord'],
         },
@@ -1151,14 +1151,14 @@ export const guideEn: GuideContent = {
       heading: 'Reading the labels on mispronounced words',
       intro: [
         'Under the pronunciation criterion is the list of words the student got wrong. For each: press ▶ to replay (it rewinds 2 seconds so you hear the lead-in), then keep it, edit the suggestion, or press "Wrong flag".',
-        'The machine works in two passes: Azure measures each sound and flags words; then a 1–2 second clip around each word is cut for Gemini to re-hear and write the fix.',
+        'The grading system works in two passes: the measuring pass measures each sound and flags words; then a 1–2 second clip around each word is cut for the re-listening pass to hear again and write the fix.',
       ],
       terms: [
-        { term: 'No label', desc: 'Azure flagged it and Gemini\'s re-hearing agreed (or could not re-hear it). Usually a real error — replay if unsure.' },
-        { term: 'Yellow "Teacher should listen"', desc: 'The machines disagree: Azure flagged it, Gemini heard it as acceptable. You decide — replay; said correctly → "Wrong flag"; said wrongly → keep. Listen to these first.' },
-        { term: '"Found by Gemini (Azure missed it)"', desc: 'Azure scored the word as correct, but Gemini heard an error and confirmed it on the clip. Replay before keeping.' },
-        { term: '"Missed by AI"', desc: 'A word the student got wrong that the machine missed, added by you with "+ Add a word the AI missed". Word, time and fix are editable; "Delete" removes the row. Empty words are dropped on save.' },
-        { term: 'Text in brackets and "Heard as"', desc: 'The bracketed text is the specific error Gemini heard (e.g. "/θ/ said as /t/") — teachers only. "Heard as" is how the student actually said it, in phonetics. The student receives the time, the word, what they said and the fix.' },
+        { term: 'No label', desc: 'The measuring pass flagged it and the re-listening pass agreed (or could not re-hear it). Usually a real error — replay if unsure.' },
+        { term: 'Yellow "Teacher should listen"', desc: 'The two passes disagree: the measuring pass flagged it, the re-listening pass heard it as acceptable. You decide — replay; said correctly → "Wrong flag"; said wrongly → keep. Listen to these first.' },
+        { term: '"Found on re-listen"', desc: 'The measuring pass scored the word as correct, but the grading system heard an error in the whole recording and confirmed it on the clip. Replay before keeping.' },
+        { term: '"Missed by the grading system"', desc: 'A word the student got wrong that the grading system missed, added by you with "+ Add a word the grading system missed". Word, time and fix are editable; "Delete" removes the row. Empty words are dropped on save.' },
+        { term: 'Text in brackets and "Heard as"', desc: 'The bracketed text is the specific error the re-listening pass heard (e.g. "/θ/ said as /t/") — teachers only. "Heard as" is how the student actually said it, in phonetics. The student receives the time, the word, what they said and the fix.' },
       ],
       example: { title: 'Example — one line the student receives on Zalo', text: '• 0:43 — "genres" em đọc thành "jurns" → Em đọc âm đầu /ʒ/ nhẹ, không bật như /dʒ/ nhé.' },
       callout: { kind: 'warn', text: '"Wrong flag" only removes the word from the student message — it does NOT change the pronunciation score. If many words go, adjust that criterion\'s Score too.' },
@@ -1169,44 +1169,44 @@ export const guideEn: GuideContent = {
       intro: ['Both buttons only change the WORD LIST in the student message. Neither changes a score, edits a comment or sends anything. Nothing is stored until you click Save or Send.'],
       steps: [
         {
-          title: '"Wrong flag" — meaning "the student said this word CORRECTLY; the machine was wrong"',
+          title: '"Wrong flag" — meaning "the student said this word CORRECTLY; the grading system was wrong"',
           body: [
             'Immediately: the word\'s row disappears from the list. Nothing is saved or sent yet.',
             'Student message: that word\'s line is gone from "Em chú ý phát âm các từ sau". Other words, comments, fixes and scores stay.',
             'Pronunciation score: NOT changed — adjust it yourself if many words go.',
             'Pronunciation comment: NOT changed — edit any sentence that still mentions the word.',
-            'The AI\'s original grading: kept in the system.',
-            'On Send: "teacher flagged this word as wrong" is recorded (once). This measures how often the machine flags correctly.',
+            'The grading system\'s original grading: kept in the system.',
+            'On Send: "teacher flagged this word as wrong" is recorded (once). This measures how often the grading system flags correctly.',
           ],
           uiKeys: ['submissions.removeWord'],
-          callout: { kind: 'warn', text: 'Use "Wrong flag" only when the student said the word CORRECTLY. Removing a real error just to shorten the message is counted as a machine mistake and skews the accuracy figures — keep it, or tell the academic lead if messages are routinely too long.' },
+          callout: { kind: 'warn', text: 'Use "Wrong flag" only when the student said the word CORRECTLY. Removing a real error just to shorten the message is counted as a grading-system mistake and skews the accuracy figures — keep it, or tell the academic lead if messages are routinely too long.' },
         },
         {
           title: 'Pressed "Wrong flag" by mistake',
           body: [
             'There is no undo.',
             '• NOT saved yet: reload the page (F5). It returns to the last saved version — the word comes back, but ALL other unsaved edits are lost too.',
-            '• Already saved: pause the audio on that word, press "+ Add a word the AI missed" and type it again. The student still gets the line; it is recorded as one wrong flag plus one teacher-added word.',
+            '• Already saved: pause the audio on that word, press "+ Add a word the grading system missed" and type it again. The student still gets the line; it is recorded as one wrong flag plus one teacher-added word.',
             '• Already sent: cannot be changed.',
           ],
           callout: { kind: 'tip', text: 'Safe habit: decide the whole word list first, then edit comments, then Save.' },
         },
         {
-          title: '"+ Add a word the AI missed" — the student got a word wrong and the machine missed it',
+          title: '"+ Add a word the grading system missed" — the student got a word wrong and the grading system missed it',
           body: [
             'Before pressing: play the audio and PAUSE on the error. The new row takes its time from where the audio is paused (0:00 if never played). You can retype it — see "Editing the time" below.',
-            'Immediately: a new row appears at the end with ▶, a time field, "Use playing time", a "Word" field, a "Missed by AI" badge, a fix field and "Delete".',
+            'Immediately: a new row appears at the end with ▶, a time field, "Use playing time", a "Word" field, a "Missed by the grading system" badge, a fix field and "Delete".',
             'Fill in: "Word" = exactly the word said wrongly (one word or a short phrase). The long field = the fix, ideally with phonetics. There is no "heard as" field — put that in the fix if needed.',
             'Empty "Word": the row is dropped on Save/Send; the student never sees it.',
             'Student message: one more line "• time — "word" → fix".',
             'Score and comments: NOT changed.',
-            'On Send: "teacher added this word" is recorded — this measures how many errors the machine misses.',
-            'Added by mistake? Press "Delete" on that row. It is not counted as a machine mistake. (Teacher-added words have no "Wrong flag" — that button is only for machine-flagged words.)',
+            'On Send: "teacher added this word" is recorded — this measures how many errors the grading system misses.',
+            'Added by mistake? Press "Delete" on that row. It is not counted as a grading-system mistake. (Teacher-added words have no "Wrong flag" — that button is only for words the grading system flagged.)',
           ],
           uiKeys: ['submissions.addWord', 'submissions.wordFromTeacher'],
           example: {
             title: 'Example — adding "vegetable" at 1:24',
-            text: 'Play, pause at 1:24 → "+ Add a word the AI missed"\nWord: vegetable\nFix: Em đọc 3 âm tiết /ˈvedʒ.tə.bəl/, không đọc thành 4 âm tiết "ve-ge-ta-ble" nhé.\n\nThe student receives:\n• 1:24 — "vegetable" → Em đọc 3 âm tiết /ˈvedʒ.tə.bəl/, không đọc thành 4 âm tiết "ve-ge-ta-ble" nhé.',
+            text: 'Play, pause at 1:24 → "+ Add a word the grading system missed"\nWord: vegetable\nFix: Em đọc 3 âm tiết /ˈvedʒ.tə.bəl/, không đọc thành 4 âm tiết "ve-ge-ta-ble" nhé.\n\nThe student receives:\n• 1:24 — "vegetable" → Em đọc 3 âm tiết /ˈvedʒ.tə.bəl/, không đọc thành 4 âm tiết "ve-ge-ta-ble" nhé.',
           },
         },
         {
@@ -1215,15 +1215,15 @@ export const guideEn: GuideContent = {
             'Type min:sec in the time field, e.g. 1:29 (89 also works, as seconds), then Enter or click away. It is recorded at once; press ▶ to replay there (it rewinds 2 seconds for the lead-in).',
             'Or play the audio to the right spot and press "Use playing time".',
             'A wrong format (e.g. "1:75") or a time past the end turns the field red and keeps the old time. An empty field means no time in the student line.',
-            'The student sees this time: "• 1:29 — "word" → fix". Times of machine-flagged words cannot be edited.',
+            'The student sees this time: "• 1:29 — "word" → fix". Times of words the grading system flagged cannot be edited.',
           ],
           uiKeys: ['submissions.timeFromAudio'],
         },
         {
           title: 'Editing only the fix',
           body: [
-            'Right word, weak advice: edit the fix field. The word still counts as "kept" — the machine was right.',
-            'The word text and time of a machine-flagged word cannot be edited. If the machine named the wrong word, "Wrong flag" it and add the right one.',
+            'Right word, weak advice: edit the fix field. The word still counts as "kept" — the grading system was right.',
+            'The word text and time of a word the grading system flagged cannot be edited. If it named the wrong word, "Wrong flag" it and add the right one.',
           ],
         },
         {
@@ -1240,13 +1240,13 @@ export const guideEn: GuideContent = {
     gradingTrouble: {
       heading: 'Problems while grading',
       terms: [
-        { term: 'Pressed "Wrong flag" by mistake', desc: 'Not saved: reload (F5) — other unsaved edits are lost too. Saved: add the word back with "+ Add a word the AI missed".' },
+        { term: 'Pressed "Wrong flag" by mistake', desc: 'Not saved: reload (F5) — other unsaved edits are lost too. Saved: add the word back with "+ Add a word the grading system missed".' },
         { term: 'My edits disappeared', desc: 'Edits are kept only after Save or Send; leaving or reloading the page before that loses them.' },
         { term: '"failed", or audio/file "received" with "—" as the student', desc: 'See "The Submissions screen": open it, read "Flags", fix the cause, ask the student to resend.' },
         { term: 'Send button greyed out, "Sent"', desc: 'Already sent. If the student got nothing, tell an admin the student name and send time — the usual cause is sending more than 48 hours after the student\'s message.' },
         { term: 'Send shows an error', desc: 'Usually an expired session (8 hours); nothing was sent. Log in again in a new tab, reopen the submission, check your edits are there, Send.' },
         { term: 'Student says they sent work but it is not in Submissions', desc: 'Their Zalo may not be activated. Go to Onboarding, enter the student\'s phone, click "Activate", and ask them to send again.' },
-        { term: 'The machine flags a lot of words in one submission', desc: 'Common with free speech or kids classes without a reading text. Replay and "Wrong flag" each; for kids classes, add the reading text so later submissions are more accurate.' },
+        { term: 'The grading system flags a lot of words in one submission', desc: 'Common with free speech or kids classes without a reading text. Replay and "Wrong flag" each; for kids classes, add the reading text so later submissions are more accurate.' },
       ],
     },
 
@@ -1254,7 +1254,7 @@ export const guideEn: GuideContent = {
       heading: 'Problems with criteria',
       terms: [
         { term: 'Yellow "Course has no criteria" badge', desc: 'That class will not be graded until its course has a rubric (see "Adapting a course rubric").' },
-        { term: 'AI scores far from the teacher', desc: 'Make the confused bands more specific, add sub-factors, ask an admin to re-test with Test Upload.' },
+        { term: 'Grading system scores far from the teacher', desc: 'Make the confused bands more specific, add sub-factors, ask an admin to re-test with Test Upload.' },
         { term: 'Authoring buttons missing', desc: 'Missing permission — see the end of "Which rubric is my class using?".' },
       ],
     },
