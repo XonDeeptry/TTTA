@@ -69,8 +69,21 @@ interface Grading {
       scale?: { min?: number; max?: number; step?: number };
       band_scale?: number[];
       dimensions?: { key?: string; name?: string; label?: string }[];
+      student_reply?: { template?: unknown } | null;
     };
   } | null;
+}
+
+/**
+ * Nhận xét chung có thật sự đến tay học viên không — cùng quy tắc với `renderStudentMessage`
+ * (core-api lib/student-message.ts): không có mẫu ⇒ tin nhắn CHÍNH LÀ nhận xét chung; có mẫu ⇒ chỉ
+ * khi mẫu chứa `{{feedback}}`. Chủ dự án 2026-09-28 bỏ `{{feedback}}` khỏi mẫu ("quá AI") — khi đó
+ * ô này không gửi đi đâu, nên ẩn để giáo viên khỏi mất công sửa.
+ */
+function sendsOverallFeedback(grading: Grading): boolean {
+  const reply = grading.criteria?.rubric?.student_reply;
+  const template = typeof reply?.template === 'string' ? reply.template.trim() : '';
+  return !template || /\{\{\s*feedback\s*\}\}/i.test(template);
 }
 
 interface Flag {
@@ -264,14 +277,16 @@ export function SubmissionDetail() {
               {sent ? t('submissions.sentReadOnly') : t('submissions.editHint')}
             </p>
 
-            <div>
-              <h2 className="text-h2">{t('submissions.overallFeedback')}</h2>
-              <Textarea rows={4} className="mt-1" value={feedbackDraft} disabled={sent} onChange={(e) => setFeedbackDraft(e.target.value)} />
-              <details className="mt-1 text-caption text-muted-foreground">
-                <summary className="cursor-pointer">{t('submissions.llmFeedback')}</summary>
-                <p className="mt-1 whitespace-pre-wrap">{grading.llmFeedback}</p>
-              </details>
-            </div>
+            {sendsOverallFeedback(grading) && (
+              <div>
+                <h2 className="text-h2">{t('submissions.overallFeedback')}</h2>
+                <Textarea rows={4} className="mt-1" value={feedbackDraft} disabled={sent} onChange={(e) => setFeedbackDraft(e.target.value)} />
+                <details className="mt-1 text-caption text-muted-foreground">
+                  <summary className="cursor-pointer">{t('submissions.llmFeedback')}</summary>
+                  <p className="mt-1 whitespace-pre-wrap">{grading.llmFeedback}</p>
+                </details>
+              </div>
+            )}
 
             <div className="space-y-4">
               <h2 className="text-h2">{t('submissions.scores')}</h2>

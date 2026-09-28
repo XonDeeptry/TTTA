@@ -462,7 +462,7 @@ export const guideVi: GuideContent = {
           uiKeys: ['templates.outputFields', 'templates.outputFix', 'templates.replyTemplate'],
           example: {
             title: 'Mẫu văn bản phản hồi (gõ đúng như sau)',
-            text: '{{feedback}}\n\n{{criteria}}\n\nEm chú ý phát âm các từ sau:\n{{pronunciation_errors}}',
+            text: '{{criteria}}\n\nEm chú ý phát âm các từ sau:\n{{pronunciation_errors}}',
           },
           callout: {
             kind: 'warn',
@@ -560,14 +560,6 @@ export const guideVi: GuideContent = {
           ],
         },
         {
-          title: 'Nhận xét chung ở đầu tin',
-          body: [
-            'Đây là đoạn học viên (và phụ huynh) đọc đầu tiên. Kiểm tra: xưng hô thống nhất với cả tin; không nhắc điểm số hay "band"; khen/góp ý đúng với bài này chứ không chung chung.',
-            'Mở "Nhận xét của hệ thống chấm (gốc)" ngay dưới ô nếu muốn so với bản ban đầu.',
-          ],
-          uiKeys: ['submissions.overallFeedback', 'submissions.llmFeedback'],
-        },
-        {
           title: 'Nhận xét và Hướng sửa từng tiêu chí',
           body: [
             'Hệ thống chấm đôi khi trích một câu hay một từ KHÔNG có trong bài. Mọi ví dụ được trích ("em nói it require…") phải nghe thấy được trong audio — không nghe thấy thì xóa hoặc thay bằng ví dụ thật.',
@@ -611,13 +603,12 @@ export const guideVi: GuideContent = {
         {
           title: 'Sửa trực tiếp mọi thứ học viên sẽ nhận',
           body: [
-            'Sửa được tất cả: nhận xét chung ở đầu tin, điểm từng tiêu chí, nhận xét, hướng sửa, và gợi ý cho từng từ phát âm sai.',
+            'Sửa được tất cả: điểm từng tiêu chí, nhận xét, hướng sửa, và gợi ý cho từng từ phát âm sai.',
             'Từ học viên đọc ĐÚNG mà hệ thống chấm đánh dấu nhầm → "Gắn sai". Từ học viên đọc sai mà hệ thống chấm bỏ sót → dừng audio đúng chỗ, bấm "+ Thêm từ hệ thống chấm bỏ sót". Bấm xong chuyện gì xảy ra: xem mục "Gắn sai và Thêm từ — bấm xong chuyện gì xảy ra".',
             'Điểm bạn sửa khác điểm gốc thì cạnh ô hiện nhãn "Bản gốc: …" để đối chiếu. Bản gốc của hệ thống chấm luôn được giữ lại — dùng để đo hệ thống chấm lệch giáo viên bao nhiêu.',
             'Học viên KHÔNG nhận điểm số: điểm chỉ dùng cho báo cáo. Nếu điểm hay nhận xét của một tiêu chí lệch nhiều so với cách bạn chấm, báo người phụ trách bộ tiêu chí (tab Tạo tiêu chí).',
           ],
           uiKeys: [
-            'submissions.overallFeedback',
             'submissions.dimensionScore',
             'submissions.comment',
             'submissions.scoreFix',
@@ -641,7 +632,6 @@ export const guideVi: GuideContent = {
       example: {
         title: 'Học viên nhận được trên Zalo (rút gọn từ một bài thật của lớp PILOT-TEST)',
         text:
-          'Thầy/Cô đánh giá cao sự chuẩn bị chu đáo và khả năng mở rộng ý tưởng rất tốt của em trong bài nói này! …\n\n' +
           '🔹 Fluency and coherence\n' +
           'Nhận xét: Em trả lời đầy đủ tất cả các câu hỏi và biết cách kéo dài câu nói bằng cách đưa ra lý do, ví dụ minh họa rõ ràng.\n' +
           '→ Hướng sửa: Hạn chế đọc lại câu hỏi trong đề bài; thay bằng câu dẫn tự nhiên như "Well, to be honest…".\n\n' +
@@ -1022,7 +1012,7 @@ export const guideEn: GuideContent = {
           title: 'Outputs and student message template',
           body: ['Tick Comment and Fix. Keep this reply template exactly.'],
           uiKeys: ['templates.outputFields', 'templates.replyTemplate'],
-          example: { title: 'Reply template', text: '{{feedback}}\n\n{{criteria}}\n\nEm chú ý phát âm các từ sau:\n{{pronunciation_errors}}' },
+          example: { title: 'Reply template', text: '{{criteria}}\n\nEm chú ý phát âm các từ sau:\n{{pronunciation_errors}}' },
           callout: { kind: 'warn', text: 'Do not enable "show total" or "show level": students do not receive scores.' },
         },
       ],
@@ -1086,14 +1076,6 @@ export const guideEn: GuideContent = {
           ],
         },
         {
-          title: 'The opening comment',
-          body: [
-            'The first thing the student (and parent) reads. Check consistent forms of address, no scores or bands, and praise/advice specific to this piece of work.',
-            'Open "Grading system feedback (original)" below the field to compare with the first draft.',
-          ],
-          uiKeys: ['submissions.overallFeedback', 'submissions.llmFeedback'],
-        },
-        {
           title: 'Comment and Fix for each criterion',
           body: [
             'The grading system sometimes quotes a phrase that is NOT in the recording. Every quoted example must be audible — if not, delete it or replace it with a real one.',
@@ -1128,10 +1110,10 @@ export const guideEn: GuideContent = {
         {
           title: 'Edit everything the student will receive',
           body: [
-            'Opening comment, each score, comment, fix, and the suggestion for each mispronounced word. An "Original: …" badge shows the original score; the original is always kept. Students never receive scores.',
+            'Each score, comment, fix, and the suggestion for each mispronounced word. An "Original: …" badge shows the original score; the original is always kept. Students never receive scores.',
             'Said correctly but flagged → "Wrong flag". Said wrongly but missed → pause the audio there and press "+ Add a word the grading system missed". What each button does: see "Wrong flag and Add word — what happens".',
           ],
-          uiKeys: ['submissions.overallFeedback', 'submissions.dimensionScore', 'submissions.comment', 'submissions.removeWord', 'submissions.addWord'],
+          uiKeys: ['submissions.dimensionScore', 'submissions.comment', 'submissions.removeWord', 'submissions.addWord'],
         },
         {
           title: 'Send to student',
@@ -1142,7 +1124,7 @@ export const guideEn: GuideContent = {
       ],
       example: {
         title: 'What the student receives (shortened, real PILOT-TEST submission)',
-        text: 'Opening comment…\n\n🔹 Fluency and coherence\nNhận xét: …\n→ Hướng sửa: …\n\nEm chú ý phát âm các từ sau:\n• 0:43 — "genres" em đọc thành "jurns" → /ˈʒɑːn.rəz/',
+        text: '🔹 Fluency and coherence\nNhận xét: …\n→ Hướng sửa: …\n\nEm chú ý phát âm các từ sau:\n• 0:43 — "genres" em đọc thành "jurns" → /ˈʒɑːn.rəz/',
       },
       callout: { kind: 'warn', text: 'Send within 48 hours of the student\'s message; after that Zalo blocks free replies and the student receives nothing.' },
     },
