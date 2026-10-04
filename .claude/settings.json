@@ -114,10 +114,16 @@
       "PowerShell(ssh -i \"$env:USERPROFILE\\\\.ssh\\\\ttta_vps\" -o BatchMode=yes -o StrictHostKeyChecking=accept-new sonbui@10.0.6.250 \"echo '=== cap nhat DuckDNS \\(khong truyen ip, DuckDNS tu lay IP nguon\\) ==='; curl -s 'https://www.duckdns.org/update?domains=ilm-ttta&token=bb34eaeb-3bb8-48ea-a01e-06e22e1ad5fc'; echo ''; echo '=== kiem tra sudo khong mat khau ==='; \\(sudo -n true 2>/dev/null && echo 'sudo: OK khong can mat khau'\\) || echo 'sudo: CAN MAT KHAU'\")",
       "PowerShell($key = \"$env:USERPROFILE\\\\.ssh\\\\ttta_vps\"; $remote = 'curl -fsSL https://get.docker.com -o /tmp/get-docker.sh && echo ''Anh$0n123'' | sudo -S -p \"\" sh /tmp/get-docker.sh 2>&1 | tail -12; echo ''Anh$0n123'' | sudo -S -p \"\" usermod -aG docker sonbui; echo \"--- versions ---\"; docker --version; docker compose version'; ssh -i $key -o BatchMode=yes -o StrictHostKeyChecking=accept-new sonbui@10.0.6.250 $remote)",
       "WebFetch(domain:developers.zalo.me)",
-      "PowerShell(Test-Path \"$HOME\\\\.ssh\\\\ttta_vps.pub\"; Test-Path \"C:\\\\Program Files\\\\Git\\\\usr\\\\bin\\\\ssh-copy-id\")"
+      "PowerShell(Test-Path \"$HOME\\\\.ssh\\\\ttta_vps.pub\"; Test-Path \"C:\\\\Program Files\\\\Git\\\\usr\\\\bin\\\\ssh-copy-id\")",
+      "Read(//d/Docs/Project/ILM/**)",
+      "Read(//d/Docs/Project/ILM-Clone/**)",
+      "Read(//d/Docs/Project/ILM/services/**)",
+      "Read(//d/Docs/Project/ILM/services/api/src/materials/**)",
+      "Read(//d/Docs/Project/**)"
     ],
     "additionalDirectories": [
-      "C:\\Users\\XONDEE~1\\AppData\\Local\\Temp"
+      "C:\\Users\\XONDEE~1\\AppData\\Local\\Temp",
+      "D:\\Docs\\Project\\ILM-Clone"
     ]
   }
 }
