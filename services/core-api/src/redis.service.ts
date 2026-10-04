@@ -38,6 +38,11 @@ export class RedisService implements OnModuleDestroy {
     await this.client.sadd(KNOWN_USERS_KEY, zaloUserId);
   }
 
+  /** Bỏ một user khỏi danh sách "đã biết" — khi liên kết cuối cùng của họ bị gỡ vì ghép nhầm. */
+  async removeKnownUser(zaloUserId: string): Promise<void> {
+    await this.client.srem(KNOWN_USERS_KEY, zaloUserId);
+  }
+
   /**
    * Dựng lại toàn bộ danh sách lúc khởi động. Ghi vào key tạm rồi RENAME đè lên — thao tác
    * nguyên tử, nên gateway không bao giờ nhìn thấy khoảnh khắc danh sách rỗng và tưởng mọi học

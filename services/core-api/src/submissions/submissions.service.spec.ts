@@ -47,7 +47,7 @@ describe('SubmissionsService', () => {
       schema_version: 2,
       scale: CAMBRIDGE_YL_SEED.rubric.scale,
       aggregation: CAMBRIDGE_YL_SEED.rubric.aggregation,
-      dimensions: CAMBRIDGE_YL_SEED.rubric.dimensions.map((d) => ({ key: d.key })),
+      dimensions: CAMBRIDGE_YL_SEED.rubric.dimensions.map((d) => ({ key: d.key, in_total: d.in_total })),
     };
 
     it('derives 25 for the Cambridge YL rubric (5 dimensions × scale max 5)', async () => {

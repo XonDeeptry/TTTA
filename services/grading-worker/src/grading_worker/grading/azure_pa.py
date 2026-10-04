@@ -371,9 +371,36 @@ def azure_metric(dimension_key: str, facts: dict[str, Any], ielts: bool) -> floa
         return facts.get("ending_sounds")
     if dimension_key == "word_stress":
         return facts.get("word_stress")
-    if dimension_key in ("fluency", "fluency_coherence"):
+    if dimension_key == "fluency":
         return s.get("fluency")
+    # IELTS `fluency_coherence`: KHÔNG còn do Azure chốt (chủ dự án + học thuật 2026-10-03). Azure
+    # fluency thưởng cho nhịp ĐỀU, mà đọc thuộc/đọc kịch bản thì rất đều — bài 237 được 89.6 ⇒ band 8
+    # trong khi học thuật chấm ≤ 6 ("nói đều đặn ~ chưa tự nhiên"). Số đo Azure chỉ còn là DỮ KIỆN
+    # trong prompt (`build_facts_instruction`), Gemini chấm theo mô tả band.
     return None
+
+
+# "Content (Đọc đủ & đúng chữ)" — tiêu chí bài đọc to (2026-10-03, core-api templates/reading-accuracy.ts).
+READING_ACCURACY_KEY = "reading_accuracy"
+# CompletenessScore (% từ của bài đọc được đọc ra) → band thang 0–5. Ngưỡng khởi điểm theo mô tả band.
+COMPLETENESS_5 = [(98, 5), (93, 4), (85, 3), (70, 2), (40, 1)]
+
+
+def completeness_band(value: float | None, scale: dict[str, Any]) -> float | None:
+    if value is None:
+        return None
+    if int(scale["max"]) == 5:
+        return _snap(next((b for m, b in COMPLETENESS_5 if value >= m), 0), scale)
+    lo, hi = float(scale["min"]), float(scale["max"])
+    return _snap(lo + (hi - lo) * value / 100.0, scale)
+
+
+def drop_unmeasurable(rubric: dict[str, Any], has_reading_text: bool) -> dict[str, Any]:
+    """Lớp CHƯA có bài đọc ⇒ không có gì để so "đọc đủ" ⇒ bỏ tiêu chí Content khỏi lượt chấm này
+    (không để AI đoán điểm). Tiêu chí có `in_total: false` nên vắng mặt không đổi tổng/cấp độ."""
+    if has_reading_text or not any(d["key"] == READING_ACCURACY_KEY for d in rubric["dimensions"]):
+        return rubric
+    return {**rubric, "dimensions": [d for d in rubric["dimensions"] if d["key"] != READING_ACCURACY_KEY]}
 
 
 def measure_bands(
@@ -382,6 +409,13 @@ def measure_bands(
     ielts = is_ielts(rubric)
     measured: dict[str, dict[str, float]] = {}
     for dim in rubric["dimensions"]:
+        if dim["key"] == READING_ACCURACY_KEY:
+            # Chỉ đo khi so với BÀI ĐỌC THẬT của lớp ("scripted") — so với lời định nói thì vô nghĩa.
+            metric = facts["scores"].get("completeness") if facts.get("mode") == "scripted" else None
+            band = completeness_band(metric, rubric["scale"])
+            if metric is not None and band is not None:
+                measured[dim["key"]] = {"metric": round(metric, 1), "band": band}
+            continue
         metric = azure_metric(dim["key"], facts, ielts)
         band = to_band(metric, rubric["scale"], overrides)
         if metric is not None and band is not None:
@@ -455,13 +489,31 @@ def _mmss(seconds: float | None) -> str:
     return f"{int(whole // 60)}:{whole % 60:04.1f}"
 
 
+_MODE_LABELS = {
+    "scripted": "đọc theo văn bản bài đọc",
+    # 2026-10-01: nói tự do, Azure đo theo lời học viên ĐỊNH nói (hệ thống tự ghi lại) — tên từ trong
+    # danh sách dưới đây là từ học viên định nói, không phải từ Azure tự đoán.
+    "intended": "nói tự do, đo theo lời học viên định nói (hệ thống tự ghi lại, không phải bài đọc)",
+    "unscripted": "nói tự do (không có văn bản mẫu)",
+}
+
+# Học thuật 2026-09-29: chỗ học viên nói KHÔNG RÕ / không thành từ có nghĩa là lỗi cần đánh dấu mốc
+# và báo học viên, không được lặng lẽ bỏ qua.
+_UNCLEAR_RULE = (
+    "Chỗ học viên nói KHÔNG RÕ hoặc ra âm không thành từ có nghĩa cũng là lỗi: vẫn thêm một mục, 'word' là từ "
+    "học viên định nói (đoán theo ngữ cảnh câu/bài đọc), 'heard_as' là những gì nghe được (rỗng nếu không nghe "
+    "ra), 'approx_position_sec' là mốc giây, 'suggestion' nhắc em đọc lại to và rõ từ đó — KHÔNG bỏ qua chỉ vì "
+    "không nghe ra đó là từ gì"
+)
+
+
 def build_facts_instruction(rubric: dict[str, Any], facts: dict[str, Any], measured: dict[str, dict[str, float]]) -> str:
     labels = {d["key"]: d["label"] for d in rubric["dimensions"]}
     s = facts["scores"]
     lines = [
         "",
         "DỮ KIỆN ĐO BẰNG AZURE PRONUNCIATION ASSESSMENT (đo từ tín hiệu âm thanh, tất định — tin tưởng các số này):",
-        f"Chế độ: {'đọc theo văn bản bài đọc' if facts['mode'] == 'scripted' else 'nói tự do (không có văn bản mẫu)'}.",
+        f"Chế độ: {_MODE_LABELS.get(facts['mode'], _MODE_LABELS['unscripted'])}.",
         f"Điểm 0–100: độ chính xác {_fmt(s.get('accuracy'))}, trôi chảy {_fmt(s.get('fluency'))}, "
         f"ngữ điệu (prosody) {_fmt(s.get('prosody'))}, âm đuôi {_fmt(facts.get('ending_sounds'))}, "
         f"trọng âm {_fmt(facts.get('word_stress'))}"
@@ -482,12 +534,30 @@ def build_facts_instruction(rubric: dict[str, Any], facts: dict[str, Any], measu
         if key == "fluency_coherence":
             continue
         lines.append(f"  - {labels.get(key, key)}: {_fmt(m['band'])}")
+    if is_ielts(rubric) and "fluency_coherence" not in measured:
+        # 2026-10-03: Fluency & coherence do BẠN chấm; số Azure chỉ là dữ kiện tham khảo.
+        lines.append(
+            f"  - {labels.get('fluency_coherence', 'fluency_coherence')}: BẠN chấm theo mô tả band. Dữ kiện tham khảo: "
+            f"Azure đo độ trôi chảy {_fmt(s.get('fluency'))}/100 và ngữ điệu {_fmt(s.get('prosody'))}/100 — số này thưởng "
+            "cho nhịp ĐỀU, KHÔNG đo độ tự nhiên. Nói đều đều, không ngập ngừng, không tự sửa, câu chữ trau chuốt như văn "
+            "viết là dấu hiệu ĐỌC hoặc HỌC THUỘC, không phải trôi chảy tự nhiên — không được vì số cao mà chấm band cao."
+        )
     if "fluency_coherence" in measured:
         lines.append(
             f"  - {labels.get('fluency_coherence', 'fluency_coherence')}: phần TRÔI CHẢY đã đo được band "
             f"{_fmt(measured['fluency_coherence']['band'])}. Trường 'score' của tiêu chí này bạn CHỈ chấm phần "
             "MẠCH LẠC (coherence); hệ thống tự kết hợp hai phần."
         )
+    if facts.get("mode") == "scripted":
+        timeline = facts.get("words") or []
+        omitted = [w["word"] for w in timeline if w.get("error_type") == "Omission" and w.get("word")]
+        inserted = [w["word"] for w in timeline if w.get("error_type") == "Insertion" and w.get("word")]
+        if omitted or inserted:
+            lines.append(
+                "So với bài đọc của lớp: học viên BỎ " + (", ".join(omitted[:40]) or "không từ nào")
+                + "; đọc THÊM " + (", ".join(inserted[:40]) or "không từ nào")
+                + ". Dùng đúng các từ này khi nhận xét tiêu chí Content (Đọc đủ & đúng chữ), nếu có."
+            )
     errors = facts.get("errors") or []
     if errors:
         lines.append(
@@ -495,7 +565,9 @@ def build_facts_instruction(rubric: dict[str, Any], facts: dict[str, Any], measu
             "phải trả ĐỦ TẤT CẢ các từ này (một mục cho mỗi dòng, kể cả từ lặp lại) và viết 'suggestion' cụ thể "
             "cho từng từ dựa vào âm vị yếu. Nếu nghe cả bài thấy THÊM từ phát âm sai rõ rệt mà danh sách dưới "
             "đây không có (Azure nhận nhầm thành từ khác), thêm từ đó vào 'mispronounced_words' đúng như chữ "
-            "trong bản ghi lời nói, kèm 'approx_position_sec' — hệ thống sẽ cắt đoạn đó để nghe xác nhận:"
+            "trong bản ghi lời nói, kèm 'approx_position_sec' — hệ thống sẽ cắt đoạn đó để nghe xác nhận. "
+            + _UNCLEAR_RULE
+            + ":"
         )
         for e in errors:
             weak = ", ".join(
@@ -507,7 +579,12 @@ def build_facts_instruction(rubric: dict[str, Any], facts: dict[str, Any], measu
                 f"(độ chính xác {_fmt(e.get('accuracy'))}; âm vị yếu: {weak or 'không có âm vị dưới ngưỡng'})"
             )
     else:
-        lines.append("Azure không phát hiện từ phát âm kém rõ rệt — để 'mispronounced_words' là mảng rỗng.")
+        # Trước 2026-09-29 dòng này bắt Gemini trả mảng RỖNG — khi Azure không nhận ra gì (khóa hỏng,
+        # trẻ nói không rõ) mọi lỗi Gemini nghe được đều bị xóa sạch khỏi tin gửi học viên.
+        lines.append(
+            "Azure không đánh dấu từ phát âm kém nào. Vẫn nghe cả bài: từ nào phát âm sai rõ rệt thì thêm vào "
+            "'mispronounced_words' kèm 'approx_position_sec'. " + _UNCLEAR_RULE + "."
+        )
     if facts.get("transcript"):
         lines.append(
             "Bản ghi lời nói do Azure nhận dạng (có thể sai ở số ít/số nhiều, thì, phủ định — KHÔNG trừ điểm "

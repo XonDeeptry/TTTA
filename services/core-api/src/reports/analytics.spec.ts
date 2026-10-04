@@ -438,7 +438,7 @@ describe('ReportsService — F7 analytics', () => {
         schema_version: 2,
         scale: CAMBRIDGE_YL_SEED.rubric.scale,
         aggregation: CAMBRIDGE_YL_SEED.rubric.aggregation,
-        dimensions: CAMBRIDGE_YL_SEED.rubric.dimensions.map((d) => ({ key: d.key })),
+        dimensions: CAMBRIDGE_YL_SEED.rubric.dimensions.map((d) => ({ key: d.key, in_total: d.in_total })),
       };
       prisma.grading.findMany.mockResolvedValue([
         gradingV2(

@@ -32,6 +32,18 @@ describe('parseRubricFromHtml', () => {
     expect(rubric.feedback_language).toBe('vi');
   });
 
+  it('decodes HTML entities from mammoth in headings and text (bug hidden until 2026-10-03)', () => {
+    // Trước bản sửa: heading "&amp;" không khớp ⇒ tone LUÔN rơi về mặc định. Dùng một giọng điệu
+    // KHÁC mặc định để test không bao giờ xanh nhờ trùng hợp nữa.
+    const html = VALID_HTML.replace('Giọng điệu: khích lệ', 'Giọng điệu: nghiêm túc &amp; rõ ràng').replace(
+      'Bài làm tốt, từ vựng phong phú.',
+      'Em nói &quot;rất&quot; rõ &amp; đúng &lt;ý&gt;.',
+    );
+    const rubric = parseRubricFromHtml(html);
+    expect(rubric.tone).toBe('nghiêm túc & rõ ràng');
+    expect(rubric.comment_bank.map((c) => c.text)).toContain('Em nói "rất" rõ & đúng <ý>.');
+  });
+
   it('parses every dimension with its weight and bulleted bands', () => {
     const rubric = parseRubricFromHtml(VALID_HTML);
     expect(rubric.dimensions).toHaveLength(3);
@@ -45,8 +57,8 @@ describe('parseRubricFromHtml', () => {
   it('parses sample comments into the comment bank, one per paragraph', () => {
     const rubric = parseRubricFromHtml(VALID_HTML);
     expect(rubric.comment_bank).toEqual([
-      { dimension: null, intent: null, text: 'Em nói khá trôi chảy, cần chú ý phát âm âm cuối.' },
-      { dimension: null, intent: null, text: 'Bài làm tốt, từ vựng phong phú.' },
+      { dimension: null, band: null, intent: null, text: 'Em nói khá trôi chảy, cần chú ý phát âm âm cuối.' },
+      { dimension: null, band: null, intent: null, text: 'Bài làm tốt, từ vựng phong phú.' },
     ]);
   });
 

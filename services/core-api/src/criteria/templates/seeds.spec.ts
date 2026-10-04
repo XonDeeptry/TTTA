@@ -52,17 +52,21 @@ describe('FR-04 — seed Cambridge YL (cambridge_yl_a0_a2)', () => {
     expect(seed.rubric.aggregation).toEqual({ method: 'sum', round: 'none' });
   });
 
-  it('AC-04.4 đúng 5 tiêu chí, đúng thứ tự, weight = 1, pronunciation đứng đầu', () => {
+  it('AC-04.4 đúng 5 tiêu chí tính điểm + 1 tiêu chí thông tin, đúng thứ tự, weight = 1, pronunciation đứng đầu', () => {
     expect(seed.rubric.dimensions.map((d) => d.key)).toEqual([
       'pronunciation',
       'intonation',
       'ending_sounds',
       'word_stress',
       'fluency',
+      'reading_accuracy',
     ]);
-    expect(seed.rubric.dimensions).toHaveLength(5);
+    expect(seed.rubric.dimensions).toHaveLength(6);
     expect(seed.rubric.dimensions[0].key).toBe('pronunciation');
     for (const dim of seed.rubric.dimensions) expect(dim.weight).toBe(1);
+    // 2026-10-03: "Đọc đủ & đúng chữ" hiện riêng, KHÔNG vào tổng 25 — 5 tiêu chí của PDF vẫn tính.
+    expect(seed.rubric.dimensions.filter((d) => d.in_total).map((d) => d.key)).toHaveLength(5);
+    expect(seed.rubric.dimensions.find((d) => d.key === 'reading_accuracy')?.in_total).toBe(false);
   });
 
   it('AC-04.5 nhãn song ngữ đúng bảng A của thiết kế mục 1.1', () => {
@@ -72,6 +76,7 @@ describe('FR-04 — seed Cambridge YL (cambridge_yl_a0_a2)', () => {
       'Ending sounds (Âm đuôi)',
       'Word Stress (Trọng âm từ/cụm)',
       'Fluency (Trôi chảy)',
+      'Content (Đọc đủ & đúng chữ)',
     ]);
   });
 
@@ -92,7 +97,8 @@ describe('FR-04 — seed Cambridge YL (cambridge_yl_a0_a2)', () => {
       'Nói mượt mà, tự nhiên, có thể diễn đạt ý phức đơn giản.',
     ]);
     // Band 1–4 để trống có chủ ý (A-2: mẫu là CẤU TRÚC, prose là việc của criteria_author).
-    for (const dim of seed.rubric.dimensions) {
+    // Ngoại lệ: "Đọc đủ & đúng chữ" không có trong PDF — hệ thống soạn đủ 0–5 theo chuẩn bài đọc to.
+    for (const dim of seed.rubric.dimensions.filter((d) => d.key !== 'reading_accuracy')) {
       expect(Object.keys(dim.bands).sort()).toEqual(['0', '5']);
     }
   });

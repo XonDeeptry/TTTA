@@ -10,9 +10,40 @@ import type { CreateRubricTemplateDto } from './dto/create-rubric-template.dto';
 import type { DuplicateRubricTemplateDto } from './dto/duplicate-rubric-template.dto';
 import type { UpdateRubricTemplateDto } from './dto/update-rubric-template.dto';
 import { dedupeLocked } from './lockable-fields';
-import { normalizeRubric, type RubricV2 } from './rubric-schema';
+import { normalizeRubric, type CommentBankEntry, type RubricScale, type RubricV2 } from './rubric-schema';
 import { assertAuthorableRubric } from './rubric-validation';
 import { findSeed } from './templates';
+
+/** Trần an toàn: 2 cấu trúc mặc định cần 84 (IELTS) và 75 (thiếu nhi) kịch bản. */
+const MAX_SCRIPTS = 1000;
+const MAX_SCRIPT_CHARS = 1500;
+
+/** Một kịch bản nhận xét cho một tiêu chí × band (màn "Kịch bản nhận xét"). */
+export interface TemplateScript {
+  dimension: string;
+  band: string;
+  text: string;
+}
+
+export interface TemplateScriptsView {
+  key: string;
+  name: string;
+  /** Khóa band của thang, tăng dần — cùng quy tắc `bandValues` của dashboard. */
+  bands: string[];
+  dimensions: { key: string; label: string }[];
+  scripts: TemplateScript[];
+}
+
+/** `min, min+step, …, max` dạng `String(number)` — CÙNG quy tắc `bandValues` ở dashboard/lib/rubric.ts. */
+export function bandValues(scale: RubricScale): string[] {
+  const { min, max, step } = scale;
+  if (![min, max, step].every(Number.isFinite) || step <= 0 || min > max) return [];
+  const out: string[] = [];
+  for (let v = min, guard = 0; v <= max + 1e-9 && guard <= 50; v += step, guard += 1) {
+    out.push(String(Math.round(v * 1e9) / 1e9));
+  }
+  return out;
+}
 
 /** Shape trả về của MỌI route template (§5.2). `rubric` luôn là RubricV2 đã chuẩn hóa. */
 export interface RubricTemplateView {
@@ -204,9 +235,16 @@ export class RubricTemplateService {
       throw new BadRequestException('template key is immutable');
     }
 
-    await this.findRowOr404(key);
+    const existingRow = await this.findRowOr404(key);
 
     const rubric = dto.rubric !== undefined ? this.prepareRubric(dto.rubric) : undefined;
+    if (rubric !== undefined) {
+      // 2026-10-03: kịch bản nhận xét theo band CHỈ được sửa qua màn "Kịch bản nhận xét"
+      // (`saveScripts`). Drawer cấu trúc luôn gửi `comment_bank: []` — không giữ lại ở đây thì lần
+      // lưu cấu trúc đầu tiên sẽ xóa sạch kịch bản học thuật đã soạn.
+      const kept = normalizeRubric(existingRow.rubric).comment_bank.filter((e) => e.band);
+      rubric.comment_bank = [...rubric.comment_bank.filter((e) => !e.band), ...kept];
+    }
 
     try {
       const row = await this.prisma.rubricTemplate.update({
@@ -223,6 +261,48 @@ export class RubricTemplateService {
       if (prismaErrorCode(err) === 'P2025') throw new NotFoundException('template not found');
       throw err;
     }
+  }
+
+  // ─── 5b. Kịch bản nhận xét theo band (học thuật ILM 2026-10-03) ─────────────────
+
+  /**
+   * Kịch bản sống ở CẤU TRÚC dùng chung, không ở từng khóa: 15 khóa IELTS + 7 khóa thiếu nhi dùng
+   * chung 2 cấu trúc, học thuật sửa MỘT chỗ. Worker lấy chúng qua `GET /internal/criteria` và
+   * bốc ngẫu nhiên một kịch bản / tiêu chí × band mỗi bài.
+   */
+  async getScripts(key: string): Promise<TemplateScriptsView> {
+    const row = await this.findRowOr404(key);
+    const rubric = normalizeRubric(row.rubric);
+    return {
+      key: row.key,
+      name: row.name,
+      bands: bandValues(rubric.scale),
+      dimensions: rubric.dimensions.map((d) => ({ key: d.key, label: d.label })),
+      scripts: rubric.comment_bank
+        .filter((e): e is CommentBankEntry & { band: string } => !!e.band && !!e.dimension)
+        .map((e) => ({ dimension: e.dimension as string, band: e.band, text: e.text })),
+    };
+  }
+
+  /** Thay TOÀN BỘ kịch bản gắn band; mẫu không gắn band giữ nguyên. Ô chữ trống ⇒ bỏ qua. */
+  async saveScripts(key: string, scripts: TemplateScript[]): Promise<TemplateScriptsView> {
+    const row = await this.findRowOr404(key);
+    const rubric = normalizeRubric(row.rubric);
+    const dims = new Set(rubric.dimensions.map((d) => d.key));
+    const bands = new Set(bandValues(rubric.scale));
+    if (!Array.isArray(scripts) || scripts.length > MAX_SCRIPTS) throw new BadRequestException(`scripts must be an array of at most ${MAX_SCRIPTS}`);
+    const clean: CommentBankEntry[] = [];
+    for (const s of scripts) {
+      const text = typeof s?.text === 'string' ? s.text.trim() : '';
+      if (!text) continue;
+      if (typeof s.dimension !== 'string' || !dims.has(s.dimension)) throw new BadRequestException(`unknown criterion: ${String(s?.dimension)}`);
+      if (typeof s.band !== 'string' || !bands.has(s.band)) throw new BadRequestException(`band not on this scale: ${String(s?.band)}`);
+      if (text.length > MAX_SCRIPT_CHARS) throw new BadRequestException(`script longer than ${MAX_SCRIPT_CHARS} characters`);
+      clean.push({ dimension: s.dimension, band: s.band, intent: null, text });
+    }
+    const next = { ...rubric, comment_bank: [...rubric.comment_bank.filter((e) => !e.band), ...clean] };
+    await this.prisma.rubricTemplate.update({ where: { key }, data: { rubric: next as never } });
+    return this.getScripts(key);
   }
 
   // ─── 6. Xóa ────────────────────────────────────────────────────────────────────

@@ -639,7 +639,7 @@ export const guideVi: GuideContent = {
           'Nhận xét: Em đã kết hợp được cả câu đơn và câu phức, còn một số lỗi hòa hợp chủ ngữ – động từ.\n' +
           '→ Hướng sửa: "it requires" thay vì "it require"; "a musician" thay vì "a musicians".\n\n' +
           'Em chú ý phát âm các từ sau:\n' +
-          '• 0:43 — "genres" em đọc thành "jurns" → /ˈʒɑːn.rəz/',
+          '• 0:43 — "genres" đọc thành "jurns" → /ˈʒɑːn.rəz/',
       },
       callout: {
         kind: 'warn',
@@ -672,12 +672,12 @@ export const guideVi: GuideContent = {
         },
         {
           term: 'Chữ trong ngoặc và "Nghe thành"',
-          desc: 'Chữ trong ngoặc sau từ là lỗi cụ thể lượt nghe lại nghe được, ví dụ "/θ/ đọc thành /t/" — chỉ giáo viên thấy. "Nghe thành" là cách học viên thực sự đọc, ghi bằng phiên âm. Học viên nhận: mốc giờ, từ, "em đọc thành …" và hướng sửa.',
+          desc: 'Chữ trong ngoặc sau từ là lỗi cụ thể lượt nghe lại nghe được, ví dụ "/θ/ đọc thành /t/" — chỉ giáo viên thấy. "Nghe thành" là cách học viên thực sự đọc, ghi bằng phiên âm. Học viên nhận: mốc giờ, từ, "đọc thành …" và hướng sửa.',
         },
       ],
       example: {
         title: 'Ví dụ — một dòng học viên nhận trên Zalo',
-        text: '• 0:43 — "genres" em đọc thành "jurns" → Em đọc âm đầu /ʒ/ nhẹ, không bật như /dʒ/ nhé.',
+        text: '• 0:43 — "genres" đọc thành "jurns" → Em đọc âm đầu /ʒ/ nhẹ, không bật như /dʒ/ nhé.',
       },
       callout: {
         kind: 'warn',
@@ -779,8 +779,8 @@ export const guideVi: GuideContent = {
           'Giáo viên nghe: "away" học viên đọc đúng → Gắn sai. Nghe thêm thấy "vegetable" ở 1:24 đọc sai → Thêm từ.\n\n' +
           'Học viên nhận:\n' +
           'Em chú ý phát âm các từ sau:\n' +
-          '• 3:17 — "express" em đọc thành "/t/ thay vì /s/" → Chú ý bật rõ âm /s/ ở cuối từ /ɪkˈspres/.\n' +
-          '• 4:43 — "love" em đọc thành "/s/ thay vì /v/" → Khép môi phát âm rõ âm cuối /v/ trong /lʌv/.\n' +
+          '• 3:17 — "express" đọc thành "/t/ thay vì /s/" → Chú ý bật rõ âm /s/ ở cuối từ /ɪkˈspres/.\n' +
+          '• 4:43 — "love" đọc thành "/s/ thay vì /v/" → Khép môi phát âm rõ âm cuối /v/ trong /lʌv/.\n' +
           '• 1:24 — "vegetable" → Em đọc 3 âm tiết /ˈvedʒ.tə.bəl/ nhé.\n\n' +
           'Hệ thống ghi nhận: express, love = giữ · away = gắn sai · vegetable = giáo viên thêm.',
       },
@@ -1124,7 +1124,7 @@ export const guideEn: GuideContent = {
       ],
       example: {
         title: 'What the student receives (shortened, real PILOT-TEST submission)',
-        text: '🔹 Fluency and coherence\nNhận xét: …\n→ Hướng sửa: …\n\nEm chú ý phát âm các từ sau:\n• 0:43 — "genres" em đọc thành "jurns" → /ˈʒɑːn.rəz/',
+        text: '🔹 Fluency and coherence\nNhận xét: …\n→ Hướng sửa: …\n\nEm chú ý phát âm các từ sau:\n• 0:43 — "genres" đọc thành "jurns" → /ˈʒɑːn.rəz/',
       },
       callout: { kind: 'warn', text: 'Send within 48 hours of the student\'s message; after that Zalo blocks free replies and the student receives nothing.' },
     },
@@ -1142,7 +1142,7 @@ export const guideEn: GuideContent = {
         { term: '"Missed by the grading system"', desc: 'A word the student got wrong that the grading system missed, added by you with "+ Add a word the grading system missed". Word, time and fix are editable; "Delete" removes the row. Empty words are dropped on save.' },
         { term: 'Text in brackets and "Heard as"', desc: 'The bracketed text is the specific error the re-listening pass heard (e.g. "/θ/ said as /t/") — teachers only. "Heard as" is how the student actually said it, in phonetics. The student receives the time, the word, what they said and the fix.' },
       ],
-      example: { title: 'Example — one line the student receives on Zalo', text: '• 0:43 — "genres" em đọc thành "jurns" → Em đọc âm đầu /ʒ/ nhẹ, không bật như /dʒ/ nhé.' },
+      example: { title: 'Example — one line the student receives on Zalo', text: '• 0:43 — "genres" đọc thành "jurns" → Em đọc âm đầu /ʒ/ nhẹ, không bật như /dʒ/ nhé.' },
       callout: { kind: 'warn', text: '"Wrong flag" only removes the word from the student message — it does NOT change the pronunciation score. If many words go, adjust that criterion\'s Score too.' },
     },
 

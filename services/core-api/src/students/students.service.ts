@@ -5,8 +5,19 @@ import { CreateStudentDto } from './dto/create-student.dto';
 
 const PAGE_SIZE = 20;
 
+/** Tài khoản Zalo đang gắn (binding `active`) — để tư vấn thấy học viên nhận tin ở Zalo NÀO. */
+export interface StudentZaloLink {
+  id: number;
+  zaloUserId: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  createdAt: Date;
+}
+
+export type StudentWithZalo = Student & { zaloBindings: StudentZaloLink[] };
+
 export interface StudentPage {
-  items: Student[];
+  items: StudentWithZalo[];
   page: number;
   pageSize: number;
   total: number;
@@ -41,20 +52,41 @@ export class StudentsService {
             { code: { contains: search, mode: 'insensitive' } },
             { fullName: { contains: search, mode: 'insensitive' } },
             { phone: { contains: search, mode: 'insensitive' } },
+            // Tìm ngược từ tài khoản Zalo: "tài khoản Zalo này đang gắn với học viên nào?"
+            {
+              bindings: {
+                some: {
+                  status: 'active',
+                  OR: [
+                    { displayName: { contains: search, mode: 'insensitive' } },
+                    { zaloUserId: { contains: search } },
+                  ],
+                },
+              },
+            },
           ],
         }
       : undefined;
 
-    const [items, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.student.findMany({
         where,
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
         orderBy: { code: 'asc' },
+        include: {
+          // `test:*` = binding giả của Test Upload, không phải tài khoản Zalo thật ⇒ không hiện.
+          bindings: {
+            where: { status: 'active', NOT: { zaloUserId: { startsWith: 'test:' } } },
+            select: { id: true, zaloUserId: true, displayName: true, avatarUrl: true, createdAt: true },
+            orderBy: { createdAt: 'asc' },
+          },
+        },
       }),
       this.prisma.student.count({ where }),
     ]);
 
+    const items = rows.map(({ bindings, ...student }) => ({ ...student, zaloBindings: bindings }));
     return { items, page, pageSize: PAGE_SIZE, total };
   }
 

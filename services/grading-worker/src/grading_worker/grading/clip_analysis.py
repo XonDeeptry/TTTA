@@ -31,6 +31,10 @@ from .providers.gemini import GeminiProvider
 
 PAD_SEC = 0.35
 MIN_CLIP_SEC = 0.6
+# Từ không có mốc Azure: cửa sổ quanh mốc ước lượng của Gemini (ước lượng lệch được ~1 giây).
+UNANCHORED_BEFORE_SEC = 0.8
+UNANCHORED_AFTER_SEC = 1.6
+UNCLEAR_SUGGESTION = "Đoạn này cô chưa nghe rõ, em đọc lại thật to và rõ từng âm của từ này nhé."
 CLIPS_PER_CALL = 40
 _PUNCT = ".,!?;:\"'()[]"
 
@@ -84,11 +88,31 @@ def build_candidates(facts: dict[str, Any], llm_words: list[Any]) -> list[dict[s
         if unmatched_azure[key] > 0:  # chính là một từ Azure đã đánh dấu
             unmatched_azure[key] -= 1
             continue
+        approx = proposal.get("approx_position_sec")
+        has_approx = isinstance(approx, (int, float)) and not isinstance(approx, bool) and approx >= 0
         occurrences = [w for w in timeline if _norm(w.get("word")) == key and w["start_sec"] not in used_starts]
         if not occurrences:
-            continue  # không có mốc Azure ⇒ không cắt được đoạn để xác nhận
-        approx = proposal.get("approx_position_sec")
-        if isinstance(approx, (int, float)) and not isinstance(approx, bool):
+            # Học thuật 2026-09-29: từ đọc sai/không rõ đến mức Azure nghe thành từ khác (hoặc không
+            # thành từ nào) thì dòng thời gian không có nó — trước đây bị BỎ. Nay cắt quanh mốc ước
+            # lượng của Gemini. Không có cả mốc ước lượng thì không đánh dấu thời điểm được ⇒ bỏ.
+            if not has_approx:
+                continue
+            candidates.append(
+                {
+                    "word": str(proposal.get("word")).strip(),
+                    "accuracy": None,
+                    "start_sec": round(max(0.0, float(approx) - UNANCHORED_BEFORE_SEC), 2),
+                    "end_sec": round(float(approx) + UNANCHORED_AFTER_SEC, 2),
+                    "weak_phonemes": [],
+                    "source": "gemini",
+                    "anchored": False,
+                    "approx_sec": round(float(approx), 2),
+                    "llm_heard_as": str(proposal.get("heard_as") or ""),
+                    "llm_suggestion": str(proposal.get("suggestion") or ""),
+                }
+            )
+            continue
+        if has_approx:
             best = min(occurrences, key=lambda w: abs(w["start_sec"] - float(approx)))
         else:
             best = occurrences[0]
@@ -122,12 +146,21 @@ def clip_label(index: int, candidate: dict[str, Any]) -> str:
             f"/{p['phoneme']}/ ({p.get('position', '')}, {p.get('accuracy')})" for p in candidate.get("weak_phonemes") or []
         )
         label += f" — Azure đo độ chính xác {candidate.get('accuracy')}" + (f"; âm vị yếu: {weak}" if weak else "")
+    elif candidate.get("anchored") is False:
+        label += " — nghi đọc sai hoặc nói không rõ khi nghe cả bài; mốc là ƯỚC LƯỢNG, từ có thể nằm lệch trong đoạn"
     else:
         label += " — nghi phát âm sai khi nghe cả bài (Azure không đánh dấu)"
     return label
 
 
-def build_clip_instruction() -> str:
+def address_for(rubric: dict[str, Any] | None) -> str:
+    """Cách gọi học viên lấy theo giọng điệu rubric — lớp thiếu nhi ghi "gọi học viên là 'con'".
+    Giáo viên thiếu nhi viết "con" 131/131 lần khi sửa nhận xét (2026-10-03); mặc định "em"."""
+    tone = str((rubric or {}).get("tone") or "")
+    return "con" if "'con'" in tone or '"con"' in tone else "em"
+
+
+def build_clip_instruction(address: str = "em") -> str:
     return "\n".join(
         [
             "Bạn là giáo viên phát âm tiếng Anh của trung tâm ILM, chấm bài nói của học viên Việt Nam.",
@@ -136,10 +169,10 @@ def build_clip_instruction() -> str:
             "- said: học viên thực sự phát âm từ đó thế nào — ghi bằng IPA, ví dụ /ˈmjuːsɪk/.",
             "- is_error: true nếu phát âm SAI rõ rệt so với cách đọc chuẩn (người nghe khó hiểu hoặc sai âm), false nếu chấp nhận được.",
             "- issue: lỗi cụ thể (âm nào, sai thế nào, ở vị trí nào trong từ); để rỗng nếu is_error là false.",
-            "- suggestion: hướng sửa cụ thể, làm được ngay, bằng tiếng Việt, giọng khích lệ của giáo viên ILM: xưng 'cô', gọi học viên là 'em' (KHÔNG dùng 'bạn'); ví dụ 'Em đặt nhẹ đầu lưỡi giữa hai hàm răng rồi thổi hơi ra để đọc /θ/ nhé.'; để rỗng nếu is_error là false.",
-            "CHỈ dựa trên đoạn audio. Nghe không rõ hoặc đoạn không chứa từ mục tiêu thì said = '' và is_error = false. Không bỏ sót đoạn nào.",
+            "- suggestion: hướng sửa cụ thể, làm được ngay, bằng tiếng Việt, giọng thẳng thắn, cụ thể của giáo viên ILM: xưng 'cô', gọi học viên là '{address}' (KHÔNG dùng 'bạn', KHÔNG gọi tên); ví dụ '{address_cap} đặt nhẹ đầu lưỡi giữa hai hàm răng rồi thổi hơi ra để đọc /θ/ nhé.'; để rỗng nếu is_error là false.",
+            "CHỈ dựa trên đoạn audio. Học viên nói ở chỗ từ mục tiêu nhưng KHÔNG NGHE RÕ, hoặc nói ra âm không thành từ có nghĩa: vẫn là LỖI — is_error = true, said = IPA những gì nghe được (rỗng nếu không nghe ra), issue = 'nói không rõ', suggestion = nhắc {address} đọc lại to, rõ từ mục tiêu. Chỉ khi đoạn hoàn toàn không có tiếng học viên ở chỗ đó thì said = '' và is_error = false. Không bỏ sót đoạn nào.",
         ]
-    )
+    ).replace("{address_cap}", address.capitalize()).replace("{address}", address)
 
 
 def merge_clip_results(
@@ -169,21 +202,26 @@ def merge_clip_results(
                     item["needs_review"] = True  # Azure nói sai, Gemini nghe thấy ổn — giáo viên phán
             merged.append(item)
             continue
-        if not result or not result.get("is_error"):
-            continue  # từ Gemini đề xuất chỉ vào danh sách khi nghe đoạn cắt xác nhận
-        merged.append(
-            {
-                "word": str(candidate["word"]),
-                "heard_as": str(result.get("said") or candidate.get("llm_heard_as") or ""),
-                "suggestion": str(result.get("suggestion") or candidate.get("llm_suggestion") or "Nghe lại và đọc chậm từ này"),
-                "issue": str(result.get("issue") or ""),
-                "approx_position_sec": candidate["start_sec"],
-                "start_sec": candidate["start_sec"],
-                **({"end_sec": candidate["end_sec"]} if candidate.get("end_sec") is not None else {}),
-                "source": "gemini",
-                "gemini_confirmed": True,
-            }
-        )
+        # Học thuật 2026-09-29: KHÔNG bỏ từ Gemini đề xuất chỉ vì nghe đoạn cắt không xác nhận (đoạn
+        # không rõ, mốc lệch). Giữ lại, đánh dấu thời điểm, gắn `needs_review` để giáo viên nghe ▶ rồi
+        # quyết định — giống từ Azure bị hai lượt bất đồng.
+        confirmed = bool(result and result.get("is_error"))
+        result = result or {}
+        item = {
+            "word": str(candidate["word"]),
+            "heard_as": str(result.get("said") or candidate.get("llm_heard_as") or ""),
+            "suggestion": str(result.get("suggestion") or candidate.get("llm_suggestion") or UNCLEAR_SUGGESTION),
+            "issue": str(result.get("issue") or ""),
+            # Mốc học viên thấy: mốc thật của Azure, hoặc mốc ước lượng của Gemini (không phải đầu cửa sổ cắt).
+            "approx_position_sec": candidate.get("approx_sec", candidate["start_sec"]),
+            "start_sec": candidate.get("approx_sec", candidate["start_sec"]),
+            **({"end_sec": candidate["end_sec"]} if candidate.get("end_sec") is not None and "approx_sec" not in candidate else {}),
+            "source": "gemini",
+            "gemini_confirmed": confirmed,
+        }
+        if not confirmed:
+            item["needs_review"] = True
+        merged.append(item)
     merged.sort(key=lambda w: (w.get("start_sec") is None, w.get("start_sec") or 0))
     return merged
 
@@ -192,6 +230,7 @@ async def analyze_error_clips(
     config: ConfigStore,
     wav_path: str,
     candidates: list[dict[str, Any]],
+    address: str = "em",
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Cắt đoạn + gọi Gemini theo lô. Trả (kết quả từng đoạn, thống kê để lưu và ghi chi phí)."""
     api_key = await config.get("llm.gemini_api_key")
@@ -218,7 +257,7 @@ async def analyze_error_clips(
     for offset in range(0, len(clips), CLIPS_PER_CALL):
         batch = clips[offset : offset + CLIPS_PER_CALL]
         response = await provider.analyze_clips(
-            system_instruction=build_clip_instruction(),
+            system_instruction=build_clip_instruction(address),
             clips=batch,
             schema=CLIP_SCHEMA,
             model=model,

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Grading, Prisma } from '@prisma/client';
 import { OutboundMessage, Q_OUTBOUND } from '../contracts';
 import { normalizeRubric, RubricV2 } from '../criteria/rubric-schema';
@@ -8,6 +8,8 @@ import { computeTotal } from '../lib/rubric-scoring';
 import { renderStudentMessage } from '../lib/student-message';
 import { PrismaService } from '../prisma.service';
 import { RabbitService } from '../rabbit.service';
+import { RedisService } from '../redis.service';
+import { outboundWindow } from '../lib/zalo-window';
 import { UpdateGradingDto } from './dto/update-grading.dto';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -204,6 +206,7 @@ export class GradingsService {
     private readonly prisma: PrismaService,
     private readonly rabbit: RabbitService,
     private readonly events: EventsService,
+    private readonly redis: RedisService,
   ) {}
 
   /** ILM 09-15: AI ↔ giáo viên trên từ phát âm sai, `days` ngày gần nhất. */
@@ -263,6 +266,18 @@ export class GradingsService {
     });
     if (!grading) throw new NotFoundException('grading not found');
     const firstSend = !grading.sentAt;
+
+    // Sự cố 2026-09-29: quá 48h thì gateway CHẶN nhưng bài vẫn bị đặt `sent` — học viên không nhận
+    // gì mà dashboard báo đã gửi. Kiểm tra cùng quy tắc với gateway TRƯỚC khi publish; bản sửa ở
+    // trên vẫn được lưu, chỉ việc gửi bị từ chối (409) để giáo viên biết mà báo tư vấn.
+    const sendWindow = await outboundWindow(this.redis.client, grading.submission.zaloUserId);
+    if (!sendWindow.allowed) {
+      throw new ConflictException({
+        code: 'outside_48h',
+        message: 'outside the 48h Zalo window — the student must message the OA again first',
+        lastInboundAt: sendWindow.lastInboundMs === null ? null : new Date(sendWindow.lastInboundMs).toISOString(),
+      });
+    }
 
     const rubric = normalizeRubric(grading.criteria?.rubric);
     const scores = grading.reviewedScores ?? grading.scores;

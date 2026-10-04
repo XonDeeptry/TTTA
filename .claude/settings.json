@@ -119,7 +119,11 @@
       "Read(//d/Docs/Project/ILM-Clone/**)",
       "Read(//d/Docs/Project/ILM/services/**)",
       "Read(//d/Docs/Project/ILM/services/api/src/materials/**)",
-      "Read(//d/Docs/Project/**)"
+      "Read(//d/Docs/Project/**)",
+      "WebFetch(domain:azure.microsoft.com)",
+      "WebFetch(domain:ielts.org)",
+      "WebFetch(domain:ielts.idp.com)",
+      "WebFetch(domain:www.britishcouncil.org)"
     ],
     "additionalDirectories": [
       "C:\\Users\\XONDEE~1\\AppData\\Local\\Temp",

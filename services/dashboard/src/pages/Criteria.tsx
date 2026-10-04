@@ -13,6 +13,7 @@ import { SelectNative } from '../components/ui/select-native';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { IconCriteria } from '../components/icons';
 import { TemplateDrawer } from './criteria/TemplateDrawer';
+import { ScriptsTab } from './criteria/ScriptsTab';
 import { RubricDrawer } from './criteria/RubricDrawer';
 import { ReadingTextCell } from './criteria/ReadingTextCell';
 import { RubricSummary } from './criteria/RubricSummary';
@@ -66,8 +67,8 @@ interface TemplateRow {
   isActive: boolean;
 }
 
-type TabId = 'courses' | 'classes' | 'rubrics';
-const TABS: TabId[] = ['courses', 'classes', 'rubrics'];
+type TabId = 'courses' | 'classes' | 'rubrics' | 'scripts';
+const TABS: TabId[] = ['courses', 'classes', 'rubrics', 'scripts'];
 
 /**
  * Trang Tiêu chí, chia 3 tab (pilot 09-15): trước đây là một chuỗi nút bấm — "Cấu trúc chấm điểm",
@@ -424,6 +425,8 @@ export function Criteria() {
           </Card>
         </section>
       )}
+
+      {tab === 'scripts' && <ScriptsTab canEdit={canAuthor || canTemplates} />}
 
       {tab === 'rubrics' && (
         <section role="tabpanel" className="space-y-6">

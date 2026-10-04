@@ -271,6 +271,120 @@ needs a student row plus an active `zalo_bindings` entry, otherwise the pipeline
   the pipeline sets `processing` *before* downloading, a DLQ'd submission used to sit in
   `processing` forever with no media. `RabbitConsumer.consume(on_give_up=…)` now flips it to
   `failed` and adds a flag.
+- **Azure fails SILENTLY on a bad key (found 2026-09-29).** With the key rejected (HTTP 401 on
+  `sts/v1.0/issueToken`), the Speech SDK fires no `recognized` and no `canceled` event — just an empty
+  session. The pipeline read that as "no mispronounced words", and the facts prompt then told Gemini to
+  return an empty list, so every grading from ~26/9 had 0 words. Now: a clip ≥ 5 s with zero Azure
+  segments raises `AzureAssessmentError` → Gemini-only grading + a flag. To check the key, use the REST
+  token endpoint, not the SDK: `curl -X POST -H "Ocp-Apim-Subscription-Key: $K" -H "Content-Length: 0"
+  https://$REGION.api.cognitive.microsoft.com/sts/v1.0/issueToken` (200 = good).
+- **Unclear speech is marked, not dropped (academic team, 2026-09-29).** A word Gemini flags that
+  Azure's timeline doesn't contain (garbled speech) is clipped around Gemini's `approx_position_sec`.
+  A Gemini word the re-listening pass doesn't confirm is kept with `needs_review`, and unclear speech
+  counts as an error. See `clip_analysis.py`.
+- **Free speech is measured against what the student MEANT to say (2026-10-01).** Unscripted
+  Azure grades its own guess of the word ("gangs" → "girls", "government" → "woman"). On 11 IELTS
+  dev-test clips, 32 of 67 flagged words (48%) were words the student never said. With no class
+  `readingText`, `grading/intended_transcript.py` now has Gemini write the intended words, and Azure
+  runs **scripted** against them: `assessment.mode = "intended"`, with the text kept in
+  `assessment.intended_transcript` and the call logged as `cost_log.call_type = 'intended_transcript'`.
+  A class reading text always wins. If the transcript fails, Azure falls back to unscripted plus a
+  flag. Cost is about +23% per bài (+$0.012). The prompt in that file is the one measured; re-measure
+  if you change it.
+- **Academic review of bài 237 (2026-10-03): graded 8.0, academics say ≤ 6.0.** The student was reading a
+  prepared script. Azure rewards clear and even reading (accuracy 96, fluency 89.6), and Gemini scored the
+  script's polish. Changes, all deployed:
+  - **IELTS `fluency_coherence` is no longer set by Azure.** Its numbers go into the prompt only as evidence,
+    with the warning "đều ≠ tự nhiên".
+  - **Every IELTS grading classifies `delivery`** (`spontaneous` / `rehearsed` / `read`). Anything other than
+    spontaneous is **flagged only**; scores are not capped (owner's choice).
+  - **Honest-feedback rules in both prompt twins:** no generic praise, lead with the main error and quote it,
+    call the student "em".
+  - **`comment_bank[].band`** lets academics write ≥ 3 scripts per criterion × band. `comment_scripts.py`
+    picks one at random per bài, seeded by the submission id.
+
+  Follow-ups, also deployed:
+  - **IELTS pronunciation table calibrated** in `azure.score_thresholds_json` from 5 teacher-reviewed bài
+    (match rate went from 2/5 to 4/5). Re-fit it when more academic re-grades exist.
+  - **"Strict" rule in both prompt twins:** band X only when EVERY descriptor of X is met.
+  - **Comment scripts live on the shared STRUCTURE (`rubric_templates`), not on each course.**
+    `GET /internal/criteria` returns them as `templateScripts`; a course's own band script wins for the
+    same criterion × band. Academics edit them on the "Kịch bản nhận xét" tab
+    (`PUT /criteria/templates/:key/scripts`, `criteria_author`).
+  - **Defaults** (`templates/default-scripts.ts`, 3 per cell: IELTS bands 3–9, kids 1–5) were loaded
+    into the pilot on 2026-10-03.
+  - **A structure save keeps the band scripts:** the template drawer sends `comment_bank: []`, so
+    `RubricTemplateService.update` preserves them.
+
+  Result: bài 237 went from 8.0 to **6.0**, matching the academics' verdict (re-grade bài 262).
+  - **Rotation = random, never the same script twice in a row for a student.** Picking independently
+    per bài repeated the previous script for ~1/3 of consecutive bài. The worker now keeps a Redis hash
+    `scripts:last:{studentId}` (fingerprints, 180 days) and only remembers the cell matching the real
+    score. A cell with a single script is still used.
+  - **Tone "khích lệ" is gone everywhere** (owner, 2026-10-03): all 66 rubric versions, both
+    structures, and every code default (both normalize twins, the docx parser, seeds, TemplateDrawer).
+    The new tone is "thẳng thắn, chuyên nghiệp: nêu lỗi cụ thể trước, không khen chung chung".
+  - **Median of 3 + temperature 0 (owner, 2026-10-03).** The same file sent twice scored 6.0 and 7.0
+    (bài 265/266): the Gemini-scored criteria swung ±1 band. `grading/ensemble.py` now runs
+    `llm.grading_runs` (default 3, 1 = off) grading calls in parallel and keeps the lower-middle score
+    per criterion; comments come from the run closest to the medians. `llm.temperature` was set to 0.
+    Verified: bài 267–269 (same file) all scored 6.0, and all 9 runs were identical. Cost per ~90 s
+    bài went from about $0.065 to $0.10. `assessment.ensemble.scores_per_run` shows whether runs
+    still disagree; if they keep agreeing, `llm.grading_runs = 1` would be enough at temperature 0.
+  - **Grading standard (owner, 2026-10-03): every IELTS homework is a SPEAKING task.** Reading a
+    script, even one titled "Topic 2 Gangs", is always marked down, following the academic lead's
+    standard on bài 237. Teacher binhlt marks reading at Fluency 7 (bài 189/234/236), which is a
+    different standard: never use those scores to loosen the system.
+  - **The formula approach is not ready**: see `Idea/20261003-DoDemViet.md`. On unseen bài it
+    scored worse than the AI (mean error 1.6–1.8 vs 0.4–1.0). Azure word timings cannot measure
+    pauses, so fluency needs silence detection on the audio itself. Phase 1 (shadow evidence and
+    measures) keeps running and costs almost nothing.
+  - **Checked against official sources (2026-10-03).** The centre's IELTS band descriptors match the
+    current ielts.org version in all four criteria × ten bands. The only gap was the first line of
+    Pronunciation band 4, now added to all 45 IELTS rubric versions. Added, per IDP ("Memorised language
+    doesn't give the examiner an accurate measure…") and the official Grammar band 3 note on
+    "apparently memorised utterances": for read or rehearsed bài, scripted vocabulary and structures
+    are not credited for Lexical or Grammar (`delivery.INSTRUCTION`). Kids homework is reading aloud,
+    and read-aloud best practice (PTE) adds a **Content** axis (no omitted, inserted or substituted
+    words). The kids rubric now has it: `reading_accuracy`, "Content (Đọc đủ & đúng chữ)"
+    (`templates/reading-accuracy.ts`). Azure measures it (`CompletenessScore` → band via
+    `azure_pa.COMPLETENESS_5`) only in scripted mode, so the worker **drops it from the grading
+    pass when the class has no `readingText`**, and no class has one yet. The facts list the
+    omitted and inserted words.
+  - **`in_total: false` marks an informational criterion; it does NOT mean weight 0.** Weight 0 already
+    has a meaning: it still counts in `weighted_average` (AC-02.5/02.6), and `sum` ignores weight
+    entirely (BR-03). So the Content criterion uses a separate dimension flag. It is scored and
+    commented, but kept out of `computeTotal`'s total, max and level, so the kids A0/A1-/A1/A2
+    thresholds on /25 still hold. The flag lives in the `normalizeRubric` twins + fixture
+    (`v2_in_total_flag`), and `maxTotal` in both core-api and the dashboard. The template editor has a
+    "Tính vào tổng điểm" checkbox per criterion. The dimension was loaded into all 21 kids criteria rows
+    and the kids template on 2026-10-03; all 36 existing kids gradings recompute unchanged.
+  - **Docx parser bug found by the tone change:** mammoth writes `&` as `&amp;`, so the heading
+    "Giọng điệu & ngôn ngữ nhận xét" never matched. Every uploaded .docx had its tone and language
+    silently replaced by the defaults, and the test only passed because the old default equalled its
+    text. `stripHtmlTags` now decodes entities.
+- **Past 48 h, Send is refused (409) instead of "sent" (found 2026-09-29).** The gateway blocked 8
+  messages into Redis `blocked_48h` while the dashboard showed them as sent. `lib/zalo-window.ts` in
+  core-api mirrors the gateway's `time-window.ts` (same keys, same margin) and checks before publishing.
+  Keep the two identical.
+- **One student, three Zalo accounts (found 2026-10-03).** Hoàng Hải Yến (0816500989) had 3 active
+  bindings, and nobody could tell, because the Zalo name was shown on the pending list and then
+  thrown away. Now `zalo_bindings.display_name` / `avatar_url` are saved from the pending list and at
+  activation, and a `backfillProfiles` cron fills old rows (10 per 10 min). The Students screen shows
+  each student's Zalo accounts and can **unlink** one: `DELETE /onboarding/bindings/:id`. If it was that
+  Zalo user's only binding it goes back to pending; otherwise only that row is deleted. Unlinking sets
+  Redis `onboarding:no_auto_activate:{zaloUserId}`, otherwise the 2-minute auto-activate cron would
+  re-map the same wrong student from the phone that account shared. A manual activation clears it.
+  `oa/user/detail` has a daily quota: error `-32 "Your OA reached limit call api"`.
+- **One Zalo account per student (chairman, 2026-10-04): stops a third party who knows a student's
+  phone from linking their own Zalo.** `OnboardingService.activate` refuses (409 `student is already
+  linked to another Zalo account`) when the student has another active real binding. The auto-activate
+  cron leaves such an account pending and sends it nothing. Partial unique index
+  `zalo_bindings_one_active_zalo_per_student` (migration `20261004090000`) blocks the race. It ignores
+  Test Upload's fake `test:{studentId}` bindings. **Prisma 5 cannot declare it**, so `prisma migrate dev`
+  will propose dropping it: delete that line from the generated migration. To change a student's phone,
+  unlink the old account on the Students screen first. A phone shared by two students is also refused
+  (409); every student must have their own number.
 - **Scripting the VPS over SSH: `docker compose exec -T` reads stdin.** When the script is piped in
   via `ssh ... 'bash -s' <<'EOF'`, an `exec -T` swallows the remaining script lines and everything
   after it silently vanishes. Always append `< /dev/null` to `docker compose exec` in such scripts.

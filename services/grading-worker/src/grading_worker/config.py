@@ -38,6 +38,30 @@ class ConfigStore:
             return _ENV_FALLBACKS.get(key)
         return value.decode("utf-8") if isinstance(value, bytes) else value
 
+    async def last_scripts(self, student_id: int) -> dict[str, str]:
+        """Kịch bản nhận xét học viên nhận ở bài TRƯỚC, theo ô "tiêu chí|band" → dấu vân tay
+        (chủ dự án 2026-10-03: xoay ngẫu nhiên nhưng không lặp lại với bài trước của chính em đó).
+        Redis lỗi ⇒ {} — chỉ mất phần "không lặp", không bao giờ chặn chấm bài."""
+        try:
+            raw = await self._redis.hgetall(f"scripts:last:{student_id}")
+        except Exception:  # noqa: BLE001
+            logger.warning("Redis lỗi khi đọc kịch bản cũ của học viên %s", student_id)
+            return {}
+        return {
+            (k.decode() if isinstance(k, bytes) else k): (v.decode() if isinstance(v, bytes) else v)
+            for k, v in (raw or {}).items()
+        }
+
+    async def remember_scripts(self, student_id: int, picks: dict[str, str]) -> None:
+        if not picks:
+            return
+        key = f"scripts:last:{student_id}"
+        try:
+            await self._redis.hset(key, mapping=picks)
+            await self._redis.expire(key, 180 * 24 * 3600)
+        except Exception:  # noqa: BLE001
+            logger.warning("Redis lỗi khi ghi kịch bản của học viên %s", student_id)
+
     async def claim_once_per_day(self, key: str) -> bool:
         """True nếu ĐÂY là lần đầu trong 24h claim được `key` (khuôn giống `claimMessage` của
         gateway: `SET ... NX EX`). Dùng để một sự kiện lặp lại chỉ sinh ra MỘT tin nhắn ra.

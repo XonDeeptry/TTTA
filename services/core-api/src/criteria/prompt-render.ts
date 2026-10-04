@@ -52,6 +52,22 @@ const HEADER_ROLE = 'Bạn là giáo viên chấm bài nói tiếng Anh cho họ
 const CRITERIA_INTRO = 'Chấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:';
 const CLOSING = 'Trả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON.';
 
+// Học thuật ILM 2026-10-03 (bài 237 chấm 8.0, học thuật đánh giá ≤ 6.0): bỏ lời khen chung chung,
+// chấm thật, nêu lỗi. Áp cho MỌI rubric — `tone` của rubric vẫn giữ, nhưng không còn là cớ để khen.
+// PHẢI giống từng ký tự `_FEEDBACK_RULES` / `_BAND_SCRIPT_RULE` của prompt.py (fixture dùng chung).
+const FEEDBACK_RULES = [
+  'NGUYÊN TẮC CHẤM VÀ NHẬN XÉT (học thuật ILM):',
+  '- Chấm ĐÚNG theo mô tả band. KHÔNG nâng điểm để động viên; phân vân giữa hai band thì chọn band thấp hơn.',
+  '- Chỉ cho band X khi bài đạt ĐỦ MỌI mô tả của band X; thiếu bất kỳ mô tả nào của band X thì cho band thấp hơn.',
+  "- Giọng điệu ở trên KHÔNG có nghĩa là khen: không mở đầu bằng lời khen chung chung, không dùng các cụm như 'chúc mừng', 'ấn tượng', 'xuất sắc', 'hoàn hảo', 'tuyệt vời'.",
+  '- Mỗi nhận xét nêu LỖI CHÍNH trước, kèm ví dụ trích nguyên văn từ bài; điểm mạnh (nếu có) chỉ một câu ngắn và phải cụ thể.',
+  "- Xưng hô: theo giọng điệu ở trên (vd. lớp thiếu nhi gọi học viên là 'con'); giọng điệu không nói thì gọi học viên là 'em'. KHÔNG dùng 'bạn'.",
+  "- KHÔNG chào hỏi (vd. 'Cô nhận được bài của … rồi nha') và KHÔNG gọi tên học viên trong nhận xét — vào thẳng nội dung.",
+];
+const BAND_SCRIPT_RULE =
+  '  (Ví dụ có nhãn band là KỊCH BẢN của đúng band đó: tiêu chí chấm ra band nào thì bám kịch bản của band đó ' +
+  'nếu có — viết lại bằng lời của mình cho bài này, KHÔNG chép nguyên văn.)';
+
 // ─── ép số về chuỗi theo ngữ nghĩa Python ──────────────────────────────────────────
 
 /** `Number.MAX_SAFE_INTEGER + 1`. Trùng `_MAX_EXACT_INTEGER` của `rubric_schema.py`: trên ngưỡng
@@ -277,11 +293,14 @@ function renderCommentBank(rubric: RubricV2): string[] {
   if (groups.has(null)) ordered.push(null);
 
   const lines = ['Ví dụ nhận xét mẫu do giáo viên cung cấp (bám theo văn phong này; nhãn [trong ngoặc vuông] chỉ để PHÂN LOẠI ví dụ — TUYỆT ĐỐI KHÔNG chép nhãn đó vào nhận xét trả về):'];
+  if (bank.some((entry) => entry.band)) lines.push(BAND_SCRIPT_RULE);
   for (const dimension of ordered) {
     const header = dimension === null ? 'Dùng chung' : `Tiêu chí ${labels.get(dimension) ?? dimension}`;
     lines.push(`  ${header}:`);
     for (const entry of groups.get(dimension) ?? []) {
-      const prefix = entry.intent ? `[${entry.intent}] ` : '';
+      const tags = entry.band ? [`band ${entry.band}`] : [];
+      if (entry.intent) tags.push(entry.intent);
+      const prefix = tags.length > 0 ? `[${tags.join(' · ')}] ` : '';
       lines.push(`    - ${prefix}${entry.text}`);
     }
   }
@@ -308,6 +327,7 @@ export function buildSystemInstruction(rubric: unknown): string {
   lines.push(CRITERIA_INTRO);
   lines.push(...renderDimensions(normalized));
   lines.push(...renderOutputFieldsInstruction(normalized));
+  lines.push(...FEEDBACK_RULES);
   lines.push(...renderCommentBank(normalized));
   lines.push(
     "Với tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, " +

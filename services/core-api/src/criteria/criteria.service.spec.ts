@@ -91,7 +91,7 @@ describe('CriteriaService', () => {
         schema_version: 2,
         scale: { min: 0, max: 3, step: 1 },
         aggregation: { method: 'average', round: 'none' },
-        comment_bank: [{ dimension: null, intent: null, text: 'Bài tốt.' }],
+        comment_bank: [{ dimension: null, band: null, intent: null, text: 'Bài tốt.' }],
       }),
     );
     expect((row.rubric as { dimensions: unknown[] }).dimensions[0]).toEqual(

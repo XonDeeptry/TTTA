@@ -255,7 +255,7 @@ export function RubricDrawer({
   }
 
   function addComment(): void {
-    updateRubric((r) => ({ ...r, comment_bank: [...r.comment_bank, { dimension: null, intent: null, text: '' }] }));
+    updateRubric((r) => ({ ...r, comment_bank: [...r.comment_bank, { dimension: null, band: null, intent: null, text: '' }] }));
   }
 
   function updateComment(idx: number, patch: Partial<CommentBankEntry>): void {
@@ -545,6 +545,30 @@ export function RubricDrawer({
                               <option value={c.dimension}>{c.dimension}</option>
                             )}
                           </SelectNative>
+                        </div>
+                        <div>
+                          {/* Học thuật 2026-10-03: ≥3 kịch bản / tiêu chí × band, hệ thống bốc ngẫu nhiên một cái mỗi bài. */}
+                          <Label htmlFor={`cb-band-${idx}`}>{t('authoring.cbBand')}</Label>
+                          <SelectNative
+                            id={`cb-band-${idx}`}
+                            value={c.band ?? ''}
+                            onChange={(e) => updateComment(idx, { band: e.target.value || null })}
+                          >
+                            <option value="">{t('authoring.cbBandAny')}</option>
+                            {scaleValues.map((band) => (
+                              <option key={band} value={band}>
+                                {band}
+                              </option>
+                            ))}
+                            {c.band && !scaleValues.includes(c.band) && <option value={c.band}>{c.band}</option>}
+                          </SelectNative>
+                          {c.band && (
+                            <p className="mt-1 text-caption text-muted-foreground">
+                              {t('authoring.cbBandCount', {
+                                count: draft.rubric.comment_bank.filter((o) => o.band === c.band && o.dimension === c.dimension && o.text.trim()).length,
+                              })}
+                            </p>
+                          )}
                         </div>
                         <div>
                           <Label htmlFor={`cb-intent-${idx}`}>{t('authoring.cbIntent')}</Label>

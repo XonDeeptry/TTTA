@@ -75,7 +75,8 @@ function renderPronunciationErrors(scores: unknown): string {
     const heard = heardRaw.toLowerCase() === word.toLowerCase() ? '' : heardRaw;
     const suggestion = asText(entry.suggestion);
     let line = `• ${at}"${word}"`;
-    if (heard) line += ` em đọc thành "${heard}"`;
+    // 2026-10-03: bỏ đại từ "em" — lớp thiếu nhi gọi "con", IELTS gọi "em"; "đọc thành" hợp cả hai.
+    if (heard) line += ` đọc thành "${heard}"`;
     if (suggestion) line += ` → ${suggestion}`;
     lines.push(line);
   }

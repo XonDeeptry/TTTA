@@ -19,6 +19,16 @@ interface Student {
   className: string | null;
   campus: string | null;
   status: string;
+  /** Tài khoản Zalo đang gắn (binding active). Nhiều hơn 1 thường là dấu hiệu ghép nhầm. */
+  zaloBindings?: ZaloLink[];
+}
+
+interface ZaloLink {
+  id: number;
+  zaloUserId: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  createdAt: string;
 }
 
 interface CourseOption {
@@ -61,6 +71,8 @@ export function Students() {
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [unlinkingId, setUnlinkingId] = useState<number | null>(null);
+  const [unlinking, setUnlinking] = useState(false);
 
   const [code, setCode] = useState('');
   const [fullName, setFullName] = useState('');
@@ -105,6 +117,68 @@ export function Students() {
     } finally {
       setDeleting(false);
     }
+  }
+
+  /** Gỡ liên kết ghép nhầm. Tài khoản Zalo quay về "Chờ kích hoạt" để ghép lại đúng người. */
+  async function confirmUnlink(link: ZaloLink): Promise<void> {
+    setUnlinking(true);
+    try {
+      await api.delete(`/onboarding/bindings/${link.id}`);
+      setUnlinkingId(null);
+      setFeedback({
+        variant: 'default',
+        role: 'status',
+        text: t('students.zaloUnlinked', { name: link.displayName ?? link.zaloUserId }),
+      });
+      load();
+    } catch {
+      setFeedback({ variant: 'destructive', role: 'alert', text: t('students.zaloUnlinkError') });
+    } finally {
+      setUnlinking(false);
+    }
+  }
+
+  function zaloCell(s: Student, canUnlink: boolean) {
+    const links = s.zaloBindings ?? [];
+    if (links.length === 0) return <span className="text-muted-foreground">{t('students.zaloNone')}</span>;
+    return (
+      <ul className="space-y-1.5">
+        {links.map((link) => (
+          <li key={link.id} className="flex flex-wrap items-center gap-2">
+            {link.avatarUrl ? (
+              <img src={link.avatarUrl} alt="" className="h-7 w-7 shrink-0 rounded-full" />
+            ) : (
+              <span aria-hidden className="h-7 w-7 shrink-0 rounded-full bg-muted" />
+            )}
+            <span className="min-w-0">
+              <span className="block text-body">{link.displayName ?? t('students.zaloNoName')}</span>
+              <span className="block text-caption text-muted-foreground">{link.zaloUserId}</span>
+            </span>
+            {canUnlink &&
+              (unlinkingId === link.id ? (
+                <span className="flex items-center gap-1">
+                  <span className="text-caption">{t('students.zaloUnlinkConfirm')}</span>
+                  <Button size="sm" variant="destructive" disabled={unlinking} onClick={() => confirmUnlink(link)}>
+                    {t('students.zaloUnlinkYes')}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setUnlinkingId(null)}>
+                    {t('students.deleteNo')}
+                  </Button>
+                </span>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  aria-label={t('students.zaloUnlinkLabel', { name: link.displayName ?? link.zaloUserId, student: s.fullName })}
+                  onClick={() => setUnlinkingId(link.id)}
+                >
+                  {t('students.zaloUnlink')}
+                </Button>
+              ))}
+          </li>
+        ))}
+      </ul>
+    );
   }
 
   async function onCreate(e: FormEvent): Promise<void> {
@@ -211,6 +285,7 @@ export function Students() {
                 <TableHead scope="col">{t('students.courseId')}</TableHead>
                 <TableHead scope="col">{t('students.className')}</TableHead>
                 <TableHead scope="col">{t('students.status')}</TableHead>
+                <TableHead scope="col">{t('students.zalo')}</TableHead>
                 <TableHead scope="col" />
               </TableRow>
             </TableHeader>
@@ -254,6 +329,7 @@ export function Students() {
                       <TableCell>
                         <Input defaultValue={s.status} onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value }))} />
                       </TableCell>
+                      <TableCell>{zaloCell(s, false)}</TableCell>
                       <TableCell>
                         <Button size="sm" onClick={() => save(s.id)}>
                           {t('students.save')}
@@ -268,6 +344,7 @@ export function Students() {
                       <TableCell>{courses.find((c) => c.id === s.courseId)?.key ?? '—'}</TableCell>
                       <TableCell>{s.className}</TableCell>
                       <TableCell>{s.status}</TableCell>
+                      <TableCell>{zaloCell(s, true)}</TableCell>
                       <TableCell>
                         {deletingId === s.id ? (
                           <div className="flex items-center gap-2">

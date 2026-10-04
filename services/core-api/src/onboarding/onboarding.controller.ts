@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { ZaloBinding } from '@prisma/client';
+import type { Request } from 'express';
 import { InternalTokenGuard } from '../auth/internal-token.guard';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
 import { ActivateBindingDto } from './dto/activate-binding.dto';
@@ -27,5 +28,12 @@ export class OnboardingController {
   @UseGuards(SessionAuthGuard)
   activate(@Param('id', ParseIntPipe) id: number, @Body() body: ActivateBindingDto): Promise<ZaloBinding> {
     return this.onboarding.activate(id, body.phone);
+  }
+
+  /** Gỡ liên kết ghép nhầm — cùng quyền với kích hoạt (tư vấn + admin). */
+  @Delete('onboarding/bindings/:id')
+  @UseGuards(SessionAuthGuard)
+  unbind(@Param('id', ParseIntPipe) id: number, @Req() req: Request): Promise<{ id: number; result: 'deleted' | 'pending' }> {
+    return this.onboarding.unbind(id, req.session.user?.email ?? 'unknown');
   }
 }

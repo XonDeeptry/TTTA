@@ -43,7 +43,7 @@ const doc = new Document({
         ),
 
         heading('Giọng điệu & ngôn ngữ nhận xét'),
-        body('Giọng điệu: khích lệ'),
+        body('Giọng điệu: thẳng thắn, chuyên nghiệp: nêu lỗi cụ thể trước, không khen chung chung'),
         body('Ngôn ngữ nhận xét: vi'),
 
         heading('Ví dụ nhận xét mẫu'),

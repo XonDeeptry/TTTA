@@ -15,7 +15,7 @@ import {
 } from '@nestjs/common';
 import { CostLog, Criteria, Flag, Grading, Submission, ZaloBinding } from '@prisma/client';
 import { InternalTokenGuard } from '../auth/internal-token.guard';
-import { normalizeRubric } from '../criteria/rubric-schema';
+import { normalizeRubric, type CommentBankEntry } from '../criteria/rubric-schema';
 import { EventsService } from '../events/events.service';
 import { computeTotal } from '../lib/rubric-scoring';
 import { PrismaService } from '../prisma.service';
@@ -26,6 +26,9 @@ import { CreateSubmissionDto } from './dto/create-submission.dto';
 import { SelectStudentDto } from './dto/select-student.dto';
 import { StudentAckDto } from './dto/student-ack.dto';
 import { UpdateSubmissionDto } from './dto/update-submission.dto';
+
+/** `GET /internal/criteria/:courseId` — hàng criteria + kịch bản nhận xét của cấu trúc dùng chung. */
+export type CriteriaWithScripts = Criteria & { templateScripts: CommentBankEntry[] };
 
 /** F11 FR-10 — kết quả đóng dấu "học viên đã xem"; `alreadyAcked` = lần bấm thứ hai trở đi. */
 export interface StudentAckResult {
@@ -96,7 +99,7 @@ export class WorkerApiController {
   async criteria(
     @Param('courseId', ParseIntPipe) courseId: number,
     @Query('className') className?: string,
-  ): Promise<Criteria> {
+  ): Promise<CriteriaWithScripts> {
     // "Cấp độ theo lớp": lớp có thể ghim MỘT criteria cụ thể của khóa. Ghim chỉ có hiệu lực khi
     // nó thuộc ĐÚNG khóa của học viên — nếu lệch khóa thì bỏ qua và rơi về fallback, vì chấm
     // bằng rubric của khóa khác là sai âm thầm, tệ hơn hẳn việc dùng bản mặc định.
@@ -104,7 +107,7 @@ export class WorkerApiController {
       const cfg = await this.prisma.classConfig.findUnique({ where: { className } });
       if (cfg?.criteriaId != null) {
         const pinned = await this.prisma.criteria.findUnique({ where: { id: cfg.criteriaId } });
-        if (pinned && pinned.courseId === courseId) return pinned;
+        if (pinned && pinned.courseId === courseId) return this.withTemplateScripts(pinned);
         this.logger.warn(
           `Lớp "${className}" ghim criteria ${cfg.criteriaId} không thuộc khóa ${courseId} — bỏ qua ghim, dùng bản mới nhất của khóa`,
         );
@@ -115,7 +118,20 @@ export class WorkerApiController {
       orderBy: { version: 'desc' },
     });
     if (!latest) throw new NotFoundException('no criteria for this course');
-    return latest;
+    return this.withTemplateScripts(latest);
+  }
+
+  /**
+   * Học thuật 2026-10-03: kịch bản nhận xét theo band sống ở CẤU TRÚC dùng chung (`rubric_templates`),
+   * không ở từng khóa — 22 khóa dùng chung 2 cấu trúc, học thuật sửa một chỗ. Worker gộp chúng vào
+   * `comment_bank` của khóa (kịch bản riêng của khóa, nếu có, thắng cho cùng tiêu chí × band) rồi bốc
+   * ngẫu nhiên một kịch bản mỗi bài. Không có cấu trúc / cấu trúc đã xóa ⇒ mảng rỗng, chấm như cũ.
+   */
+  private async withTemplateScripts(row: Criteria): Promise<CriteriaWithScripts> {
+    if (!row.templateKey) return { ...row, templateScripts: [] };
+    const template = await this.prisma.rubricTemplate.findUnique({ where: { key: row.templateKey } });
+    const templateScripts = template ? normalizeRubric(template.rubric).comment_bank.filter((e) => e.band) : [];
+    return { ...row, templateScripts };
   }
 
   /**

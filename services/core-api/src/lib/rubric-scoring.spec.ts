@@ -22,7 +22,7 @@ import { computeTotal, findLevel, maxTotal, validateLevels } from './rubric-scor
  */
 
 function dimension(key: string, weight = 1): RubricDimensionV2 {
-  return { key, label: key, weight, bands: {}, sub_factors: [], criterion_key: null };
+  return { key, label: key, weight, bands: {}, sub_factors: [], criterion_key: null, in_total: true };
 }
 
 const KID_RUBRIC: RubricV2 = CAMBRIDGE_YL_SEED.rubric;
@@ -405,8 +405,8 @@ describe('rubric-scoring — FR-05 degenerate input', () => {
       dimensions: [
         null as never,
         'x' as never,
-        { key: '', label: '', weight: 1, bands: {}, sub_factors: [], criterion_key: null },
-        { key: 42 as unknown as string, label: '', weight: 1, bands: {}, sub_factors: [], criterion_key: null },
+        { key: '', label: '', weight: 1, bands: {}, sub_factors: [], criterion_key: null, in_total: true },
+        { key: 42 as unknown as string, label: '', weight: 1, bands: {}, sub_factors: [], criterion_key: null, in_total: true },
         dimension('a'),
         dimension('b'),
       ],
@@ -681,5 +681,46 @@ describe('rubric-scoring — FR-07 worked example: IELTS Speaking, average 0–9
 
     // và cùng rubric đó với nearest_int:
     expect(computeTotal({ ...weighted, aggregation: { method: 'weighted_average', round: 'nearest_int' } }, scores).total).toBe(6);
+  });
+});
+
+describe('rubric-scoring — tiêu chí thông tin in_total: false (2026-10-03, "Đọc đủ & đúng chữ")', () => {
+  const info: RubricDimensionV2 = {
+    key: 'reading_accuracy',
+    label: 'Content (Đọc đủ & đúng chữ)',
+    weight: 1,
+    bands: { '0': ['x'], '5': ['y'] },
+    sub_factors: [],
+    criterion_key: null,
+    in_total: false,
+  };
+  const withInfo: RubricV2 = { ...KID_RUBRIC, dimensions: [...KID_RUBRIC.dimensions.filter((d) => d.key !== 'reading_accuracy'), info] };
+
+  it('never changes the sum, the max or the level — thresholds on 25 stay valid', () => {
+    const r = computeTotal(withInfo, { ...kidScores(4, 3, 4, 3, 4), reading_accuracy: { score: 1 } });
+    expect([r.total, r.max, r.counted, r.level?.code]).toEqual([18, 25, 5, 'A1']);
+    expect(r.ignored).not.toContain('reading_accuracy');
+  });
+
+  it('a bài without the informational score is not "missing" it', () => {
+    const r = computeTotal(withInfo, kidScores(4, 3, 4, 3, 4));
+    expect(r.missing).toEqual([]);
+    expect(r.total).toBe(18);
+  });
+
+  it('is excluded from an average too', () => {
+    const avg: RubricV2 = { ...withInfo, aggregation: { method: 'average', round: 'none' } };
+    expect(computeTotal(avg, { ...kidScores(4, 4, 4, 4, 4), reading_accuracy: { score: 0 } }).total).toBe(4);
+  });
+
+  it('maxTotal agrees with computeTotal (25, not 30)', () => {
+    expect(maxTotal(withInfo)).toBe(25);
+    expect(maxTotal(withInfo)).toBe(computeTotal(withInfo, null).max);
+  });
+
+  it('weight 0 keeps its old meaning: still counted (AC-02.5), not informational', () => {
+    const zero: RubricV2 = { ...withInfo, dimensions: withInfo.dimensions.map((d) => (d.key === 'reading_accuracy' ? { ...d, weight: 0, in_total: true } : d)) };
+    const r = computeTotal(zero, { ...kidScores(4, 3, 4, 3, 4), reading_accuracy: { score: 1 } });
+    expect([r.total, r.max, r.counted]).toEqual([19, 30, 6]);
   });
 });

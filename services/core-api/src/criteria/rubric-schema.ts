@@ -59,11 +59,21 @@ export interface RubricDimensionV2 {
    * dưới thành viên `UNMAPPED`, để độ lớn của lỗ hổng nhìn thấy được thay vì im lặng.
    */
   criterion_key: string | null;
+  /**
+   * `false` = tiêu chí THÔNG TIN (2026-10-03): có điểm + nhận xét nhưng KHÔNG vào tổng, max hay cấp
+   * độ (`computeTotal`). Chỉ đúng giá trị boolean `false` mới tắt; thiếu / mọi giá trị khác ⇒ `true`.
+   */
+  in_total: boolean;
 }
 
 export interface CommentBankEntry {
   /** null = dùng chung mọi tiêu chí */
   dimension: string | null;
+  /**
+   * Học thuật 2026-10-03: "kịch bản" nhận xét theo band (khóa band dạng chuỗi, vd "6"); mỗi tiêu
+   * chí × band nên có ≥3 kịch bản, worker bốc NGẪU NHIÊN một cái mỗi bài. null = mọi band.
+   */
+  band: string | null;
   /** "khen" | "góp ý" | ... (chuỗi tự do); null = không phân loại */
   intent: string | null;
   text: string;
@@ -129,7 +139,7 @@ export const DEFAULT_CRITERION_BY_DIMENSION: Readonly<Record<string, string>> = 
  * reports.service.ts `DEFAULT_BAND_MAX = 3`. Không ai được bịa fallback khác. */
 export const DEFAULT_SCALE: RubricScale = { min: 0, max: 3, step: 1 };
 const DEFAULT_TASK_TYPE = 'speaking_clip';
-const DEFAULT_TONE = 'khích lệ';
+const DEFAULT_TONE = 'thẳng thắn, chuyên nghiệp: nêu lỗi cụ thể trước, không khen chung chung'; // chủ dự án 2026-10-03: bỏ "khích lệ"
 const DEFAULT_FEEDBACK_LANGUAGE = 'vi';
 
 const AGGREGATION_METHODS: readonly string[] = ['sum', 'average', 'weighted_average'];
@@ -272,6 +282,7 @@ function normalizeDimension(raw: Record<string, unknown>, isV2: boolean): Rubric
     bands: normalizeBands(raw.bands),
     sub_factors: normalizeSubFactors(raw.sub_factors),
     criterion_key,
+    in_total: raw.in_total !== false,
   };
 }
 
@@ -289,7 +300,7 @@ function normalizeCommentBank(raw: Record<string, unknown>): CommentBankEntry[] 
       if (!isPlainObject(item)) continue;
       const text = toText(item.text ?? '').trim();
       if (!text) continue;
-      entries.push({ dimension: asString(item.dimension), intent: asString(item.intent), text });
+      entries.push({ dimension: asString(item.dimension), band: asString(item.band), intent: asString(item.intent), text });
     }
     return entries;
   }
@@ -298,7 +309,7 @@ function normalizeCommentBank(raw: Record<string, unknown>): CommentBankEntry[] 
     for (const example of raw.few_shot_examples) {
       const text = toText(example).trim();
       if (!text) continue;
-      entries.push({ dimension: null, intent: null, text });
+      entries.push({ dimension: null, band: null, intent: null, text });
     }
     return entries;
   }

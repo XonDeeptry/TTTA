@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import random
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 from urllib.parse import urlparse
@@ -22,7 +23,9 @@ from .config import MEDIA_ROOT, ConfigStore
 from .core_api_client import CoreApiClient
 import copy
 
-from .grading import azure_pa, clip_analysis
+from .grading import azure_pa, clip_analysis, delivery, ensemble, evidence, intended_transcript, measures
+from .grading.providers.base import GradingResult
+from .grading.comment_scripts import band_key, cell_key, choose_band_scripts, merge_template_scripts
 from .grading.prompt import build_system_instruction, build_user_instruction
 from .grading.providers.factory import grade_with_fallback
 from .grading.rubric_schema import normalize_rubric
@@ -34,6 +37,10 @@ from .pricing import estimate_cost_usd, parse_pricing_overrides
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_CLIP_SEC = 7 * 60  # van chi phí mặc định (mục 3.5) nếu chưa cấu hình
+# Clip dài từ ngần này trở lên mà Azure không ra đoạn nào ⇒ Azure hỏng, không phải "bài im lặng".
+AZURE_MIN_SPEECH_SEC = 5
+# Số lượt chấm Gemini song song để lấy trung vị (setting `llm.grading_runs`, 1 = tắt).
+DEFAULT_GRADING_RUNS = 3
 _GRADABLE_KINDS = {"audio", "video"}
 
 # Học viên rất thường thu âm bằng app khác rồi GỬI KÈM DẠNG TỆP, không phải tin nhắn thoại —
@@ -208,8 +215,26 @@ class SubmissionPipeline:
         # là v1 cũ) — nâng lên v2 đúng MỘT LẦN ở đây rồi dùng chung cho schema và prompt.
         # Không có gì được ghi ngược lại core-api (BR-01/FR-16).
         rubric = normalize_rubric(criteria["rubric"])
+        reading = student.get("readingText")
+        rubric = azure_pa.drop_unmeasurable(rubric, isinstance(reading, str) and bool(reading.strip()))
         schema = build_output_schema(rubric)
-        system_instruction = build_system_instruction(rubric)
+        # Học thuật 2026-10-03: mỗi bài một kịch bản nhận xét ngẫu nhiên / tiêu chí × band (hạt giống
+        # = id bài ⇒ retry ra đúng kịch bản cũ).
+        prompt_rubric = merge_template_scripts(rubric, criteria.get("templateScripts") or [])
+        # Xoay ngẫu nhiên, không lặp kịch bản bài trước của chính học viên này (chủ dự án 2026-10-03).
+        picked_rubric, script_picks = choose_band_scripts(
+            prompt_rubric, random.Random(), await self._config.last_scripts(student_id)
+        )
+        system_instruction = build_system_instruction(picked_rubric)
+        if azure_pa.is_ielts(rubric):
+            # Nói tự do IELTS: phân loại tự nhiên / học thuộc / đọc — CHỈ gắn cờ, không chặn điểm
+            # (chủ dự án 2026-10-03). Nằm ngoài bản song sinh prompt-render.ts giống dữ kiện Azure.
+            schema = delivery.with_delivery(schema)
+            system_instruction += "\n" + delivery.INSTRUCTION
+            # "Đo → Đếm → Viết" giai đoạn 1 (Idea/20261003-DoDemViet.md): trích bằng chứng trong CÙNG
+            # lượt chấm — chạy ngầm, chỉ lưu để so với giáo viên, không đổi điểm.
+            schema = evidence.with_evidence(schema)
+            system_instruction += "\n" + evidence.INSTRUCTION
         user_instruction = build_user_instruction()
         llm_config = student["llmConfig"] or {}
 
@@ -219,22 +244,8 @@ class SubmissionPipeline:
         if facts is not None:
             system_instruction += "\n" + azure_pa.build_facts_instruction(rubric, facts, measured)
 
-        result = await grade_with_fallback(
-            llm_config,
-            self._config,
-            system_instruction=system_instruction,
-            user_instruction=user_instruction,
-            audio_path=audio_path,
-            mime_type="audio/mp3",
-            # `schema` BẮT BUỘC: `Provider.grade()` dùng nó làm response_format để ép LLM trả đúng
-            # JSON. Thiếu nó thì `grade_with_fallback` (nhận **grade_kwargs: Any) vẫn qua được
-            # type check nhưng vỡ TypeError lúc chạy thật. Phát hiện khi chấm thử clip thật đầu
-            # tiên chứ không phải bởi test:
-            # mọi test đều patch `grade_with_fallback` bằng AsyncMock trần nên nuốt sạch mọi tham số.
-            schema=schema,
-        )
-        # Sai schema → để exception lan lên rabbit_consumer, republish retry → DLQ (mục 3.9).
-        validate_output(schema, result.data)
+        # 2026-10-03: chấm N lượt song song, lấy TRUNG VỊ mỗi tiêu chí (grading/ensemble.py).
+        result, ensemble_meta = await self._grade_runs(llm_config, system_instruction, user_instruction, audio_path, schema)
 
         graded = result.data
         clip_meta: dict[str, Any] = {}
@@ -243,7 +254,9 @@ class SubmissionPipeline:
             graded = azure_pa.apply_azure_scores(rubric, result.data, facts, measured)
             validate_output(schema, graded)
             # ILM 09-15: cắt từng đoạn lỗi (và từ Azure bỏ sót) cho Gemini nghe lại.
-            graded, clip_meta = await self._analyze_error_clips(submission_id, wav_path, facts, result.data, graded)
+            graded, clip_meta = await self._analyze_error_clips(
+                submission_id, wav_path, facts, result.data, graded, clip_analysis.address_for(rubric)
+            )
             validate_output(schema, graded)
 
         # testMode (Test Upload, dashboard admin): luôn awaiting_review — binding test là giả
@@ -259,7 +272,30 @@ class SubmissionPipeline:
         }
         if facts is not None:
             grading_payload["assessment"] = {**azure_pa.storable(facts, measured), "clip_analysis": clip_meta}
+            grading_payload["assessment"]["ensemble"] = ensemble_meta
+            if azure_pa.is_ielts(rubric):
+                # Giai đoạn 1 — NGẦM: số đo + band theo công thức, KHÔNG thay điểm đã chấm ở trên.
+                fluency_m = measures.fluency_measures(facts.get("words") or [])
+                language_m = measures.language_measures(
+                    facts.get("intended_transcript") or facts.get("transcript") or "", result.data.get("evidence")
+                )
+                grading_payload["assessment"]["evidence"] = result.data.get("evidence")
+                grading_payload["assessment"]["measures"] = {"fluency": fluency_m, "language": language_m}
+                grading_payload["assessment"]["shadow_bands"] = measures.shadow_bands(fluency_m, language_m)
+            if isinstance(result.data.get("delivery"), dict):
+                grading_payload["assessment"]["delivery"] = result.data["delivery"]
         grading = await self._core_api.create_grading(grading_payload)
+        # Chỉ nhớ ô khớp ĐIỂM THẬT — đó là kịch bản nhận xét của em thực sự được dựng theo.
+        used_scripts = {
+            cell_key(dim, band_key(v.get("score"))): script_picks[cell_key(dim, band_key(v.get("score")))]
+            for dim, v in (graded.get("scores") or {}).items()
+            if isinstance(v, dict) and cell_key(dim, band_key(v.get("score"))) in script_picks
+        }
+        await self._config.remember_scripts(student_id, used_scripts)
+        # 2026-10-03: đọc/học thuộc ⇒ CHỈ gắn cờ cho giáo viên, điểm giữ nguyên (chủ dự án chọn).
+        delivery_flag = delivery.flag_reason(result.data)
+        if delivery_flag:
+            await self._core_api.create_flag(submission_id, delivery_flag)
         est_usd = estimate_cost_usd(result.provider, result.model, result.input_tokens, result.output_tokens, await self._pricing_overrides())
         await self._core_api.create_cost_log(
             {
@@ -311,6 +347,51 @@ class SubmissionPipeline:
         )
         logger.error("submission %s: bỏ cuộc -> DLQ, status=failed: %s", submission_id, err)
 
+    async def _grade_runs(
+        self,
+        llm_config: dict[str, Any],
+        system_instruction: str,
+        user_instruction: str,
+        audio_path: str,
+        schema: dict[str, Any],
+    ) -> tuple[GradingResult, dict[str, Any]]:
+        """`llm.grading_runs` lượt (mặc định 3, kẹp 1–5) chạy SONG SONG ⇒ thời gian chờ gần như không
+        đổi. Mỗi lượt validate riêng; lượt hỏng bị bỏ, còn ≥1 lượt thì vẫn chấm. Hỏng HẾT ⇒ ném lỗi đầu
+        tiên để rabbit_consumer retry → DLQ như trước (mục 3.9)."""
+        raw = await self._config.get("llm.grading_runs")
+        try:
+            runs = min(5, max(1, int(float(raw)))) if raw not in (None, "") else DEFAULT_GRADING_RUNS
+        except (TypeError, ValueError):
+            runs = DEFAULT_GRADING_RUNS
+
+        async def one() -> GradingResult:
+            r = await grade_with_fallback(
+                llm_config,
+                self._config,
+                system_instruction=system_instruction,
+                user_instruction=user_instruction,
+                audio_path=audio_path,
+                mime_type="audio/mp3",
+                # `schema` BẮT BUỘC: `Provider.grade()` dùng nó làm response_format để ép LLM trả đúng
+                # JSON. Thiếu nó thì `grade_with_fallback` (nhận **grade_kwargs: Any) vẫn qua được
+                # type check nhưng vỡ TypeError lúc chạy thật. Phát hiện khi chấm thử clip thật đầu
+                # tiên chứ không phải bởi test:
+                # mọi test đều patch `grade_with_fallback` bằng AsyncMock trần nên nuốt sạch mọi tham số.
+                schema=schema,
+            )
+            # Sai schema → lượt này bị loại; hỏng hết thì lan lên rabbit_consumer (retry → DLQ, mục 3.9).
+            validate_output(schema, r.data)
+            return r
+
+        outcomes = await asyncio.gather(*(one() for _ in range(runs)), return_exceptions=True)
+        ok = [o for o in outcomes if isinstance(o, GradingResult)]
+        failed = [o for o in outcomes if isinstance(o, BaseException)]
+        if not ok:
+            raise failed[0]
+        if failed:
+            logger.warning("chấm %d/%d lượt hỏng (%s) — gộp %d lượt còn lại", len(failed), runs, failed[0], len(ok))
+        return ensemble.combine(ok)
+
     async def _azure_assessment(
         self,
         submission_id: int,
@@ -330,10 +411,24 @@ class SubmissionPipeline:
             return None, {}, None
         reading = student.get("readingText")
         reference = reading.strip() if isinstance(reading, str) and reading.strip() else None
+        has_reading_text = reference is not None
+        intended: str | None = None
+        if reference is None:
+            # Nói tự do: Azure scripted theo lời học viên ĐỊNH nói do Gemini ghi lại (xem
+            # `intended_transcript.py` — đo trên 11 bài 2026-10-01). Lỗi ⇒ unscripted như cũ.
+            intended = await self._intended_reference(submission_id, audio_path)
+            reference = intended
         try:
             wav_path = await to_wav_16k_mono(audio_path)
             timeout = max(120.0, float(duration_sec) * 2 + 60)
             segments = await asyncio.to_thread(azure_pa.run_assessment, wav_path, settings, reference, timeout)
+            # Sự cố 2026-09-26→29: khóa Azure bị từ chối (HTTP 401) nhưng SDK không báo lỗi — chỉ trả
+            # phiên rỗng. Coi "không nhận ra một từ nào" là "không lỗi" đã xóa sạch từ đọc sai của mọi
+            # bài. Clip có tiếng mà Azure không ra đoạn nào ⇒ coi như Azure hỏng, chấm bằng Gemini.
+            if not segments and duration_sec >= AZURE_MIN_SPEECH_SEC:
+                raise azure_pa.AzureAssessmentError(
+                    f"Azure không nhận dạng được lời nói nào trong clip {int(duration_sec)} giây (khóa/hạn mức?)"
+                )
         except Exception as err:  # noqa: BLE001 — mọi lỗi Azure đều rơi về Gemini, không retry cả bài
             logger.warning("submission %s: Azure lỗi (%s) — chấm bằng Gemini", submission_id, err)
             # Cờ hiện cho staff (Ghi chú trên trang bài nộp) — KHÔNG nêu tên engine, KHÔNG kèm lỗi thô
@@ -344,13 +439,44 @@ class SubmissionPipeline:
             return None, {}, None
 
         facts = azure_pa.summarize(segments, scripted=reference is not None)
-        if reference is None and not azure_pa.is_ielts(rubric):
+        if intended is not None:
+            facts["mode"] = "intended"  # khác "scripted": văn bản do hệ thống ghi lại, không phải bài đọc
+            facts["intended_transcript"] = intended
+        if not has_reading_text and not azure_pa.is_ielts(rubric):
             await self._core_api.create_flag(
                 submission_id,
-                "Lớp không có bài đọc mẫu — hệ thống chấm phải chấm nói tự do, điểm phát âm của trẻ kém tin cậy",
+                "Lớp không có bài đọc mẫu — hệ thống chấm tự ghi lại lời em đọc để đo; nhập bài đọc của lớp sẽ chính xác hơn"
+                if intended is not None
+                else "Lớp không có bài đọc mẫu — hệ thống chấm phải chấm nói tự do, điểm phát âm của trẻ kém tin cậy",
             )
         overrides = azure_pa.parse_thresholds(await self._config.get("azure.score_thresholds_json"))
         return facts, azure_pa.measure_bands(rubric, facts, overrides), wav_path
+
+    async def _intended_reference(self, submission_id: int, audio_path: str) -> str | None:
+        """Bản ghi lời định nói, hoặc None (⇒ unscripted như trước 2026-10-01). Không bao giờ raise."""
+        try:
+            text, meta = await intended_transcript.transcribe_intended(self._config, audio_path)
+        except Exception as err:  # noqa: BLE001 — thiếu bản ghi chỉ làm giảm độ chính xác, không mất bài
+            logger.warning("submission %s: không ghi được lời định nói (%s) — Azure chấm unscripted", submission_id, err)
+            await self._core_api.create_flag(
+                submission_id, "Không ghi lại được lời em định nói — số đo phát âm theo nhận dạng tự do, kém chính xác hơn"
+            )
+            return None
+        est_usd = estimate_cost_usd(
+            "gemini", meta["model"], meta["input_tokens"], meta["output_tokens"], await self._pricing_overrides()
+        )
+        await self._core_api.create_cost_log(
+            {
+                "submissionId": submission_id,
+                "provider": "gemini",
+                "model": meta["model"],
+                "inputTokens": meta["input_tokens"],
+                "outputTokens": meta["output_tokens"],
+                "estUsd": est_usd,
+                "callType": "intended_transcript",
+            }
+        )
+        return text
 
     async def _analyze_error_clips(
         self,
@@ -359,6 +485,7 @@ class SubmissionPipeline:
         facts: dict[str, Any],
         llm_data: dict[str, Any],
         graded: dict[str, Any],
+        address: str = "em",
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         """Cắt đoạn lỗi → Gemini nghe lại → ghép vào `mispronounced_words` (xem `clip_analysis.py`).
 
@@ -370,7 +497,7 @@ class SubmissionPipeline:
         llm_words = (((llm_data.get("scores") or {}).get("pronunciation") or {}).get("mispronounced_words")) or []
         candidates = clip_analysis.build_candidates(facts, llm_words)
         try:
-            results, meta = await clip_analysis.analyze_error_clips(self._config, wav_path, candidates)
+            results, meta = await clip_analysis.analyze_error_clips(self._config, wav_path, candidates, address)
         except Exception as err:  # noqa: BLE001 — nghe lại là phần làm giàu, không được chặn việc chấm
             logger.warning("submission %s: nghe lại đoạn lỗi thất bại (%s) — giữ danh sách Azure", submission_id, err)
             await self._core_api.create_flag(

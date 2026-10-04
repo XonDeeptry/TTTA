@@ -50,6 +50,7 @@ FIXTURE_PATH = (
 
 # Xóa case là làm yếu lưới đỡ — chốt cứng danh sách tên để việc đó làm test đỏ (AC-03.4).
 REQUIRED_CASE_NAMES = {
+    "v2_comment_bank_band_scripts",
     "v1_legacy_no_schema_version",
     "v2_sub_factors_on_two_dimensions",
     "v2_comment_bank_mixed_grouping",

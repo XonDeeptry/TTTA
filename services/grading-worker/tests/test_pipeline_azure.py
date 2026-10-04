@@ -100,7 +100,11 @@ def _message():
     }
 
 
-def _run(core_api, config, *, run_assessment, grade=None, clips=None):
+# Mặc định: bước ghi "lời định nói" KHÔNG dùng được ⇒ các test cũ giữ đúng hành vi unscripted.
+NO_INTENDED = AsyncMock(side_effect=RuntimeError("no gemini in tests"))
+
+
+def _run(core_api, config, *, run_assessment, grade=None, clips=None, intended=None):
     pipeline = SubmissionPipeline(core_api, config, http=AsyncMock(), publish=AsyncMock())
     grade = grade or AsyncMock(return_value=_llm_result())
     clips = clips or NO_CLIP_RESULTS
@@ -112,6 +116,7 @@ def _run(core_api, config, *, run_assessment, grade=None, clips=None):
         stack.enter_context(patch("grading_worker.pipeline.azure_pa.run_assessment", new=run_assessment))
         stack.enter_context(patch("grading_worker.pipeline.clip_analysis.analyze_error_clips", new=clips))
         stack.enter_context(patch("grading_worker.pipeline.grade_with_fallback", new=grade))
+        stack.enter_context(patch("grading_worker.pipeline.intended_transcript.transcribe_intended", new=intended or NO_INTENDED))
         asyncio.run(pipeline.handle(_message()))
     return grade
 
@@ -221,3 +226,139 @@ def test_without_azure_settings_the_pipeline_is_unchanged(core_api):
     payload = core_api.create_grading.await_args.args[0]
     assert "assessment" not in payload
     assert "ĐÃ ĐƯỢC HỆ THỐNG CHỐT" not in grade.await_args.kwargs["system_instruction"]
+
+
+def test_azure_returning_no_speech_at_all_falls_back_to_gemini_and_keeps_its_words(core_api):
+    # Sự cố 2026-09-26→29: khóa Azure bị từ chối (401) mà SDK chỉ trả phiên rỗng — trước đây coi là
+    # "không có lỗi" và XÓA SẠCH từ đọc sai Gemini nghe được khỏi mọi bài.
+    run = MagicMock(return_value=[])
+    clips = AsyncMock()
+    _run(core_api, _config(AZURE_ON), run_assessment=run, clips=clips)
+
+    payload = core_api.create_grading.await_args.args[0]
+    assert "assessment" not in payload  # không lưu dữ kiện Azure rỗng như thể đã đo
+    assert payload["scores"]["pronunciation"]["mispronounced_words"] == _llm_result().data["scores"]["pronunciation"]["mispronounced_words"]
+    clips.assert_not_awaited()
+    reasons = [c.args[1] for c in core_api.create_flag.await_args_list]
+    assert any("đo phát âm" in r for r in reasons)
+
+
+# ─── Nói tự do: Azure scripted theo lời định nói (đo 11 bài IELTS 2026-10-01) ──────────────────
+
+INTENDED_TEXT = "Gangs are becoming a big problem in many countries"
+
+
+def _no_reading(core_api):
+    core_api.get_student.return_value = {**core_api.get_student.return_value, "readingText": None}
+
+
+def test_free_speech_measures_azure_against_the_intended_transcript_and_logs_its_cost(core_api):
+    _no_reading(core_api)
+    run = MagicMock(return_value=AZURE_SEGMENTS)
+    intended = AsyncMock(return_value=(INTENDED_TEXT, {"model": "gemini-3.6-flash", "input_tokens": 900, "output_tokens": 120}))
+    _run(core_api, _config(AZURE_ON), run_assessment=run, intended=intended)
+
+    assert run.call_args.args[2] == INTENDED_TEXT  # reference_text = lời định nói, không phải None
+    assessment = core_api.create_grading.await_args.args[0]["assessment"]
+    assert assessment["mode"] == "intended" and assessment["intended_transcript"] == INTENDED_TEXT
+    call_types = [c.args[0]["callType"] for c in core_api.create_cost_log.await_args_list]
+    assert "intended_transcript" in call_types
+    log = next(c.args[0] for c in core_api.create_cost_log.await_args_list if c.args[0]["callType"] == "intended_transcript")
+    assert (log["inputTokens"], log["outputTokens"]) == (900, 120)
+
+
+def test_class_reading_text_always_wins_and_no_transcript_call_is_made(core_api):
+    run = MagicMock(return_value=AZURE_SEGMENTS)
+    intended = AsyncMock()
+    _run(core_api, _config(AZURE_ON), run_assessment=run, intended=intended)
+    intended.assert_not_awaited()
+    assert run.call_args.args[2] == "The gate."
+    assert core_api.create_grading.await_args.args[0]["assessment"]["mode"] == "scripted"
+
+
+def test_transcript_failure_falls_back_to_unscripted_with_a_flag_and_never_loses_the_submission(core_api):
+    _no_reading(core_api)
+    run = MagicMock(return_value=AZURE_SEGMENTS)
+    _run(core_api, _config(AZURE_ON), run_assessment=run)  # NO_INTENDED ⇒ raise
+    assert run.call_args.args[2] is None
+    assert core_api.create_grading.await_args.args[0]["assessment"]["mode"] == "unscripted"
+    reasons = [c.args[1] for c in core_api.create_flag.await_args_list]
+    assert any("lời em định nói" in r for r in reasons)
+    assert not any("Gemini" in r or "Azure" in r for r in reasons)
+
+
+# ─── "Đo → Đếm → Viết" giai đoạn 1: chạy NGẦM, không đổi điểm (2026-10-03) ───────────────────────
+
+IELTS_RUBRIC = {
+    "schema_version": 2,
+    "course_key": "ielts",
+    "scale": {"min": 0, "max": 9, "step": 1},
+    "dimensions": [
+        {"key": k, "label": k, "weight": 1, "bands": {"0": ["x"], "9": ["y"]}}
+        for k in ("fluency_coherence", "lexical_resource", "grammatical_range", "pronunciation")
+    ],
+}
+
+
+def _ielts_result():
+    scores = {k: {"score": 6, "comment": "c"} for k in ("fluency_coherence", "lexical_resource", "grammatical_range")}
+    scores["pronunciation"] = {"score": 6, "comment": "c", "mispronounced_words": []}
+    ev = {"grammar_errors": [{"quote": "One the day", "correction": "On the day"}], "lexical_errors": [],
+          "complex_structures": ["because we had to perform"], "advanced_vocabulary": ["choreography"]}
+    return GradingResult(data={"scores": scores, "feedback": "f", "delivery": {"style": "read", "evidence": "e"}, "evidence": ev},
+                         input_tokens=10, output_tokens=5, provider="gemini", model="gemini-3.6-flash")
+
+
+def test_ielts_stores_evidence_measures_and_shadow_bands_without_changing_scores(core_api):
+    core_api.get_criteria.return_value = {"id": 5, "version": 3, "rubric": IELTS_RUBRIC}
+    grade = AsyncMock(return_value=_ielts_result())
+    _run(core_api, _config(AZURE_ON), run_assessment=MagicMock(return_value=AZURE_SEGMENTS), grade=grade)
+
+    assert "evidence" in grade.await_args.kwargs["schema"]["properties"]
+    assert "TRÍCH BẰNG CHỨNG" in grade.await_args.kwargs["system_instruction"]
+    payload = core_api.create_grading.await_args.args[0]
+    a = payload["assessment"]
+    assert a["evidence"]["grammar_errors"][0]["quote"] == "One the day"
+    assert set(a["measures"]) == {"fluency", "language"} and "shadow_bands" in a
+    # Điểm gửi cho giáo viên vẫn là điểm đã chấm — band ngầm KHÔNG thay thế.
+    assert payload["scores"]["grammatical_range"]["score"] == 6 and payload["scores"]["lexical_resource"]["score"] == 6
+
+
+def test_kids_rubric_gets_no_evidence_and_no_shadow_measures(core_api):
+    _run(core_api, _config(AZURE_ON), run_assessment=MagicMock(return_value=AZURE_SEGMENTS))
+    assert "measures" not in core_api.create_grading.await_args.args[0]["assessment"]
+
+
+# ─── "Content (Đọc đủ & đúng chữ)" — tiêu chí thông tin bài đọc to (2026-10-03) ─────────────────
+
+def _kids_with_content():
+    r = dict(KID_RUBRIC)
+    r["dimensions"] = list(KID_RUBRIC["dimensions"]) + [
+        {"key": "reading_accuracy", "label": "Content (Đọc đủ & đúng chữ)", "weight": 1, "in_total": False, "bands": {"0": ["x"], "5": ["y"]}}
+    ]
+    return r
+
+
+def _kid_result_with_content():
+    r = _llm_result()
+    r.data["scores"]["reading_accuracy"] = {"score": 2, "comment": "c"}
+    return r
+
+
+def test_content_is_measured_from_azure_completeness_when_the_class_has_a_reading_text(core_api):
+    core_api.get_criteria.return_value = {"id": 5, "version": 3, "rubric": _kids_with_content()}
+    grade = AsyncMock(return_value=_kid_result_with_content())
+    _run(core_api, _config(AZURE_ON), run_assessment=MagicMock(return_value=AZURE_SEGMENTS), grade=grade)
+    assert "reading_accuracy" in grade.await_args.kwargs["schema"]["properties"]["scores"]["properties"]
+    payload = core_api.create_grading.await_args.args[0]
+    assert payload["assessment"]["measured"]["reading_accuracy"] == {"metric": 100.0, "band": 5}
+    assert payload["scores"]["reading_accuracy"]["score"] == 5  # số đo Azure thắng con số AI đoán
+
+
+def test_content_is_dropped_when_the_class_has_no_reading_text(core_api):
+    core_api.get_student.return_value = {**core_api.get_student.return_value, "readingText": None}
+    core_api.get_criteria.return_value = {"id": 5, "version": 3, "rubric": _kids_with_content()}
+    grade = AsyncMock(return_value=_llm_result())
+    _run(core_api, _config(AZURE_ON), run_assessment=MagicMock(return_value=AZURE_SEGMENTS), grade=grade)
+    assert "reading_accuracy" not in grade.await_args.kwargs["schema"]["properties"]["scores"]["properties"]
+    assert "reading_accuracy" not in core_api.create_grading.await_args.args[0]["scores"]

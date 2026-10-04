@@ -54,8 +54,8 @@ describe('renderStudentMessage', () => {
       { student_reply: { template: '{{feedback}}\n\nCần luyện:\n{{pronunciation_errors}}' } },
       BASE,
     );
-    expect(out).toContain('• 0:43 — "genres" em đọc thành "vee-jurns" → /ˈʒɑːnrəz/');
-    expect(out).toContain('• 2:45 — "instruments" em đọc thành "in-STRU-ments" → /ˈɪnstrəmənts/');
+    expect(out).toContain('• 0:43 — "genres" đọc thành "vee-jurns" → /ˈʒɑːnrəz/');
+    expect(out).toContain('• 2:45 — "instruments" đọc thành "in-STRU-ments" → /ˈɪnstrəmənts/');
   });
 
   it('{{fixes}} gom hướng sửa của mọi tiêu chí', () => {
@@ -193,7 +193,7 @@ describe('renderStudentMessage', () => {
    * Quan sát từ dữ liệu thật 2026-09-06: model dùng `mispronounced_words` cho lỗi CHỌN TỪ
    * (success ↔ successful) và trả `heard_as` trùng hệt `word`. In nguyên sẽ ra câu vô nghĩa.
    */
-  it('heard_as trùng word ⇒ bỏ vế "em đọc thành", vẫn giữ gợi ý', () => {
+  it('heard_as trùng word ⇒ bỏ vế "đọc thành", vẫn giữ gợi ý', () => {
     const out = renderStudentMessage(
       { student_reply: { template: '{{pronunciation_errors}}' } },
       {
@@ -210,7 +210,7 @@ describe('renderStudentMessage', () => {
       },
     );
     expect(out).toBe('• 0:12 — "success" → Dùng \'successful\'.');
-    expect(out).not.toContain('em đọc thành');
+    expect(out).not.toContain('đọc thành');
   });
 
   it('scores sai kiểu ⇒ trả về feedback thay vì ném lỗi', () => {

@@ -123,6 +123,8 @@ function readLevels(rubric: RubricV2): RubricLevel[] {
 interface EffectiveDim {
   key: string;
   weight: number;
+  /** `in_total: false` ⇒ tiêu chí THÔNG TIN: có điểm, không vào tổng/max/cấp độ. */
+  inTotal: boolean;
 }
 
 /** AC-05.7: weight không hữu hạn ⇒ 1 (mặc định của F8); weight âm ⇒ 0. */
@@ -152,7 +154,7 @@ function rubricDimensions(rubric: RubricV2): { dims: EffectiveDim[]; duplicates:
       continue;
     }
     seen.add(key);
-    dims.push({ key, weight: readWeight(ownGet(entry, 'weight')) });
+    dims.push({ key, weight: readWeight(ownGet(entry, 'weight')), inTotal: ownGet(entry, 'in_total') !== false });
   }
   return { dims, duplicates };
 }
@@ -196,14 +198,19 @@ export function computeTotal(rubric: RubricV2, scores: unknown): ComputeTotalRes
    * khóa weight = 1. Mọi rubric v1 cũ (`{band_scale:[0,3]}`) đều đúng hình dạng này — thiếu nhánh
    * này thì bản vá `weight` sẽ âm thầm làm NULL toàn bộ dòng báo cáo lịch sử.
    */
+  // 2026-10-03: tiêu chí `in_total: false` là tiêu chí THÔNG TIN — có điểm + nhận xét gửi học viên
+  // nhưng KHÔNG vào tổng, max hay cấp độ, với MỌI phương thức. Một cờ riêng chứ không dùng weight 0:
+  // weight 0 đã có nghĩa (vẫn đếm — AC-02.5/02.6) và `sum` bỏ qua weight (BR-03). Dùng cho "Đọc đủ &
+  // đúng chữ" của thiếu nhi: thêm tiêu chí thứ 6 mà ngưỡng cấp độ trên tổng 25 vẫn giữ nguyên.
+  const informational = new Set(dims.filter((d) => !d.inTotal).map((d) => d.key));
   const effective: EffectiveDim[] =
     dims.length > 0
-      ? dims
-      : scoreKeys.filter((key) => readScore(bag, key) !== null).map((key) => ({ key, weight: 1 }));
+      ? dims.filter((d) => d.inTotal)
+      : scoreKeys.filter((key) => readScore(bag, key) !== null).map((key) => ({ key, weight: 1, inTotal: true }));
 
   const effectiveKeys = new Set(effective.map((d) => d.key));
   const ignored: string[] = [];
-  for (const key of scoreKeys) if (!effectiveKeys.has(key)) ignored.push(key);
+  for (const key of scoreKeys) if (!effectiveKeys.has(key) && !informational.has(key)) ignored.push(key);
   for (const key of duplicates) if (!ignored.includes(key)) ignored.push(key);
 
   const missing: string[] = [];
@@ -262,9 +269,11 @@ export function computeTotal(rubric: RubricV2, scores: unknown): ComputeTotalRes
  */
 export function maxTotal(rubric: RubricV2): number {
   const { dims } = rubricDimensions(rubric);
-  if (dims.length === 0) return 0;
+  // `in_total: false` = tiêu chí thông tin, không vào tổng — cùng quy tắc với computeTotal.
+  const scored = dims.filter((d) => d.inTotal);
+  if (scored.length === 0) return 0;
   const scale = effectiveScale(rubric);
-  return finite(readMethod(rubric) === 'sum' ? dims.length * scale.max : scale.max);
+  return finite(readMethod(rubric) === 'sum' ? scored.length * scale.max : scale.max);
 }
 
 /**
@@ -300,7 +309,7 @@ function minPossibleTotal(rubric: RubricV2): number {
   const scale = effectiveScale(rubric);
   if (readMethod(rubric) !== 'sum') return finite(scale.min);
   const { dims } = rubricDimensions(rubric);
-  return finite(dims.length * scale.min);
+  return finite(dims.filter((d) => d.inTotal).length * scale.min);
 }
 
 /**

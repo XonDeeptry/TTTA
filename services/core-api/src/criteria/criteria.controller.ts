@@ -29,7 +29,7 @@ import { SetTemplateActiveDto } from './dto/set-template-active.dto';
 import { UpdateRubricTemplateDto } from './dto/update-rubric-template.dto';
 import { UploadCriteriaDto } from './dto/upload-criteria.dto';
 import { renderPrompt } from './prompt-render';
-import { RubricTemplateService, type RubricTemplateView } from './rubric-template.service';
+import { RubricTemplateService, type RubricTemplateView, type TemplateScript, type TemplateScriptsView } from './rubric-template.service';
 
 /**
  * Phân hệ 5 (mục 3.7/3.9): upload .docx, preview rubric JSON — cộng thêm CRUD mẫu cấu trúc
@@ -79,6 +79,19 @@ export class CriteriaController {
   @Get('templates/:key')
   getTemplate(@Param('key') key: string): Promise<RubricTemplateView> {
     return this.templates.get(key);
+  }
+
+  /** Học thuật 2026-10-03: kịch bản nhận xét theo band của một cấu trúc dùng chung. */
+  @Get('templates/:key/scripts')
+  getTemplateScripts(@Param('key') key: string): Promise<TemplateScriptsView> {
+    return this.templates.getScripts(key);
+  }
+
+  /** Thay toàn bộ kịch bản gắn band. Học thuật giữ `criteria_author` — đây là NỘI DUNG, không phải cấu trúc. */
+  @Put('templates/:key/scripts')
+  @RequiresPrivilege('criteria_author', 'rubric_template')
+  saveTemplateScripts(@Param('key') key: string, @Body() body: { scripts: TemplateScript[] }): Promise<TemplateScriptsView> {
+    return this.templates.saveScripts(key, body?.scripts);
   }
 
   /** 3. Tạo mới ⇒ 201. */

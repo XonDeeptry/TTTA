@@ -650,3 +650,55 @@ describe('FR-18 — POST /criteria/templates/:key/reset (khôi phục bản gố
     expect(JSON.stringify(rows[0])).toBe(before);
   });
 });
+
+// ─── Kịch bản nhận xét theo band (học thuật ILM 2026-10-03) ────────────────────────────────────
+
+describe('Kịch bản nhận xét — GET/PUT /criteria/templates/:key/scripts', () => {
+  it('ships 3 default scripts for every criterion × band the defaults cover, and nothing else', async () => {
+    const { prisma } = makePrisma([systemRow('ielts_speaking')]);
+    const service = new RubricTemplateService(prisma as never);
+    const view = await service.getScripts('ielts_speaking');
+    expect(view.bands).toEqual(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
+    const cells = new Map<string, number>();
+    for (const s of view.scripts) cells.set(`${s.dimension}|${s.band}`, (cells.get(`${s.dimension}|${s.band}`) ?? 0) + 1);
+    expect(cells.size).toBe(4 * 7); // 4 tiêu chí × band 3..9
+    expect([...cells.values()].every((n) => n === 3)).toBe(true);
+    // Văn phong: xưng "em", không lời khen chung chung.
+    expect(view.scripts.every((s) => !/\bbạn\b|chúc mừng|ấn tượng|tuyệt vời|hoàn hảo/i.test(s.text))).toBe(true);
+  });
+
+  it('replaces only band scripts, skips blank boxes, keeps unbanded samples', async () => {
+    const { prisma, rows } = makePrisma([systemRow('ielts_speaking')]);
+    const service = new RubricTemplateService(prisma as never);
+    const rubric = normalizeRubric(rows[0].rubric);
+    rows[0].rubric = { ...rubric, comment_bank: [...rubric.comment_bank, { dimension: null, band: null, intent: 'khen', text: 'mẫu cũ không band' }] };
+
+    const view = await service.saveScripts('ielts_speaking', [
+      { dimension: 'pronunciation', band: '6', text: '  Kịch bản mới  ' },
+      { dimension: 'pronunciation', band: '6', text: '   ' },
+    ]);
+    expect(view.scripts).toEqual([{ dimension: 'pronunciation', band: '6', text: 'Kịch bản mới' }]);
+    const bank = normalizeRubric(rows[0].rubric).comment_bank;
+    expect(bank.filter((e) => !e.band).map((e) => e.text)).toEqual(['mẫu cũ không band']);
+  });
+
+  it.each([
+    [{ dimension: 'không_có', band: '6', text: 'x' }, /unknown criterion/],
+    [{ dimension: 'pronunciation', band: '10', text: 'x' }, /band not on this scale/],
+    [{ dimension: 'pronunciation', band: '6', text: 'x'.repeat(1501) }, /longer than/],
+  ])('rejects %j with 400 and writes nothing', async (script, message) => {
+    const { prisma, rows } = makePrisma([systemRow('ielts_speaking')]);
+    const service = new RubricTemplateService(prisma as never);
+    const before = JSON.stringify(rows[0].rubric);
+    await expect(service.saveScripts('ielts_speaking', [script])).rejects.toThrow(message);
+    expect(JSON.stringify(rows[0].rubric)).toBe(before);
+  });
+
+  it('a structure save from the template drawer (comment_bank: []) never wipes the scripts', async () => {
+    const { prisma, rows } = makePrisma([systemRow('ielts_speaking')]);
+    const service = new RubricTemplateService(prisma as never);
+    const before = (await service.getScripts('ielts_speaking')).scripts.length;
+    await service.update('ielts_speaking', { rubric: { ...normalizeRubric(rows[0].rubric), comment_bank: [] } } as never);
+    expect((await service.getScripts('ielts_speaking')).scripts.length).toBe(before);
+  });
+});

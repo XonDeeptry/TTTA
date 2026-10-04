@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api } from '../api/client';
+import { api, ApiError } from '../api/client';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
@@ -11,6 +11,8 @@ interface ZaloBinding {
   id: number;
   zaloUserId: string;
   displayName: string | null;
+  /** Ảnh Zalo đã lưu lần trước — dùng khi Zalo không trả lời (hết hạn mức). */
+  avatarUrl?: string | null;
   status: string;
   /** Lấy trực tiếp từ hồ sơ Zalo (`oa/user/detail`) — có thể vắng khi Zalo không trả lời. */
   zaloDisplayName?: string | null;
@@ -24,6 +26,7 @@ export function Onboarding() {
   const [pending, setPending] = useState<ZaloBinding[]>([]);
   const [phoneDrafts, setPhoneDrafts] = useState<Record<number, string>>({});
   const [activatedId, setActivatedId] = useState<number | null>(null);
+  const [errors, setErrors] = useState<Record<number, string>>({});
 
   function load(): void {
     void api.get<ZaloBinding[]>('/onboarding/pending').then(setPending);
@@ -35,7 +38,23 @@ export function Onboarding() {
     e.preventDefault();
     const phone = phoneDrafts[id];
     if (!phone) return;
-    await api.patch(`/onboarding/${id}/activate`, { phone });
+    try {
+      await api.patch(`/onboarding/${id}/activate`, { phone });
+    } catch (err) {
+      // 409 có hai nghĩa, phân biệt bằng thông điệp server: học viên đã gắn Zalo khác (mỗi em MỘT Zalo),
+      // hoặc SĐT gắn với nhiều học viên (mỗi em SĐT riêng). 404: không có trong danh sách.
+      const key =
+        err instanceof ApiError && err.status === 409
+          ? err.serverMessage?.includes('another Zalo account')
+            ? 'onboarding.alreadyLinked'
+            : 'onboarding.phoneShared'
+          : err instanceof ApiError && err.status === 404
+            ? 'onboarding.phoneNotFound'
+            : 'onboarding.activateError';
+      setErrors((e) => ({ ...e, [id]: t(key) }));
+      return;
+    }
+    setErrors((e) => ({ ...e, [id]: '' }));
     setActivatedId(id);
     load();
   }
@@ -49,8 +68,8 @@ export function Onboarding() {
           <li key={b.id}>
             <Card className="flex flex-wrap items-center justify-between gap-4 p-4">
               <div className="flex items-center gap-3">
-                {b.zaloAvatar ? (
-                  <img src={b.zaloAvatar} alt="" className="h-10 w-10 shrink-0 rounded-full" />
+                {b.zaloAvatar ?? b.avatarUrl ? (
+                  <img src={(b.zaloAvatar ?? b.avatarUrl) as string} alt="" className="h-10 w-10 shrink-0 rounded-full" />
                 ) : null}
                 <div>
                   <strong className="text-body">{b.zaloDisplayName ?? b.displayName ?? b.zaloUserId}</strong>{' '}
@@ -81,6 +100,11 @@ export function Onboarding() {
                 </form>
                 {activatedId === b.id && <Badge variant="success">{t('onboarding.activated')}</Badge>}
               </div>
+              {errors[b.id] ? (
+                <p role="alert" className="w-full text-destructive">
+                  {errors[b.id]}
+                </p>
+              ) : null}
             </Card>
           </li>
         ))}

@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Q_OUTBOUND } from '../contracts';
 import { buildWordReviewRows, findAzureWord, GradingsService, summarizeWordReview } from './gradings.service';
 
@@ -10,6 +10,7 @@ describe('GradingsService', () => {
   };
   let rabbit: { publish: jest.Mock };
   let events: { publishStatus: jest.Mock };
+  let redisStore: Record<string, string>;
   let service: GradingsService;
 
   beforeEach(() => {
@@ -20,7 +21,10 @@ describe('GradingsService', () => {
     };
     rabbit = { publish: jest.fn() };
     events = { publishStatus: jest.fn() };
-    service = new GradingsService(prisma as never, rabbit as never, events as never);
+    // Mặc định: học viên vừa nhắn 1 giờ trước ⇒ trong khung 48h (sự cố 2026-09-29 có test riêng).
+    redisStore = {};
+    const redis = { client: { get: jest.fn(async (k: string) => (k.startsWith('zalo:lastin:') ? String(Date.now() - 3_600_000) : (redisStore[k] ?? null))) } };
+    service = new GradingsService(prisma as never, rabbit as never, events as never, redis as never);
   });
 
   it('reviewFeedback updates reviewedFeedback and reviewedBy', async () => {
@@ -58,6 +62,40 @@ describe('GradingsService', () => {
       });
       expect(prisma.submission.update).toHaveBeenCalledWith({ where: { id: 10 }, data: { status: 'sent' } });
       expect(prisma.grading.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { sentAt: expect.any(Date) } });
+    });
+
+    describe('48h Zalo window (incident 2026-09-29)', () => {
+      const GRADING = { id: 1, submissionId: 10, llmFeedback: 'x', reviewedFeedback: null, submission: { zaloUserId: 'zalo-1' } };
+      const withLastIn = (lastIn: string | null, guard: string | null = null) =>
+        new GradingsService(prisma as never, rabbit as never, events as never, {
+          client: { get: jest.fn(async (k: string) => (k === 'zalo:lastin:zalo-1' ? lastIn : k === 'config:limits.outbound_48h_guard' ? guard : null)) },
+        } as never);
+
+      it.each([
+        ['last message 49h ago', String(Date.now() - 49 * 3_600_000)],
+        ['no inbound message on record', null],
+      ])('refuses with 409 and neither publishes nor marks sent: %s', async (_label, lastIn) => {
+        prisma.grading.findUnique.mockResolvedValue(GRADING);
+        await expect(withLastIn(lastIn).send(1)).rejects.toThrow(ConflictException);
+        expect(rabbit.publish).not.toHaveBeenCalled();
+        expect(prisma.submission.update).not.toHaveBeenCalled();
+        expect(prisma.grading.update).not.toHaveBeenCalled();
+      });
+
+      it('still saves the teacher edits before refusing', async () => {
+        prisma.grading.findUnique.mockResolvedValue(GRADING);
+        await expect(withLastIn(null).send(1, { reviewedFeedback: 'sửa' } as never)).rejects.toThrow(ConflictException);
+        expect(prisma.grading.update).toHaveBeenCalledTimes(1); // bản sửa được lưu, không có sentAt
+        expect(prisma.grading.update.mock.calls[0][0].data).not.toHaveProperty('sentAt');
+      });
+
+      it('sends when the guard is switched off, exactly like the gateway', async () => {
+        prisma.grading.findUnique.mockResolvedValue(GRADING);
+        prisma.submission.update.mockResolvedValue({ id: 10, status: 'sent' });
+        prisma.grading.update.mockResolvedValue({ id: 1 });
+        await withLastIn(null, 'false').send(1);
+        expect(rabbit.publish).toHaveBeenCalled();
+      });
     });
 
     it('publishes a submission:events status change after marking sent (F6)', async () => {

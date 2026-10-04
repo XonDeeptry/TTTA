@@ -34,6 +34,22 @@ _HEADER_ROLE = "Bạn là giáo viên chấm bài nói tiếng Anh cho học vi�
 _CRITERIA_INTRO = "Chấm từng tiêu chí sau theo thang điểm và mô tả band tương ứng:"
 _CLOSING = "Trả về đúng theo schema JSON đã cung cấp — không thêm chữ nào ngoài JSON."
 
+# Học thuật ILM 2026-10-03 (bài 237 chấm 8.0, học thuật đánh giá ≤ 6.0): bỏ lời khen chung chung,
+# chấm thật, nêu lỗi. Áp cho MỌI rubric — `tone` của rubric vẫn giữ, nhưng không còn là cớ để khen.
+_FEEDBACK_RULES = [
+    "NGUYÊN TẮC CHẤM VÀ NHẬN XÉT (học thuật ILM):",
+    "- Chấm ĐÚNG theo mô tả band. KHÔNG nâng điểm để động viên; phân vân giữa hai band thì chọn band thấp hơn.",
+    "- Chỉ cho band X khi bài đạt ĐỦ MỌI mô tả của band X; thiếu bất kỳ mô tả nào của band X thì cho band thấp hơn.",
+    "- Giọng điệu ở trên KHÔNG có nghĩa là khen: không mở đầu bằng lời khen chung chung, không dùng các cụm như 'chúc mừng', 'ấn tượng', 'xuất sắc', 'hoàn hảo', 'tuyệt vời'.",
+    "- Mỗi nhận xét nêu LỖI CHÍNH trước, kèm ví dụ trích nguyên văn từ bài; điểm mạnh (nếu có) chỉ một câu ngắn và phải cụ thể.",
+    "- Xưng hô: theo giọng điệu ở trên (vd. lớp thiếu nhi gọi học viên là 'con'); giọng điệu không nói thì gọi học viên là 'em'. KHÔNG dùng 'bạn'.",
+    "- KHÔNG chào hỏi (vd. 'Cô nhận được bài của … rồi nha') và KHÔNG gọi tên học viên trong nhận xét — vào thẳng nội dung.",
+]
+_BAND_SCRIPT_RULE = (
+    "  (Ví dụ có nhãn band là KỊCH BẢN của đúng band đó: tiêu chí chấm ra band nào thì bám kịch bản của band đó "
+    "nếu có — viết lại bằng lời của mình cho bài này, KHÔNG chép nguyên văn.)"
+)
+
 
 def _band_order(bands: dict[str, list[str]]) -> list[str]:
     """Sắp band tăng dần theo số khi MỌI khóa đều là số; ngược lại giữ nguyên thứ tự chèn.
@@ -98,12 +114,16 @@ def _render_comment_bank(rubric: RubricV2) -> list[str]:
         ordered.append(None)
 
     lines = ["Ví dụ nhận xét mẫu do giáo viên cung cấp (bám theo văn phong này; nhãn [trong ngoặc vuông] chỉ để PHÂN LOẠI ví dụ — TUYỆT ĐỐI KHÔNG chép nhãn đó vào nhận xét trả về):"]
+    if any(entry["band"] for entry in bank):
+        lines.append(_BAND_SCRIPT_RULE)
     for dimension in ordered:
         header = "Dùng chung" if dimension is None else f"Tiêu chí {labels.get(dimension, dimension)}"
         lines.append(f"  {header}:")
         for entry in groups[dimension]:
-            intent = entry["intent"]
-            prefix = f"[{intent}] " if intent else ""
+            tags = [f"band {entry['band']}"] if entry["band"] else []
+            if entry["intent"]:
+                tags.append(entry["intent"])
+            prefix = f"[{' · '.join(tags)}] " if tags else ""
             lines.append(f"    - {prefix}{entry['text']}")
     return lines
 
@@ -125,6 +145,7 @@ def build_system_instruction(rubric: dict[str, Any]) -> str:
     lines.append(_CRITERIA_INTRO)
     lines += _render_dimensions(normalized)
     lines += _render_output_fields_instruction(normalized)
+    lines += _FEEDBACK_RULES
     lines += _render_comment_bank(normalized)
     lines.append(
         "Với tiêu chí 'pronunciation', liệt kê cụ thể từ phát âm sai (nếu có): từ gốc, "

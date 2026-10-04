@@ -33,6 +33,9 @@ export const SETTING_DEFS: SettingDef[] = [
   // 2026-08-25 cho thấy cùng một clip có thể lệch 2 band giữa hai lần chấm, nên đây là núm vặn
   // đầu tiên cần thử khi muốn điểm ổn định hơn (0 = tất định nhất).
   { key: 'llm.temperature', kind: 'number', masked: false },
+  // 2026-10-03: chấm N lượt Gemini song song, lấy TRUNG VỊ mỗi tiêu chí (worker `grading/ensemble.py`).
+  // Cùng file gửi 2 lần ra 6.0 rồi 7.0 ⇒ mặc định 3. 1 = tắt (một lượt như trước). Worker kẹp 1–5.
+  { key: 'llm.grading_runs', kind: 'number', masked: false },
   // Bảng giá bổ sung/ghi đè cho `pricing.py`, dạng JSON {"<model>": [usd_input_1M, usd_output_1M]}.
   // Model chọn được từ UI mà bảng giá lại hardcode thì `est_usd` sẽ về 0 và cảnh báo ngưỡng chi phí
   // (mục 3.12) im lặng — đây là chỗ điền đơn giá thật mà không cần sửa code.

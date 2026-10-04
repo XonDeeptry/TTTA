@@ -29,14 +29,33 @@ describe('StudentsService', () => {
     expect(prisma.student.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: undefined, skip: 0 }));
   });
 
-  it('searches across code, fullName, and phone case-insensitively', async () => {
+  it('searches across code, fullName, phone and the linked Zalo account', async () => {
     await service.list('nam', 1);
     const call = prisma.student.findMany.mock.calls[0][0];
     expect(call.where.OR).toEqual([
       { code: { contains: 'nam', mode: 'insensitive' } },
       { fullName: { contains: 'nam', mode: 'insensitive' } },
       { phone: { contains: 'nam', mode: 'insensitive' } },
+      {
+        bindings: {
+          some: {
+            status: 'active',
+            OR: [{ displayName: { contains: 'nam', mode: 'insensitive' } }, { zaloUserId: { contains: 'nam' } }],
+          },
+        },
+      },
     ]);
+  });
+
+  it('returns each student with only the ACTIVE Zalo links, as `zaloBindings`', async () => {
+    const link = { id: 23, zaloUserId: '402', displayName: 'Yến', avatarUrl: 'https://a', createdAt: new Date(0) };
+    prisma.student.findMany.mockResolvedValue([{ id: 132, code: 'K-1', bindings: [link] }]);
+    const result = await service.list(undefined, 1);
+    expect(result.items).toEqual([{ id: 132, code: 'K-1', zaloBindings: [link] }]);
+    expect(prisma.student.findMany.mock.calls[0][0].include.bindings.where).toEqual({
+      status: 'active',
+      NOT: { zaloUserId: { startsWith: 'test:' } },
+    });
   });
 
   it('paginates using page size 20', async () => {

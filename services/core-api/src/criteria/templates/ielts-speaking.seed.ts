@@ -1,4 +1,5 @@
 import { deepFreeze, type RubricTemplateSeed } from './seed.types';
+import { IELTS_DEFAULT_SCRIPTS } from './default-scripts';
 
 /**
  * Mẫu mặc định #2 — IELTS Speaking, nguồn `Criteria-Source/Analystic-ScoringBand.pdf`, bản chép
@@ -27,7 +28,7 @@ export const IELTS_SPEAKING_SEED: RubricTemplateSeed = deepFreeze({
     schema_version: 2,
     course_key: '',
     task_type: 'speaking_clip',
-    tone: 'khích lệ',
+    tone: 'thẳng thắn, chuyên nghiệp: nêu lỗi cụ thể trước, không khen chung chung',
     feedback_language: 'vi',
     scale: { min: 0, max: 9, step: 1 },
     aggregation: { method: 'average', round: 'nearest_int' },
@@ -37,6 +38,7 @@ export const IELTS_SPEAKING_SEED: RubricTemplateSeed = deepFreeze({
       {
         key: 'fluency_coherence',
         criterion_key: 'FLUENCY',  // bộ tiêu chí chung của trung tâm (D27)
+        in_total: true,
         label: 'Fluency and coherence',
         weight: 1,
         bands: {},
@@ -45,6 +47,7 @@ export const IELTS_SPEAKING_SEED: RubricTemplateSeed = deepFreeze({
       {
         key: 'lexical_resource',
         criterion_key: 'VOCABULARY',  // bộ tiêu chí chung của trung tâm (D27)
+        in_total: true,
         label: 'Lexical resources',
         weight: 1,
         bands: {},
@@ -53,6 +56,7 @@ export const IELTS_SPEAKING_SEED: RubricTemplateSeed = deepFreeze({
       {
         key: 'grammatical_range',
         criterion_key: 'GRAMMAR',  // bộ tiêu chí chung của trung tâm (D27)
+        in_total: true,
         label: 'Grammatical range and accuracy',
         weight: 1,
         bands: {},
@@ -63,13 +67,15 @@ export const IELTS_SPEAKING_SEED: RubricTemplateSeed = deepFreeze({
         // vị trí không quan trọng, SỰ CÓ MẶT mới là điều `assertAuthorableRubric` kiểm.
         key: 'pronunciation',
         criterion_key: 'PRONUNCIATION',  // bộ tiêu chí chung của trung tâm (D27)
+        in_total: true,
         label: 'Pronunciation',
         weight: 1,
         bands: {},
         sub_factors: [],
       },
     ],
-    comment_bank: [],
+    // 2026-10-03: 3 kịch bản / tiêu chí × band, học thuật sửa ở màn "Kịch bản nhận xét" (default-scripts.ts).
+    comment_bank: [...IELTS_DEFAULT_SCRIPTS],
     student_reply: null,
   },
 });

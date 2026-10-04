@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { api } from '../api/client';
+import { api, ApiError } from '../api/client';
 import { useSubmissionEvents } from '../hooks/useSubmissionEvents';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -42,7 +42,9 @@ interface DimensionResult {
 type Scores = Record<string, DimensionResult>;
 
 interface AzureAssessment {
-  mode: 'scripted' | 'unscripted';
+  /** 'intended' (2026-10-01): nói tự do, đo theo lời học viên định nói do hệ thống ghi lại. */
+  mode: 'scripted' | 'unscripted' | 'intended';
+  intended_transcript?: string;
   scores: { accuracy: number | null; fluency: number | null; prosody: number | null; completeness: number | null };
   ending_sounds: number | null;
   word_stress: number | null;
@@ -68,7 +70,7 @@ interface Grading {
     rubric?: {
       scale?: { min?: number; max?: number; step?: number };
       band_scale?: number[];
-      dimensions?: { key?: string; name?: string; label?: string }[];
+      dimensions?: { key?: string; name?: string; label?: string; in_total?: boolean }[];
       student_reply?: { template?: unknown } | null;
     };
   } | null;
@@ -111,7 +113,7 @@ function cloneScores(scores: Scores): Scores {
 }
 
 /** Thang và nhãn lấy từ rubric của CHÍNH bài chấm (có thể là v1 `band_scale`/`name`). */
-function rubricView(grading: Grading) {
+function rubricView(grading: Grading, notInTotal: string) {
   const rubric = grading.criteria?.rubric ?? {};
   const scale = rubric.scale ?? {};
   const legacy = rubric.band_scale ?? [];
@@ -121,7 +123,9 @@ function rubricView(grading: Grading) {
   const labels: Record<string, string> = {};
   for (const d of rubric.dimensions ?? []) {
     const key = d.key ?? d.name;
-    if (key) labels[key] = d.label ?? d.name ?? key;
+    // `in_total: false` (vd. "Đọc đủ & đúng chữ" của thiếu nhi) có điểm nhưng không vào tổng — ghi rõ
+    // để giáo viên không thắc mắc vì sao 6 điểm mà tổng vẫn trên 25.
+    if (key) labels[key] = (d.label ?? d.name ?? key) + (d.in_total === false ? ` (${notInTotal})` : '');
   }
   return { min, max, step, labels };
 }
@@ -224,8 +228,15 @@ export function SubmissionDetail() {
   /** D153: Gửi = lưu bản đang sửa rồi gửi đúng bản đó (core-api làm cả hai trong một lượt gọi). */
   async function send(): Promise<void> {
     if (!data?.grading) return;
-    await api.post(`/gradings/${data.grading.id}/send`, reviewBody());
-    setMessage(t('submissions.sent'));
+    try {
+      await api.post(`/gradings/${data.grading.id}/send`, reviewBody());
+      setMessage(t('submissions.sent'));
+    } catch (err) {
+      // Quá 48h kể từ tin cuối của học viên: Zalo không cho gửi miễn phí. core-api đã LƯU bản sửa
+      // nhưng không gửi — trước 2026-09-29 bài bị báo "Đã gửi" dù học viên không nhận được gì.
+      if (err instanceof ApiError && err.status === 409) setMessage(t('submissions.outside48h'));
+      else throw err;
+    }
     load();
   }
 
@@ -238,7 +249,7 @@ export function SubmissionDetail() {
   if (!data) return null;
   const grading = data.grading;
   const sent = Boolean(grading?.sentAt);
-  const view = grading ? rubricView(grading) : null;
+  const view = grading ? rubricView(grading, t('submissions.notInTotal')) : null;
 
   return (
     <main id="main-content" className="max-w-5xl space-y-6 p-6">
@@ -424,7 +435,14 @@ export function SubmissionDetail() {
                 </Button>
               )}
             </div>
-            {message && <p className="text-body text-muted-foreground">{message}</p>}
+            {message && (
+              <p
+                role={message === t('submissions.outside48h') ? 'alert' : undefined}
+                className={message === t('submissions.outside48h') ? 'text-body font-medium text-destructive' : 'text-body text-muted-foreground'}
+              >
+                {message}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
@@ -534,8 +552,14 @@ function AzurePanel({ assessment }: { assessment: AzureAssessment }) {
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-h2">{t('submissions.azureTitle')}</h2>
-        <Badge variant={assessment.mode === 'scripted' ? 'success' : 'warning'}>
-          {t(assessment.mode === 'scripted' ? 'submissions.azureModeScripted' : 'submissions.azureModeUnscripted')}
+        <Badge variant={assessment.mode === 'scripted' ? 'success' : assessment.mode === 'intended' ? 'secondary' : 'warning'}>
+          {t(
+            assessment.mode === 'scripted'
+              ? 'submissions.azureModeScripted'
+              : assessment.mode === 'intended'
+                ? 'submissions.azureModeIntended'
+                : 'submissions.azureModeUnscripted',
+          )}
         </Badge>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
@@ -546,6 +570,12 @@ function AzurePanel({ assessment }: { assessment: AzureAssessment }) {
         {metric(t('submissions.azureWordStress'), assessment.word_stress)}
         {assessment.mode === 'scripted' && metric(t('submissions.azureCompleteness'), assessment.scores.completeness)}
       </div>
+      {assessment.intended_transcript && (
+        <details className="text-caption text-muted-foreground">
+          <summary className="cursor-pointer">{t('submissions.intendedTranscript')}</summary>
+          <p className="mt-1 whitespace-pre-wrap">{assessment.intended_transcript}</p>
+        </details>
+      )}
       {assessment.transcript && (
         <details className="text-caption text-muted-foreground">
           <summary className="cursor-pointer">{t('submissions.transcript')}</summary>

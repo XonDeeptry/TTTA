@@ -148,9 +148,18 @@ def test_kid_maps_all_five_dimensions_to_azure():
     assert set(azure_pa.measure_bands(KID, facts, {})) == {"pronunciation", "intonation", "ending_sounds", "word_stress", "fluency"}
 
 
-def test_ielts_leaves_lexical_and_grammar_to_gemini():
+def test_ielts_leaves_fluency_lexical_and_grammar_to_gemini():
+    # 2026-10-03: Azure fluency thưởng nhịp ĐỀU (bài 237 đọc thuộc: 89.6 ⇒ band 8, học thuật ≤ 6)
+    # ⇒ IELTS Fluency & coherence không còn do Azure chốt; chỉ phát âm còn đo bằng Azure.
     facts = azure_pa.summarize(SEGMENTS, scripted=False)
-    assert set(azure_pa.measure_bands(IELTS, facts, {})) == {"fluency_coherence", "pronunciation"}
+    assert set(azure_pa.measure_bands(IELTS, facts, {})) == {"pronunciation"}
+
+
+def test_ielts_facts_give_fluency_as_evidence_and_warn_that_steady_is_not_natural():
+    facts = azure_pa.summarize(SEGMENTS, scripted=False)
+    text = azure_pa.build_facts_instruction(IELTS, facts, azure_pa.measure_bands(IELTS, facts, {}))
+    assert "BẠN chấm theo mô tả band" in text and "KHÔNG đo độ tự nhiên" in text
+    assert "đã đo được band" not in text
 
 
 def test_apply_overrides_scores_and_rebuilds_words_with_start_and_end():
@@ -216,3 +225,25 @@ def test_load_settings_requires_key_and_region_and_defaults_language():
     assert asyncio.run(azure_pa.load_azure_settings(_Config({"azure.speech_key": "k"}))) is None
     s = asyncio.run(azure_pa.load_azure_settings(_Config({"azure.speech_key": " k ", "azure.speech_region": "eastus"})))
     assert (s.key, s.region, s.language) == ("k", "eastus", "en-US")
+
+
+def test_facts_instruction_never_orders_an_empty_word_list_and_asks_for_unclear_speech():
+    # Trước 2026-09-29: "để 'mispronounced_words' là mảng rỗng" khi Azure không đánh dấu từ nào.
+    facts = {**azure_pa.summarize(SEGMENTS, scripted=False), "errors": []}
+    text = azure_pa.build_facts_instruction(IELTS, facts, {})
+    assert "mảng rỗng" not in text
+    assert "KHÔNG RÕ" in text and "approx_position_sec" in text
+    with_errors = azure_pa.build_facts_instruction(IELTS, azure_pa.summarize(SEGMENTS, scripted=False), {})
+    assert "KHÔNG RÕ" in with_errors
+
+
+def test_completeness_band_and_omission_listing_for_read_aloud_content():
+    scale = {"min": 0, "max": 5, "step": 1}
+    assert [azure_pa.completeness_band(v, scale) for v in (100, 95, 90, 75, 50, 10)] == [5, 4, 3, 2, 1, 0]
+    assert azure_pa.completeness_band(None, scale) is None
+    facts = {**azure_pa.summarize(SEGMENTS, scripted=True), "words": [
+        {"word": "the", "error_type": "Omission"}, {"word": "big", "error_type": "Insertion"}, {"word": "gate", "error_type": "None"}]}
+    text = azure_pa.build_facts_instruction(KID, facts, {})
+    assert "BỎ the" in text and "THÊM big" in text
+    unscripted = azure_pa.build_facts_instruction(KID, {**facts, "mode": "intended"}, {})
+    assert "BỎ the" not in unscripted  # so với lời định nói thì "bỏ từ" vô nghĩa

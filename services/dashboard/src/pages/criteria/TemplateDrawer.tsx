@@ -60,6 +60,8 @@ interface DimensionDraft {
   weight: string;
   bands: Record<string, string[]>;
   sub_factors: RubricDimensionV2['sub_factors'];
+  /** false = tiêu chí thông tin: có điểm, không vào tổng/max/cấp độ. */
+  in_total: boolean;
 }
 
 interface LevelDraft {
@@ -112,14 +114,14 @@ function blankModel(): TemplateFormModel {
     name: '',
     courseKey: '',
     taskType: 'speaking_clip',
-    tone: 'khích lệ',
+    tone: 'thẳng thắn, chuyên nghiệp: nêu lỗi cụ thể trước, không khen chung chung',
     feedbackLanguage: 'vi',
     scaleMin: '0',
     scaleMax: '5',
     scaleStep: '1',
     aggMethod: 'sum',
     aggRound: 'none',
-    dimensions: [{ key: 'pronunciation', label: 'Phát âm', weight: '1', bands: {}, sub_factors: [] }],
+    dimensions: [{ key: 'pronunciation', label: 'Phát âm', weight: '1', bands: {}, sub_factors: [], in_total: true }],
     levels: [],
     outputComment: true,
     outputFix: true,
@@ -148,6 +150,7 @@ function modelFromRow(key: string, name: string, rubric: RubricV2, locked: strin
       weight: numOrEmpty(d.weight),
       bands: d.bands ?? {},
       sub_factors: d.sub_factors ?? [],
+      in_total: d.in_total !== false,
     })),
     levels: (rubric.levels ?? []).map((lv: RubricLevel) => ({
       min: numOrEmpty(lv.min),
@@ -199,6 +202,7 @@ function rubricFromModel(model: TemplateFormModel): unknown {
       weight: num(d.weight),
       bands: d.bands,
       sub_factors: d.sub_factors,
+      in_total: d.in_total,
     })),
     comment_bank: [],
     student_reply: model.studentReplyEnabled
@@ -705,12 +709,21 @@ export function TemplateDrawer({ open, onClose }: { open: boolean; onClose: () =
                       className="w-24"
                     />
                   </div>
+                  <label className="flex h-10 items-center gap-2 text-body">
+                    <input
+                      type="checkbox"
+                      checked={dim.in_total}
+                      onChange={(e) => setDim(idx, { in_total: e.target.checked })}
+                      className="h-4 w-4 accent-primary"
+                    />
+                    {t('templates.dimInTotal')}
+                  </label>
                   <Button variant="outline" size="icon" aria-label={t('templates.removeDimension', { key: dim.key || idx })} onClick={() => removeDim(idx)}>
                     <IconTrash />
                   </Button>
                 </div>
               ))}
-              <Button variant="outline" onClick={() => setDraft((d) => ({ ...d, dimensions: [...d.dimensions, { key: '', label: '', weight: '1', bands: {}, sub_factors: [] }] }))}>
+              <Button variant="outline" onClick={() => setDraft((d) => ({ ...d, dimensions: [...d.dimensions, { key: '', label: '', weight: '1', bands: {}, sub_factors: [], in_total: true }] }))}>
                 <IconPlus /> {t('templates.addDimension')}
               </Button>
             </section>

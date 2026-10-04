@@ -52,7 +52,34 @@ def test_clip_label_carries_the_target_word_and_azure_weak_phonemes():
     assert "Azure không đánh dấu" in ca.clip_label(5, {"word": "genres", "source": "gemini"})
 
 
-def test_merge_enriches_azure_words_flags_disagreement_and_admits_only_confirmed_gemini_words():
+def test_a_gemini_word_missing_from_the_azure_timeline_is_clipped_around_its_estimate_not_dropped():
+    # Học thuật 2026-09-29: từ đọc sai/không rõ đến mức Azure nghe thành từ khác ⇒ trước đây bị bỏ.
+    cands = ca.build_candidates(FACTS, [{"word": "moving", "approx_position_sec": 44.85, "suggestion": "đọc /uː/"}])
+    assert len(cands) == 3
+    c = cands[2]
+    assert (c["word"], c["source"], c["anchored"], c["approx_sec"]) == ("moving", "gemini", False, 44.85)
+    assert (c["start_sec"], c["end_sec"]) == (44.05, 46.45)
+    assert "ƯỚC LƯỢNG" in ca.clip_label(2, c)
+
+
+def test_merge_keeps_an_unconfirmed_unanchored_word_at_its_estimated_time_for_the_teacher():
+    cands = ca.build_candidates({"errors": [], "words": []}, [{"word": "moving", "approx_position_sec": 44.85}])
+    merged = ca.merge_clip_results([], cands, [{"index": 0, "said": "", "is_error": False, "issue": "", "suggestion": ""}])
+    assert merged == [
+        {
+            "word": "moving", "heard_as": "", "suggestion": ca.UNCLEAR_SUGGESTION, "issue": "",
+            "approx_position_sec": 44.85, "start_sec": 44.85, "source": "gemini",
+            "gemini_confirmed": False, "needs_review": True,
+        }
+    ]
+
+
+def test_clip_instruction_treats_unclear_speech_as_an_error():
+    text = ca.build_clip_instruction()
+    assert "KHÔNG NGHE RÕ" in text and "is_error = true" in text
+
+
+def test_merge_enriches_azure_words_flags_disagreement_and_keeps_unconfirmed_gemini_words_for_review():
     mispronounced = [
         {"word": "musicians", "heard_as": "", "suggestion": "Chú ý âm /ʃ/", "approx_position_sec": 6.85, "start_sec": 6.85, "end_sec": 8.03},
         {"word": "work", "heard_as": "", "suggestion": "Chú ý âm /k/", "approx_position_sec": 27.1, "start_sec": 27.1, "end_sec": 27.61},
@@ -66,7 +93,11 @@ def test_merge_enriches_azure_words_flags_disagreement_and_admits_only_confirmed
     ]
     merged = ca.merge_clip_results(mispronounced, cands, results)
 
-    assert [(w["word"], w["source"]) for w in merged] == [("musicians", "azure"), ("work", "azure"), ("genres", "gemini")]
+    assert [(w["word"], w["source"]) for w in merged] == [
+        ("musicians", "azure"), ("work", "azure"), ("genres", "gemini"), ("genres", "gemini"),
+    ]
+    # Lượt nghe lại không xác nhận ⇒ GIỮ (không bỏ như trước 09-29), gắn cờ để giáo viên nghe lại.
+    assert merged[3]["gemini_confirmed"] is False and merged[3]["needs_review"] is True and merged[3]["start_sec"] == 120.0
     assert merged[0]["heard_as"] == "/ˈmjuːzɪsən/" and merged[0]["gemini_confirmed"] is True and "needs_review" not in merged[0]
     assert merged[1]["needs_review"] is True and merged[1]["suggestion"] == "Chú ý âm /k/"  # giữ, không bịa gợi ý
     assert merged[2] == {
@@ -81,3 +112,12 @@ def test_merge_without_results_keeps_the_azure_list_unchanged_apart_from_source(
     assert ca.merge_clip_results(mispronounced, cands, []) == [
         {"word": "musicians", "heard_as": "", "suggestion": "s", "start_sec": 6.85, "source": "azure"}
     ]
+
+
+def test_clip_instruction_uses_the_rubric_form_of_address():
+    # Giáo viên thiếu nhi viết "con" 131/131 lần khi sửa nhận xét (2026-10-03).
+    kids = ca.address_for({"tone": "thẳng thắn; xưng 'cô', gọi học viên là 'con'"})
+    assert kids == "con" and ca.address_for({"tone": "thẳng thắn"}) == "em" and ca.address_for(None) == "em"
+    text = ca.build_clip_instruction("con")
+    assert "gọi học viên là 'con'" in text and "'Con đặt nhẹ" in text and "nhắc con đọc lại" in text
+    assert "{address" not in text and "gọi học viên là 'em'" not in text

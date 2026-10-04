@@ -80,7 +80,7 @@ describe('WorkerApiController — F9 createGrading (computeTotal + student level
     scale: CAMBRIDGE_YL_SEED.rubric.scale,
     aggregation: CAMBRIDGE_YL_SEED.rubric.aggregation,
     levels: CAMBRIDGE_YL_SEED.rubric.levels,
-    dimensions: CAMBRIDGE_YL_SEED.rubric.dimensions.map((d) => ({ key: d.key })),
+    dimensions: CAMBRIDGE_YL_SEED.rubric.dimensions.map((d) => ({ key: d.key, in_total: d.in_total })),
   };
   const IELTS_RUBRIC = {
     schema_version: 2,

@@ -102,11 +102,15 @@ model ZaloBinding {
   studentId    Int?          @map("student_id")
   student      Student?      @relation(fields: [studentId], references: [id])
   displayName  String?       @map("display_name")
+  avatarUrl    String?       @map("avatar_url")
   status       BindingStatus @default(pending)
   phoneEntered String?       @map("phone_entered")
   createdAt    DateTime      @default(now()) @map("created_at")
 
   @@index([zaloUserId])
+  // + unique index MỘT PHẦN `zalo_bindings_one_active_zalo_per_student` (student_id WHERE active, không
+  //   tính `test:*`) — chỉ có trong migration 20261004090000 vì Prisma 5 không khai báo được. Mỗi học
+  //   viên một Zalo (chủ tịch 2026-10-04). `migrate dev` sẽ đòi DROP nó: bỏ dòng đó đi.
   @@map("zalo_bindings")
 }
 

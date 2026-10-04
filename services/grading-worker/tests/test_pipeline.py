@@ -81,6 +81,7 @@ def config():
     # `get()` trả None tường minh: `_resolve_model` / `_resolve_temperature` / `_pricing_overrides`
     # đều đọc qua nó, và một AsyncMock trần sẽ lọt vào chỗ mong đợi `str | None`.
     cfg.get.return_value = None
+    cfg.last_scripts.return_value = {}  # chưa có kịch bản bài trước
     return cfg
 
 
@@ -364,3 +365,151 @@ async def test_give_up_leaves_non_processing_submission_alone(pipeline, core_api
 
     core_api.update_submission.assert_not_called()
     core_api.create_flag.assert_not_called()
+
+
+# ─── IELTS: đọc/học thuộc ⇒ chỉ gắn cờ (học thuật 2026-10-03, bài 237) ────────────────────────────
+
+IELTS_RUBRIC = {
+    "course_key": "ielts",
+    "band_scale": [0, 9],
+    "feedback_language": "vi",
+    "dimensions": [
+        {"name": "fluency_coherence", "weight": 0.5, "bands": {"0": "kém", "9": "tốt"}},
+        {"name": "pronunciation", "weight": 0.5, "bands": {"0": "kém", "9": "tốt"}},
+    ],
+}
+
+
+async def test_ielts_asks_for_delivery_and_flags_rehearsed_speech_without_capping_the_score(pipeline, core_api):
+    p, _ = pipeline
+    _setup_gradable(core_api, auto_send=False)
+    core_api.get_criteria.return_value = {"id": 5, "version": 2, "rubric": IELTS_RUBRIC}
+    data = {
+        "scores": {
+            "fluency_coherence": {"score": 8, "comment": "c"},
+            "pronunciation": {"score": 8, "comment": "c", "mispronounced_words": []},
+        },
+        "feedback": "f",
+        "delivery": {"style": "rehearsed", "evidence": "Nhịp đều, câu chữ như văn viết."},
+    }
+    grade = AsyncMock(return_value=GradingResult(data=data, input_tokens=1, output_tokens=1, provider="gemini", model="m"))
+    with contextlib.ExitStack() as stack:
+        for cm in _gradable_patches():
+            stack.enter_context(cm)
+        stack.enter_context(patch("grading_worker.pipeline.grade_with_fallback", grade))
+        await p.handle(base_message())
+
+    kwargs = grade.await_args.kwargs
+    assert "delivery" in kwargs["schema"]["required"]
+    assert "PHÂN LOẠI CÁCH NÓI" in kwargs["system_instruction"]
+    assert "NGUYÊN TẮC CHẤM VÀ NHẬN XÉT" in kwargs["system_instruction"]
+    reasons = [c.args[1] for c in core_api.create_flag.await_args_list]
+    assert any("học thuộc" in r for r in reasons)
+    # Không chặn điểm — điểm ghi vào gradings đúng như đã chấm.
+    assert core_api.create_grading.await_args.args[0]["scores"]["fluency_coherence"]["score"] == 8
+
+
+async def test_non_ielts_rubric_gets_no_delivery_field(pipeline, core_api):
+    p, _ = pipeline
+    _setup_gradable(core_api)
+    grade = AsyncMock(return_value=GRADING_RESULT)
+    with contextlib.ExitStack() as stack:
+        for cm in _gradable_patches():
+            stack.enter_context(cm)
+        stack.enter_context(patch("grading_worker.pipeline.grade_with_fallback", grade))
+        await p.handle(base_message())
+    assert "delivery" not in grade.await_args.kwargs["schema"].get("required", [])
+
+
+async def test_template_scripts_from_core_api_reach_the_prompt_one_per_criterion_and_band(pipeline, core_api):
+    p, _ = pipeline
+    _setup_gradable(core_api)
+    scripts = [{"dimension": "fluency", "band": "3", "intent": None, "text": f"KỊCH BẢN-{i}"} for i in range(3)]
+    core_api.get_criteria.return_value = {"id": 5, "version": 2, "rubric": RUBRIC, "templateScripts": scripts}
+    grade = AsyncMock(return_value=GRADING_RESULT)
+    with contextlib.ExitStack() as stack:
+        for cm in _gradable_patches():
+            stack.enter_context(cm)
+        stack.enter_context(patch("grading_worker.pipeline.grade_with_fallback", grade))
+        await p.handle(base_message())
+    prompt = grade.await_args.kwargs["system_instruction"]
+    assert sum(f"KỊCH BẢN-{i}" in prompt for i in range(3)) == 1
+    assert "[band 3]" in prompt and "ĐỦ MỌI mô tả" in prompt
+
+
+async def test_remembers_only_the_script_cell_matching_the_actual_score(pipeline, core_api, config):
+    from grading_worker.grading.comment_scripts import fingerprint
+
+    p, _ = pipeline
+    _setup_gradable(core_api)
+    scripts = [
+        {"dimension": "fluency", "band": "3", "intent": None, "text": "fluency band 3 — duy nhất"},
+        {"dimension": "fluency", "band": "2", "intent": None, "text": "fluency band 2 — không khớp điểm"},
+    ]
+    core_api.get_criteria.return_value = {"id": 5, "version": 2, "rubric": RUBRIC, "templateScripts": scripts}
+    with contextlib.ExitStack() as stack:
+        for cm in _gradable_patches():
+            stack.enter_context(cm)
+        stack.enter_context(patch("grading_worker.pipeline.grade_with_fallback", AsyncMock(return_value=GRADING_RESULT)))
+        await p.handle(base_message())
+    config.last_scripts.assert_awaited_once_with(10)
+    student_id, remembered = config.remember_scripts.await_args.args
+    assert student_id == 10
+    assert remembered == {"fluency|3": fingerprint("fluency band 3 — duy nhất")}  # GRADING_RESULT: fluency = 3
+
+
+# ─── Chấm nhiều lượt, lấy trung vị (2026-10-03) ─────────────────────────────────────────────────
+
+def _result(fluency, pron, comment="c"):
+    return GradingResult(
+        data={
+            "scores": {
+                "fluency": {"score": fluency, "comment": comment},
+                "pronunciation": {"score": pron, "comment": comment, "mispronounced_words": []},
+            },
+            "feedback": "f",
+        },
+        input_tokens=100, output_tokens=50, provider="gemini", model="gemini-2.5-flash",
+    )
+
+
+async def _handle_with(p, core_api, grade):
+    _setup_gradable(core_api)
+    with contextlib.ExitStack() as stack:
+        for cm in _gradable_patches():
+            stack.enter_context(cm)
+        stack.enter_context(patch("grading_worker.pipeline.grade_with_fallback", grade))
+        await p.handle(base_message())
+
+
+async def test_grades_three_times_and_stores_the_median(pipeline, core_api):
+    p, _ = pipeline
+    grade = AsyncMock(side_effect=[_result(3, 1), _result(1, 1), _result(2, 1)])
+    await _handle_with(p, core_api, grade)
+    assert grade.await_count == 3
+    assert core_api.create_grading.await_args.args[0]["scores"]["fluency"]["score"] == 2
+    cost = next(c.args[0] for c in core_api.create_cost_log.await_args_list if c.args[0]["callType"] == "audio_grade")
+    assert (cost["inputTokens"], cost["outputTokens"]) == (300, 150)  # chi phí thật của 3 lượt
+
+
+async def test_one_failed_run_is_dropped_and_grading_still_succeeds(pipeline, core_api):
+    p, _ = pipeline
+    grade = AsyncMock(side_effect=[_result(2, 1), RuntimeError("503"), _result(2, 1)])
+    await _handle_with(p, core_api, grade)
+    assert core_api.create_grading.await_args.args[0]["scores"]["fluency"]["score"] == 2
+
+
+async def test_all_runs_failing_still_raises_so_rabbit_consumer_retries(pipeline, core_api):
+    p, _ = pipeline
+    grade = AsyncMock(side_effect=RuntimeError("503 everywhere"))
+    with pytest.raises(RuntimeError, match="503 everywhere"):
+        await _handle_with(p, core_api, grade)
+    core_api.create_grading.assert_not_awaited()
+
+
+async def test_setting_grading_runs_to_one_turns_the_ensemble_off(pipeline, core_api, config):
+    p, _ = pipeline
+    config.get.side_effect = lambda key: "1" if key == "llm.grading_runs" else None
+    grade = AsyncMock(return_value=_result(2, 1))
+    await _handle_with(p, core_api, grade)
+    assert grade.await_count == 1

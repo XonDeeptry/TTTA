@@ -67,8 +67,23 @@ interface ParsedDimension {
   bands: Record<string, string>;
 }
 
+/**
+ * Bỏ thẻ VÀ giải mã thực thể HTML. mammoth ghi `&` thành `&amp;` — trước 2026-10-03 heading
+ * "Giọng điệu &amp; ngôn ngữ nhận xét" không bao giờ khớp `HEADINGS.tone`, nên giọng điệu và ngôn
+ * ngữ giáo viên ghi trong file .docx bị BỎ QUA âm thầm (rơi về mặc định). Lỗi bị che vì mặc định
+ * cũ trùng đúng chữ "khích lệ" mà test dùng; lộ ra khi đổi mặc định. `&amp;` giải mã CUỐI để
+ * `&amp;lt;` ra `&lt;` chứ không thành `<`.
+ */
 function stripHtmlTags(html: string): string {
-  return html.replace(/<[^>]+>/g, '').trim();
+  return html
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .trim();
 }
 
 /** Tách HTML (do mammoth convertToHtml sinh ra) thành các section theo heading <h1-6>. */
@@ -151,6 +166,7 @@ function toV2Dimension(parsed: ParsedDimension): RubricDimensionV2 {
     // normalizeRubric (spec "produces output that is already a normalizeRubric fixed point").
     // Trả `null` rồi để normalize đổi thành 'PRONUNCIATION' sẽ phá đúng bất biến đó.
     criterion_key: DEFAULT_CRITERION_BY_DIMENSION[key] ?? null,
+    in_total: true,
   };
 }
 
@@ -178,7 +194,7 @@ export function parseRubricFromHtml(html: string): RubricV2 {
     schema_version: 2,
     course_key: general['khóa'],
     task_type: general['loại bài'] ?? 'speaking_clip',
-    tone: toneSection['giọng điệu'] ?? 'khích lệ',
+    tone: toneSection['giọng điệu'] ?? 'thẳng thắn, chuyên nghiệp: nêu lỗi cụ thể trước, không khen chung chung',
     feedback_language: toneSection['ngôn ngữ nhận xét'] ?? 'vi',
     scale: parseScale(general['thang điểm']),
     // .docx chưa soạn được cách tổng hợp điểm / mốc cấp độ / trường `fix` ⇒ mặc định giữ
@@ -187,7 +203,7 @@ export function parseRubricFromHtml(html: string): RubricV2 {
     levels: [],
     output_fields: ['comment'],
     dimensions: dimensions.map(toV2Dimension),
-    comment_bank: examples.map((text) => ({ dimension: null, intent: null, text })),
+    comment_bank: examples.map((text) => ({ dimension: null, band: null, intent: null, text })),
     student_reply: null,
   };
 }

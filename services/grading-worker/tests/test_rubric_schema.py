@@ -46,6 +46,8 @@ V2_TOP_LEVEL_KEYS = {
 
 # Xóa case là làm yếu lưới đỡ — chốt cứng danh sách tên để việc đó làm test đỏ (AC-15.6).
 REQUIRED_CASE_NAMES = {
+    "v2_comment_bank_band_scripts",
+    "v2_in_total_flag",
     "v1_minimal",
     "v1_docx_parser_output",
     "v1_missing_band_scale",
@@ -141,7 +143,7 @@ ALL_DEFAULTS = {
     "schema_version": 2,
     "course_key": "",
     "task_type": "speaking_clip",
-    "tone": "khích lệ",
+    "tone": "thẳng thắn, chuyên nghiệp: nêu lỗi cụ thể trước, không khen chung chung",
     "feedback_language": "vi",
     "scale": {"min": 0, "max": 3, "step": 1},
     "aggregation": {"method": "average", "round": "none"},
@@ -183,8 +185,8 @@ def test_drops_blank_comment_bank_entries_and_nulls_non_string_dimension_intent(
         }
     )
     assert out["comment_bank"] == [
-        {"dimension": "pronunciation", "intent": "khen", "text": "giữ lại"},
-        {"dimension": None, "intent": None, "text": "giữ lại 2"},
+        {"dimension": "pronunciation", "band": None, "intent": "khen", "text": "giữ lại"},
+        {"dimension": None, "band": None, "intent": None, "text": "giữ lại 2"},
     ]
 
 
@@ -317,9 +319,9 @@ def test_treats_an_explicit_null_comment_text_as_absent_but_keeps_false_and_zero
         }
     )
     assert out["comment_bank"] == [
-        {"dimension": "p", "intent": "khen", "text": "false"},
-        {"dimension": "p", "intent": "khen", "text": "0"},
-        {"dimension": "p", "intent": "khen", "text": "a,b"},
+        {"dimension": "p", "band": None, "intent": "khen", "text": "false"},
+        {"dimension": "p", "band": None, "intent": "khen", "text": "0"},
+        {"dimension": "p", "band": None, "intent": "khen", "text": "a,b"},
     ]
 
 

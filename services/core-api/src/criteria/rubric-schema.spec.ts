@@ -39,6 +39,8 @@ const V2_TOP_LEVEL_KEYS = [
 
 /** Xóa case là làm yếu lưới đỡ — chốt cứng danh sách tên để việc đó làm test đỏ (AC-15.6). */
 const REQUIRED_CASE_NAMES = [
+  'v2_comment_bank_band_scripts',
+  'v2_in_total_flag',
   'v1_minimal',
   'v1_docx_parser_output',
   'v1_missing_band_scale',
@@ -90,7 +92,7 @@ describe('normalizeRubric — degenerate input (FR-05)', () => {
     schema_version: 2,
     course_key: '',
     task_type: 'speaking_clip',
-    tone: 'khích lệ',
+    tone: 'thẳng thắn, chuyên nghiệp: nêu lỗi cụ thể trước, không khen chung chung',
     feedback_language: 'vi',
     scale: { min: 0, max: 3, step: 1 },
     aggregation: { method: 'average', round: 'none' },
@@ -152,8 +154,8 @@ describe('normalizeRubric — degenerate input (FR-05)', () => {
       ],
     });
     expect(out.comment_bank).toEqual([
-      { dimension: 'pronunciation', intent: 'khen', text: 'giữ lại' },
-      { dimension: null, intent: null, text: 'giữ lại 2' },
+      { dimension: 'pronunciation', band: null, intent: 'khen', text: 'giữ lại' },
+      { dimension: null, band: null, intent: null, text: 'giữ lại 2' },
     ]);
   });
 
@@ -269,9 +271,9 @@ describe('normalizeRubric — JS String() semantics on non-string values (AC-03.
       ],
     });
     expect(out.comment_bank).toEqual([
-      { dimension: 'p', intent: 'khen', text: 'false' },
-      { dimension: 'p', intent: 'khen', text: '0' },
-      { dimension: 'p', intent: 'khen', text: 'a,b' },
+      { dimension: 'p', band: null, intent: 'khen', text: 'false' },
+      { dimension: 'p', band: null, intent: 'khen', text: '0' },
+      { dimension: 'p', band: null, intent: 'khen', text: 'a,b' },
     ]);
   });
 

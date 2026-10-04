@@ -53,10 +53,14 @@ export interface RubricDimensionV2 {
   weight: number;
   bands: Record<string, string[]>;
   sub_factors: RubricSubFactor[];
+  /** `false` = tiêu chí thông tin: có điểm, không vào tổng/max/cấp độ. Thiếu ⇒ true. */
+  in_total?: boolean;
 }
 
 export interface CommentBankEntry {
   dimension: string | null;
+  /** Học thuật 2026-10-03: kịch bản cho đúng band này (chuỗi, vd "6"); null = mọi band. */
+  band: string | null;
   intent: string | null;
   text: string;
 }
@@ -143,6 +147,7 @@ function readLevels(rubric: RubricV2): RubricLevel[] {
 interface EffectiveDim {
   key: string;
   weight: number;
+  inTotal: boolean;
 }
 
 function readWeight(raw: unknown): number {
@@ -161,17 +166,17 @@ function rubricDimensions(rubric: RubricV2): { dims: EffectiveDim[] } {
     const key = ownGet(entry, 'key');
     if (typeof key !== 'string' || key.length === 0 || seen.has(key)) continue;
     seen.add(key);
-    dims.push({ key, weight: readWeight(ownGet(entry, 'weight')) });
+    dims.push({ key, weight: readWeight(ownGet(entry, 'weight')), inTotal: ownGet(entry, 'in_total') !== false });
   }
   return { dims };
 }
 
-/** Port of `rubric-scoring.ts::maxTotal` — same rule: `dimensions` empty ⇒ 0. */
+/** Port of `rubric-scoring.ts::maxTotal` — same rule: `dimensions` empty ⇒ 0; `in_total: false` is not counted. */
 export function maxTotal(rubric: RubricV2): number {
-  const { dims } = rubricDimensions(rubric);
-  if (dims.length === 0) return 0;
+  const scored = rubricDimensions(rubric).dims.filter((d) => d.inTotal);
+  if (scored.length === 0) return 0;
   const scale = effectiveScale(rubric);
-  return finite(readMethod(rubric) === 'sum' ? dims.length * scale.max : scale.max);
+  return finite(readMethod(rubric) === 'sum' ? scored.length * scale.max : scale.max);
 }
 
 function granularity(rubric: RubricV2): number {
@@ -185,7 +190,7 @@ function minPossibleTotal(rubric: RubricV2): number {
   const scale = effectiveScale(rubric);
   if (readMethod(rubric) !== 'sum') return finite(scale.min);
   const { dims } = rubricDimensions(rubric);
-  return finite(dims.length * scale.min);
+  return finite(dims.filter((d) => d.inTotal).length * scale.min);
 }
 
 export type LevelIssueCode =

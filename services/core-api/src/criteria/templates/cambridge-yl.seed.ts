@@ -1,4 +1,6 @@
 import { deepFreeze, type RubricTemplateSeed } from './seed.types';
+import { CAMBRIDGE_DEFAULT_SCRIPTS } from './default-scripts';
+import { READING_ACCURACY_DIMENSION } from './reading-accuracy';
 
 /**
  * Mẫu mặc định #1 — Cambridge Young Learners (A0–A2), nguồn `Criteria-Source/RubricSpeakingA0-C.pdf`,
@@ -26,7 +28,7 @@ export const CAMBRIDGE_YL_SEED: RubricTemplateSeed = deepFreeze({
     // Rỗng: mẫu KHÔNG gắn với một khóa cụ thể nào. Giá trị thật được điền lúc soạn `criteria`.
     course_key: '',
     task_type: 'speaking_clip',
-    tone: 'khích lệ',
+    tone: "thẳng thắn, chuyên nghiệp: nêu lỗi cụ thể trước, không khen chung chung; xưng 'cô', gọi học viên là 'con'",
     feedback_language: 'vi',
     scale: { min: 0, max: 5, step: 1 },
     aggregation: { method: 'sum', round: 'none' },
@@ -42,6 +44,7 @@ export const CAMBRIDGE_YL_SEED: RubricTemplateSeed = deepFreeze({
         // Dimension BẮT BUỘC (kiến trúc mục 3.10) — luôn đứng đầu danh sách.
         key: 'pronunciation',
         criterion_key: 'PRONUNCIATION',  // bộ tiêu chí chung của trung tâm (D27)
+        in_total: true,
         label: 'Pronunciation (Âm chính)',
         weight: 1,
         bands: {
@@ -53,6 +56,7 @@ export const CAMBRIDGE_YL_SEED: RubricTemplateSeed = deepFreeze({
       {
         key: 'intonation',
         criterion_key: 'INTONATION',  // bộ tiêu chí chung của trung tâm (D27)
+        in_total: true,
         label: 'Intonation (Ngữ điệu)',
         weight: 1,
         bands: {
@@ -64,6 +68,7 @@ export const CAMBRIDGE_YL_SEED: RubricTemplateSeed = deepFreeze({
       {
         key: 'ending_sounds',
         criterion_key: 'ENDING_SOUNDS',  // bộ tiêu chí chung của trung tâm (D27)
+        in_total: true,
         label: 'Ending sounds (Âm đuôi)',
         weight: 1,
         bands: {
@@ -75,6 +80,7 @@ export const CAMBRIDGE_YL_SEED: RubricTemplateSeed = deepFreeze({
       {
         key: 'word_stress',
         criterion_key: 'WORD_STRESS',  // bộ tiêu chí chung của trung tâm (D27)
+        in_total: true,
         label: 'Word Stress (Trọng âm từ/cụm)',
         weight: 1,
         bands: {
@@ -86,6 +92,7 @@ export const CAMBRIDGE_YL_SEED: RubricTemplateSeed = deepFreeze({
       {
         key: 'fluency',
         criterion_key: 'FLUENCY',  // bộ tiêu chí chung của trung tâm (D27)
+        in_total: true,
         label: 'Fluency (Trôi chảy)',
         weight: 1,
         bands: {
@@ -94,8 +101,11 @@ export const CAMBRIDGE_YL_SEED: RubricTemplateSeed = deepFreeze({
         },
         sub_factors: [],
       },
+      // 2026-10-03: tiêu chí thông tin (weight 0) cho bài đọc to — xem reading-accuracy.ts.
+      { ...READING_ACCURACY_DIMENSION, bands: { ...READING_ACCURACY_DIMENSION.bands } },
     ],
-    comment_bank: [],
+    // 2026-10-03: 3 kịch bản / tiêu chí × band, học thuật sửa ở màn "Kịch bản nhận xét" (default-scripts.ts).
+    comment_bank: [...CAMBRIDGE_DEFAULT_SCRIPTS],
     student_reply: null,
   },
 });

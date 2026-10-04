@@ -87,10 +87,16 @@ class RubricDimensionV2(TypedDict):
     # None = chưa ánh xạ được — điểm vẫn tồn tại và xuống kho phân tích dưới `UNMAPPED`,
     # KHÔNG bị bỏ đi, để độ lớn của lỗ hổng nhìn thấy được.
     criterion_key: str | None
+    # False = tiêu chí THÔNG TIN (2026-10-03): có điểm + nhận xét nhưng KHÔNG vào tổng, max hay cấp
+    # độ (`computeTotal` ở core-api). Chỉ đúng boolean False mới tắt; thiếu / giá trị khác ⇒ True.
+    in_total: bool
 
 
 class CommentBankEntry(TypedDict):
     dimension: str | None  # None = dùng chung mọi tiêu chí
+    # Học thuật 2026-10-03: "kịch bản" nhận xét theo band (khóa band dạng chuỗi, vd "6"); mỗi
+    # tiêu chí × band nên có ≥3 kịch bản, worker bốc NGẪU NHIÊN một cái mỗi bài. None = mọi band.
+    band: str | None
     intent: str | None  # "khen" | "góp ý" | ... (chuỗi tự do); None = không phân loại
     text: str
 
@@ -126,7 +132,7 @@ class RubricV2(TypedDict):
 # [0,3] của schema.py cũ, và `DEFAULT_BAND_MAX = 3` của reports.service.ts.
 DEFAULT_SCALE: RubricScale = {"min": 0, "max": 3, "step": 1}
 _DEFAULT_TASK_TYPE = "speaking_clip"
-_DEFAULT_TONE = "khích lệ"
+_DEFAULT_TONE = "thẳng thắn, chuyên nghiệp: nêu lỗi cụ thể trước, không khen chung chung"  # chủ dự án 2026-10-03: bỏ "khích lệ"
 _DEFAULT_FEEDBACK_LANGUAGE = "vi"
 
 _AGGREGATION_METHODS = ("sum", "average", "weighted_average")
@@ -390,6 +396,8 @@ def _normalize_dimension(raw: dict[str, Any], is_v2: bool) -> RubricDimensionV2:
         "bands": _normalize_bands(raw.get("bands")),
         "sub_factors": _normalize_sub_factors(raw.get("sub_factors")),
         "criterion_key": criterion_key,
+        # `is not False` khớp `!== false` của JS: 0, None, "false" đều KHÔNG tắt.
+        "in_total": raw.get("in_total") is not False,
     }
 
 
@@ -419,6 +427,7 @@ def _normalize_comment_bank(raw: dict[str, Any]) -> list[CommentBankEntry]:
             entries.append(
                 {
                     "dimension": _as_string(item.get("dimension")),
+                    "band": _as_string(item.get("band")),
                     "intent": _as_string(item.get("intent")),
                     "text": text,
                 }
@@ -432,7 +441,7 @@ def _normalize_comment_bank(raw: dict[str, Any]) -> list[CommentBankEntry]:
             text = _js_trim(_to_text(example))
             if not text:
                 continue
-            entries.append({"dimension": None, "intent": None, "text": text})
+            entries.append({"dimension": None, "band": None, "intent": None, "text": text})
         return entries
 
     return []
